@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -12,6 +12,6 @@ class FilterState:
     conditions: List[str] = field(default_factory=list)
 
     merge_genes: bool = False
-    split_by_condition = False
+    split_by_condition: bool = False
     color_scale = "viridis"
 
