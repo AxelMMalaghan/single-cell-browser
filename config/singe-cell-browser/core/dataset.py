@@ -23,7 +23,6 @@ class Dataset:
         """
         Create from a JSON config block
         """
-
         file_path = Path(entry["file_path"])
         adata = ad.read_h5ad(file_path)
         return cls(

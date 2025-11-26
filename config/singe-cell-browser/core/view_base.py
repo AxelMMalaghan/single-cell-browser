@@ -9,7 +9,7 @@ from .dataset import Dataset
 from .state import FilterState
 
 
-class base_view(ABC):
+class BaseView(ABC):
     """
     Base class for all plots
 
