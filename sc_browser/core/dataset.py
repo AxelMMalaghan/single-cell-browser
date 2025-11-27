@@ -26,6 +26,8 @@ class Dataset:
         cluster_key: str,
         condition_key: str,
         embedding_key: str,
+        de_condition: Optional[pd.DataFrame] = None,
+        de_cluster: Optional[pd.DataFrame] = None,
     ) -> None:
         self.name = name
         self.group = group
@@ -33,6 +35,8 @@ class Dataset:
         self.cluster_key = cluster_key
         self.condition_key = condition_key
         self.embedding_key = embedding_key
+        self.de_condition = de_condition
+        self.de_cluster = de_cluster
 
     # ---------- factory from config ----------
 
@@ -50,6 +54,17 @@ class Dataset:
         file_path = Path(file_value)
         adata = ad.read_h5ad(file_path)
 
+        de_condition = None
+        de_cluster = None
+
+        condition_path = entry.get("de_condition_file")
+        if condition_path:
+            de_condition = pd.read_csv(condition_path)
+
+        cluster_path = entry.get("de_cluster_file")
+        if cluster_path:
+            de_cluster = pd.read_csv(cluster_path)
+
         return cls(
             name=entry["name"],
             group=entry["group"],
@@ -57,6 +72,8 @@ class Dataset:
             cluster_key=entry["cluster_key"],
             condition_key=entry["condition_key"],
             embedding_key=entry["embedding_key"],
+            de_condition=de_condition,
+            de_cluster=de_cluster,
         )
 
     # ---------- convenience accessors ----------
@@ -85,6 +102,8 @@ class Dataset:
             index=self.adata.obs.index,
             columns=[f"dim{i+1}" for i in range(emb.shape[1])],
         )
+
+
 
     # ---------- subsetting ----------
 
