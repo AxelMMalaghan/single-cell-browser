@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 from sc_browser.config import load_datasets
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
-from sc_browser.views import ClusterView
+from sc_browser.views import ClusterView, ExpressionView, FeatureCountView
 
 def create_dash_app() -> Dash:
 
@@ -18,6 +18,8 @@ def create_dash_app() -> Dash:
     # --- Setup view registry ---
     registry = ViewRegistry()
     registry.register(ClusterView)
+    registry.register(ExpressionView)
+    registry.register(FeatureCountView)
 
     app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -54,6 +56,16 @@ def create_dash_app() -> Dash:
                             ],
                             multi=True,
                             placeholder="Filter conditions (optional)",
+                            style={"margin-bottom": "1rem"},
+                        ),
+                        dcc.Dropdown(
+                            id="gene-select",
+                            options=[
+                                {"label": g, "value": g}
+                                for g in sorted(default_dataset.adata.var_names)
+                            ],
+                            multi=True,
+                            placeholder="Select gene(s)",
                             style={"margin-bottom": "1rem"},
                         ),
                         dbc.Checklist(
@@ -93,6 +105,7 @@ def create_dash_app() -> Dash:
     @app.callback(
         Output("cluster-select", "options"),
         Output("condition-select", "options"),
+        Output("gene-select", "options"),
         Input("dataset-select", "value")
     )
 
@@ -101,7 +114,8 @@ def create_dash_app() -> Dash:
         ds = dataset_by_name[dataset_name]
         cluster_options = [{"label": c, "value": c} for c in sorted(ds.clusters.unique())]
         condition_options = [{"label": c, "value": c} for c in sorted(ds.conditions.unique())]
-        return cluster_options, condition_options
+        gene_options = [{"label": g, "value": g} for g in sorted(ds.genes.unique())]
+        return cluster_options, condition_options, gene_options
 
     @app.callback(
         Output("main-graph", "figure"),
@@ -109,15 +123,18 @@ def create_dash_app() -> Dash:
         Input("dataset-select", "value"),
         Input("cluster-select", "value"),
         Input("condition-select", "value"),
+        Input("gene-select", "value"),
         Input("options-checklist", "value"),
     )
 
-    def update_main_graph(view_id, dataset_name, clusters, conditions, options):
+    def update_main_graph(view_id, dataset_name, clusters, conditions, genes, options):
         ds = dataset_by_name[dataset_name]
 
-        state = FilterState(clusters=clusters or [],
-                            conditions=conditions or [],
-                            split_by_condition="split_by_condition" in (options or []),
+        state = FilterState(
+            clusters=clusters or [],
+            conditions=conditions or [],
+            genes=genes or [],
+            split_by_condition="split_by_condition" in (options or []),
         )
 
         view = registry.create(view_id, ds)
