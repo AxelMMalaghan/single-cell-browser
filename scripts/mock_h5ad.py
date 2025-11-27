@@ -3,33 +3,26 @@ import pandas as pd
 import anndata as ad
 from pathlib import Path
 
-# Tiny toy dataset
-n_cells = 10000
-n_genes = 5000
+n_cells = 100
+n_genes = 50
 
-X = np.random.poisson(1.0, size=(n_cells, n_genes)).astype(np.float32)
+X = np.random.poisson(lam=1.0, size=(n_cells, n_genes))
 
 obs = pd.DataFrame(
     {
-        "X__cluster": np.random.choice(["C0", "C1", "C2"], size=n_cells),
-        "condition": np.random.choice(["Ctrl", "Stim"], size=n_cells),
+        "cluster":   np.random.choice(["C0", "C1", "C2"], size=n_cells),
+        "condition": np.random.choice(["ctrl", "stim"], size=n_cells),
     },
-    index=[f"cell{i}" for i in range(n_cells)],
+    index=[f"cell_{i}" for i in range(n_cells)],
 )
 
-var = pd.DataFrame(
-    index=[f"gene{i}" for i in range(n_genes)]
-)
+var = pd.DataFrame(index=[f"gene_{j}" for j in range(n_genes)])
 
-# Fake UMAP embedding
-obsm = {
-    "X_umap": np.random.normal(size=(n_cells, 2)).astype(np.float32)
-}
+umap = np.random.normal(size=(n_cells, 2))
 
-adata = ad.AnnData(X=X, obs=obs, var=var, obsm=obsm)
+adata = ad.AnnData(X=X, obs=obs, var=var)
+adata.obsm["X_umap"] = umap
 
-out_path = Path("../data/demo.h5ad")
-out_path.parent.mkdir(parents=True, exist_ok=True)
-adata.write_h5ad(out_path)
-
-print("Wrote", out_path.resolve())
+Path("data").mkdir(exist_ok=True)
+adata.write_h5ad("data/demo.h5ad")
+print("wrote data/demo.h5ad", adata.shape)
