@@ -1,5 +1,3 @@
-# sc_browser/ui/dash_app.py (only the layout part changed)
-
 from __future__ import annotations
 
 from dash import Dash, dcc, html, Input, Output

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pandas as pd
 import plotly.express as px
 from plotly.graph_objs import Figure
 
-from ..core.dataset import Dataset
 from ..core.state import FilterState
 from ..core.view_base import BaseView
 

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
-
-from sc_browser.core.dataset import Dataset
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_base import BaseView
 
