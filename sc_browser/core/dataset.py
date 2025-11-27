@@ -13,9 +13,13 @@ class Dataset:
     """
     Domain wrapper around an AnnData object, plus config metadata.
 
-    This isolates all the "what is the cluster column called", "which embedding
-    do we use", etc. so the rest of the app doesn't depend directly on AnnData
-    internals.
+    This class hides all the AnnData- and schema specific details from the rest of the app
+
+    Design goals:
+    - Provide a stale, typed interface for views and other users to access clusters, conditions, genes, and embeddings
+    without depending on the underlying AnnData structure.
+    - Centralise config-driven concerns such as column keys so that changing schema only requires changes in one place.
+    - Cheap creation of filtered views of the data via subset() without exposing raw AnnData objects.
     """
 
     def __init__(
@@ -26,8 +30,7 @@ class Dataset:
         cluster_key: str,
         condition_key: str,
         embedding_key: str,
-        de_condition: Optional[pd.DataFrame] = None,
-        de_cluster: Optional[pd.DataFrame] = None,
+
     ) -> None:
         self.name = name
         self.group = group
@@ -35,18 +38,29 @@ class Dataset:
         self.cluster_key = cluster_key
         self.condition_key = condition_key
         self.embedding_key = embedding_key
-        self.de_condition = de_condition
-        self.de_cluster = de_cluster
-
-    # ---------- factory from config ----------
 
     @classmethod
     def from_config_entry(cls, entry: dict) -> "Dataset":
         """
-        Build a Dataset from a config.json entry.
+        Build a Dataset from a config.json file.
 
-        Supports either "file" or "file_path" as the path key.
+        The entry is expected to have at least:
+        - "name":           display name for dataset
+        - "group":          grouping label for dataset
+        - "cluster_key":    obs column name for clusters
+        - "condition_key":  obs column name for conditions
+        - "embedding_key":   obsm key for embedding
+
+        It also needs a file path to an .h5ad file, given by either:
+        - "file_path"
+        - "file"
+
+        This factory keeps all file I/O and schema wiring in one place so that callers (and views) just deal with the Dataset Abstraction
+
+        Raises:
+            KeyError: if file or file path does not exist
         """
+
         file_value = entry.get("file_path") or entry.get("file")
         if file_value is None:
             raise KeyError("Config entry must contain 'file' or 'file_path'")
@@ -54,29 +68,56 @@ class Dataset:
         file_path = Path(file_value)
         adata = ad.read_h5ad(file_path)
 
-        de_condition = None
-        de_cluster = None
-
-        condition_path = entry.get("de_condition_file")
-        if condition_path:
-            de_condition = pd.read_csv(condition_path)
-
-        cluster_path = entry.get("de_cluster_file")
-        if cluster_path:
-            de_cluster = pd.read_csv(cluster_path)
-
         return cls(
             name=entry["name"],
             group=entry["group"],
             adata=adata,
             cluster_key=entry["cluster_key"],
             condition_key=entry["condition_key"],
-            embedding_key=entry["embedding_key"],
-            de_condition=de_condition,
-            de_cluster=de_cluster,
+            embedding_key=entry["embedding_key"]
         )
 
-    # ---------- convenience accessors ----------
+
+    def subset(
+        self,
+        clusters: Optional[List[str]] = None,
+        conditions: Optional[List[str]] = None,
+    ) -> "Dataset":
+        """
+        Return a new Dataset filtered by cluster and/or condition.
+
+        This method builds a boolean mask over obs using the configured cluster and condition keys, subsets the
+        underlying AnnData and wraps the result in a new Dataset instances the preserves all metadata.
+        (name, group, key names, embedding key)
+
+        :param clusters: cluster labels as a string or list of cluster labels as a string, if None or empty, no filtering is applied
+        :param conditions: condition labels as a string or list of condition labels as a string, if None or empty, no filtering is applied
+
+        :return a new Dataset object backed by a copy of the filtered AnnData
+
+        Notes:
+        This keeps callers working with the Dataset abstraction rather than slicing AnnData directly
+        """
+        mask = pd.Series(True, index=self.adata.obs.index)
+
+        if clusters:
+            mask = mask & self.clusters.isin(clusters)
+        if conditions:
+            mask = mask & self.conditions.isin(conditions)
+
+        sub = self.adata[mask].copy()
+
+        return Dataset(
+            name=self.name,
+            group=self.group,
+            adata=sub,
+            cluster_key=self.cluster_key,
+            condition_key=self.condition_key,
+            embedding_key=self.embedding_key,
+        )
+
+
+    # --- Getters ---
 
     @property
     def clusters(self) -> pd.Series:
@@ -100,35 +141,5 @@ class Dataset:
         return pd.DataFrame(
             emb,
             index=self.adata.obs.index,
-            columns=[f"dim{i+1}" for i in range(emb.shape[1])],
-        )
-
-
-
-    # ---------- subsetting ----------
-
-    def subset(
-        self,
-        clusters: Optional[List[str]] = None,
-        conditions: Optional[List[str]] = None,
-    ) -> "Dataset":
-        """
-        Return a new Dataset filtered by cluster and/or condition.
-        """
-        mask = pd.Series(True, index=self.adata.obs.index)
-
-        if clusters:
-            mask = mask & self.clusters.isin(clusters)
-        if conditions:
-            mask = mask & self.conditions.isin(conditions)
-
-        sub = self.adata[mask].copy()
-
-        return Dataset(
-            name=self.name,
-            group=self.group,
-            adata=sub,
-            cluster_key=self.cluster_key,
-            condition_key=self.condition_key,
-            embedding_key=self.embedding_key,
+            columns=[f"dim{i + 1}" for i in range(emb.shape[1])],
         )
