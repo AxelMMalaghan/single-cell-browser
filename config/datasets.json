@@ -7,8 +7,10 @@
     {
       "name": "Demo dataset",
       "group": "Example",
+
       "file": "data/demo.h5ad",
-      "cluster_key": "X__cluster",
+
+      "cluster_key": "cluster",
       "condition_key": "condition",
       "embedding_key": "X_umap"
     }

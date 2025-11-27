@@ -11,7 +11,8 @@ class FilterState:
     clusters: List[str] = field(default_factory=list)
     conditions: List[str] = field(default_factory=list)
 
+
     merge_genes: bool = False
     split_by_condition: bool = False
-    color_scale = "viridis"
+    color_scale: str = "viridis"
 
