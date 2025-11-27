@@ -14,8 +14,8 @@ def main() -> None:
     data_dir.mkdir(exist_ok=True)
 
     # ---- basic sizes ----
-    n_cells = 500
-    n_genes = 200
+    n_cells = 10000
+    n_genes = 5000
 
     rng = np.random.default_rng(42)
 
