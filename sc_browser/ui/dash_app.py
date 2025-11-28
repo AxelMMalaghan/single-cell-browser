@@ -1,67 +1,80 @@
 from __future__ import annotations
 
+from typing import Dict, List, Tuple
+
 from dash import Dash, dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 
 from sc_browser.config import load_datasets
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
-from sc_browser.views import ClusterView, ExpressionView, FeatureCountView, Dotplot, HeatmapView
+from sc_browser.views import (
+    ClusterView,
+    ExpressionView,
+    FeatureCountView,
+    Dotplot,
+    HeatmapView,
+    VolcanoPlotView,
+)
 
-
-def create_dash_app() -> Dash:
-    # --- Load datasets via core config loader ----
-    global_config, datasets = load_datasets("config/datasets.json")
-    dataset_by_name = {ds.name: ds for ds in datasets}
-    default_dataset = datasets[0]
-
-    # --- Setup view registry ---
+def _build_view_registry() -> ViewRegistry:
     registry = ViewRegistry()
     registry.register(ClusterView)
     registry.register(ExpressionView)
     registry.register(FeatureCountView)
     registry.register(Dotplot)
     registry.register(HeatmapView)
+    registry.register(VolcanoPlotView)
+    return registry
 
-    app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-    # ------------- UI PIECES --------------
-
-    navbar = dbc.Navbar(
+def _build_navbar(datasets) -> dbc.Navbar:
+    """
+    Top navbar: title on the left, dataset selector on the right.
+    """
+    return dbc.Navbar(
         dbc.Container(
             fluid=True,
             children=[
-
+                # Title + subtitle on the left
                 html.Div(
                     [
-                        html.H2("Single-Cell Browser", className="mb-0"),
-                        html.Small("Demo dataset explorer", className="text-muted"),
+                        html.H2("Single-cell Browser", className="mb-0"),
+                        html.Small(
+                            "Demo dataset explorer",
+                            className="text-muted",
+                            id="navbar-subtitle",
+                        ),
                     ],
                     className="d-flex flex-column justify-content-center",
                 ),
-
-
+                # Dataset selector on the right
                 html.Div(
                     dcc.Dropdown(
                         id="dataset-select",
                         options=[{"label": ds.name, "value": ds.name} for ds in datasets],
-                        value=default_dataset.name,
+                        value=datasets[0].name if datasets else None,
                         clearable=False,
                         placeholder="Select dataset",
                         style={"minWidth": "260px"},
+                        className="scb-dataset-dropdown",
                     ),
                     className="ms-auto d-flex align-items-center",
                     style={"width": "300px"},
                 ),
             ],
         ),
-        color="white",
-        dark=False,
+        color="light",  # theme primary colour
+        dark=False,        # white text on coloured navbar
         className="shadow-sm scb-navbar",
     )
 
-    # Left filter panel
-    filter_panel = dbc.Card(
+
+def _build_filter_panel(default_dataset) -> dbc.Card:
+    """
+    Left sidebar with filters (cluster, condition, genes, options)
+    """
+    return dbc.Card(
         [
             dbc.CardHeader("Filters", className="fw-semibold"),
             dbc.CardBody(
@@ -93,7 +106,7 @@ def create_dash_app() -> Dash:
                         id="gene-select",
                         options=[
                             {"label": g, "value": g}
-                            for g in sorted(default_dataset.adata.var_names)
+                            for g in sorted(default_dataset.genes)
                         ],
                         multi=True,
                         placeholder="Select gene(s)",
@@ -111,14 +124,39 @@ def create_dash_app() -> Dash:
                         value=[],
                         switch=True,
                     ),
+                    html.Hr(),
+                    # Tiny dataset summary
+                    html.Div(
+                        [
+                            html.Div(
+                                f"{default_dataset.name}",
+                                className="fw-semibold",
+                            ),
+                            html.Div(
+                                [
+                                    html.Span(
+                                        f"{default_dataset.adata.n_obs} cells · "
+                                        f"{default_dataset.adata.n_vars} genes",
+                                        className="text-muted",
+                                    ),
+                                ],
+                                className="small",
+                            ),
+                        ],
+                        className="scb-dataset-summary mt-1",
+                    ),
                 ]
             ),
         ],
         className="scb-sidebar",
     )
 
-    # Right panel: tabs + main graph
-    plot_panel = dbc.Card(
+
+def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
+    """
+    Right card: tabs + main plot area.
+    """
+    return dbc.Card(
         [
             dbc.CardHeader(
                 dcc.Tabs(
@@ -148,6 +186,35 @@ def create_dash_app() -> Dash:
         className="scb-maincard",
     )
 
+
+# ----------------------------------------------------------------------
+# App factory
+# ----------------------------------------------------------------------
+
+
+def create_dash_app() -> Dash:
+    """
+    Build and wire a complete Dash app around the core domain objects
+    (Dataset, FilterState, ViewRegistry, Views).
+    """
+    # ----- Load datasets -----
+    global_config, datasets = load_datasets("config/datasets.json")
+    if not datasets:
+        raise RuntimeError("No datasets were loaded from config/datasets.json")
+
+    dataset_by_name: Dict[str, object] = {ds.name: ds for ds in datasets}
+    default_dataset = datasets[0]
+
+    # ----- View registry -----
+    registry = _build_view_registry()
+
+    # ----- Create Dash app with a coloured theme -----
+    app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
+
+    navbar = _build_navbar(datasets)
+    filter_panel = _build_filter_panel(default_dataset)
+    plot_panel = _build_plot_panel(registry)
+
     app.layout = dbc.Container(
         fluid=True,
         className="scb-root",
@@ -163,14 +230,17 @@ def create_dash_app() -> Dash:
         ],
     )
 
-    # ---------- callbacks (your existing ones) ----------
+    # ------------------------------------------------------------------
+    # Callbacks
+    # ------------------------------------------------------------------
+
     @app.callback(
         Output("cluster-select", "options"),
         Output("condition-select", "options"),
         Output("gene-select", "options"),
         Input("dataset-select", "value"),
     )
-    def update_filters(dataset_name):
+    def update_filters(dataset_name: str):
         ds = dataset_by_name[dataset_name]
         cluster_options = [{"label": c, "value": c} for c in sorted(ds.clusters.unique())]
         condition_options = [{"label": c, "value": c} for c in sorted(ds.conditions.unique())]
@@ -186,7 +256,14 @@ def create_dash_app() -> Dash:
         Input("gene-select", "value"),
         Input("options-checklist", "value"),
     )
-    def update_main_graph(view_id, dataset_name, clusters, conditions, genes, options):
+    def update_main_graph(
+        view_id: str,
+        dataset_name: str,
+        clusters: List[str] | None,
+        conditions: List[str] | None,
+        genes: List[str] | None,
+        options: List[str] | None,
+    ):
         ds = dataset_by_name[dataset_name]
 
         state = FilterState(

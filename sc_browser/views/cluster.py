@@ -48,5 +48,5 @@ class ClusterView(BaseView):
             title=f"{self.dataset.name} Cluster Plot",
         )
         fig.update_traces(marker=dict(size=4))
-        fig.update_layout(margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
         return fig
