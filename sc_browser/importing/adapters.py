@@ -24,7 +24,5 @@ class BaseConfigAdapter(ABC):
     def build_dataset(self, entry: Dict[str, Any]) -> Dataset:
         """
         Builds the dataset from the config entry
-
-        This is what touches the raw AnnData,
-        :return:
         """
+        raise NotImplementedError
