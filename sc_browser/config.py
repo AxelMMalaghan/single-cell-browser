@@ -1,41 +1,30 @@
+# sc_browser/config.py
+
 from __future__ import annotations
 import json
 from pathlib import Path
-from typing import List, Tuple
 
-from .config_model import DatasetConfig, GlobalConfig
+from .config_model import GlobalConfig
 from .core.dataset import Dataset
 from .importing.adapter_registry import AdapterRegistry
 
 
-def load_datasets(config_path: str | Path):
+def load_datasets(config_path: str | Path) -> tuple[GlobalConfig, list[Dataset]]:
     """
-    Load dataset config and instantiate Dataset objects
+    Single entrypoint for the app:
+    - Reads raw JSON
+    - Uses the adapter registry
+    - Returns a GlobalConfig + list[Dataset]
     """
-
-    raw = json.loads(Path(config_path).read_text())
-
-    global_part = raw.get("global", {})
-    dataset_entries = raw.get("datasets", [])
-
-    global_config = GlobalConfig(
-        ui_title=global_part.get("ui_title", "Single-Cell Browser"),
-        default_group=global_part.get("default_group", "Default"),
-        datasets = [
-            DatasetConfig(raw=entry, source_path=Path(config_path), index=i)
-            for i, entry in enumerate(dataset_entries)
-        ],
-    )
+    config_path = Path(config_path)
+    raw = json.loads(config_path.read_text())
 
     registry = AdapterRegistry.default()
+    adapter = registry.choose_adapter(raw)
 
-    datasets = []
-    for ds_config in global_config.datasets:
-        adapter = registry.get_adapter(ds_config.raw)
-        dataset = adapter.choose_adapter(ds_config.raw)
-        datasets.append(dataset)
+    # Adapter is responsible for:
+    #   - building GlobalConfig
+    #   - building Dataset objects
+    global_config, datasets = adapter.to_config_and_datasets(raw)
 
     return global_config, datasets
-
-
-
