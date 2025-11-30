@@ -29,11 +29,6 @@ class AdapterRegistry:
 
         self.adapters.append(adapter)
 
-    def adapters(self) -> List[BaseConfigAdapter]:
-        """
-        :return: a list of all adapters
-        """
-        return list(self.adapters)
 
     def create_dataset(self, entry: Dict[str, Any]) -> Dataset:
         """
@@ -59,11 +54,18 @@ class AdapterRegistry:
         )
 
 
+    def get_adapters(self) -> List[BaseConfigAdapter]:
+        """
+        :return: a list of all adapters
+        """
+        return list(self.adapters)
+
+
+
 def create_single_cell_registry() -> AdapterRegistry:
     """
     Builds a registry with all known single-cell adapters
     """
-
     registry = AdapterRegistry()
     # registry.register() //TODO: add registries based on real data
     return registry
