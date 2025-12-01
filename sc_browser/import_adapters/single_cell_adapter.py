@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, Any
 
 from sc_browser.core.dataset import Dataset
-from sc_browser.importing.base_adapter import BaseConfigAdapter
+from sc_browser.core.base_adapter import BaseConfigAdapter
 
 
 class SimpleSingleCellAdapter(BaseConfigAdapter):
@@ -33,16 +33,7 @@ class SimpleSingleCellAdapter(BaseConfigAdapter):
         Return True if this entry looks like our v1 single-cell schema.
         We don't do strict validation here, just enough to pick the adapter.
         """
-        if not isinstance(entry, dict):
-            return False
-
-        required = {"name", "group", "cluster_key", "condition_key", "embedding_key"}
-        has_required_keys = required.issubset(entry.keys())
-
-        # `Dataset.from_config_entry` already supports both "file" and "file_path".
-        has_file_key = ("file" in entry) or ("file_path" in entry)
-
-        return has_required_keys and has_file_key
+        return entry.get("schema") == "anndata_mapped"
 
     def build_dataset(self, entry: Dict[str, Any]) -> Dataset:
         """

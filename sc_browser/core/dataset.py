@@ -1,9 +1,7 @@
-# sc_browser/core/dataset.py
-
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import anndata as ad
 import pandas as pd
@@ -39,8 +37,9 @@ class Dataset:
         self.condition_key = condition_key
         self.embedding_key = embedding_key
 
+
     @classmethod
-    def from_config_entry(cls, entry: dict) -> "Dataset":
+    def from_config_entry(cls, entry: Dict[str, Any]) -> "Dataset":
         """
         Build a Dataset from a config.json file.
 
@@ -59,6 +58,8 @@ class Dataset:
 
         Raises:
             KeyError: if file or file path does not exist
+
+
         """
 
         file_value = entry.get("file_path") or entry.get("file")
@@ -68,14 +69,50 @@ class Dataset:
         file_path = Path(file_value)
         adata = ad.read_h5ad(file_path)
 
+        # optional but recommended: make obs names unique
+        adata.obs_names_make_unique()
+
+        # ---- obs column mapping ----
+        obs_cols = entry.get("obs_columns", {}) or {}
+
+        # legacy top-level keys take precedence, then fall back to obs_columns
+        cluster_key = entry.get("cluster_key") or obs_cols.get("cluster")
+        condition_key = entry.get("condition_key") or obs_cols.get("condition")
+
+        if cluster_key is None:
+            raise KeyError(
+                "No cluster key configured. Provide either "
+                "'cluster_key' at the top level or obs_columns.cluster."
+            )
+
+        if condition_key is None:
+            raise KeyError(
+                "No condition key configured. Provide either "
+                "'condition_key' at the top level or obs_columns.condition."
+            )
+
+        # ---- embedding key ----
+        embedding_key = entry.get("embedding_key")
+
+        # you *could* try to infer it from adata.obsm here, but for now
+        # we keep it explicit to avoid surprises
+        if embedding_key is None:
+            raise KeyError(
+                "No embedding key configured. Provide 'embedding_key' "
+                "(e.g. 'X_umap') in the dataset config entry."
+            )
+
         return cls(
-            name=entry["name"],
-            group=entry["group"],
+            name=entry.get("name", "Unnamed dataset"),
+            group=entry.get("group", "Default"),
             adata=adata,
-            cluster_key=entry["cluster_key"],
-            condition_key=entry["condition_key"],
-            embedding_key=entry["embedding_key"]
+            cluster_key=cluster_key,
+            condition_key=condition_key,
+            embedding_key=embedding_key,
         )
+
+
+
 
 
     def subset(
@@ -143,3 +180,4 @@ class Dataset:
             index=self.adata.obs.index,
             columns=[f"dim{i + 1}" for i in range(emb.shape[1])],
         )
+

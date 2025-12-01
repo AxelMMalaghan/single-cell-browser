@@ -34,7 +34,5 @@ class BaseConfigAdapter(ABC):
 
 
     # second iteration, converts .h5ad files
-
-
     # third iteration - legacy data formats (seurat) converts, etc...
 

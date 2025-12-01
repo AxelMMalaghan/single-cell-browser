@@ -4,89 +4,75 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import anndata
+import pandas as pd
+
+# ---- Updated Semantic Mapping and DatasetConfig ----
 
 @dataclass(frozen=True)
 class ObsColumns:
     """
     Semantic names for `.obs` columns used internally by the app.
-
-    Purpose:
-    - Provide a single, standardised object that describes "what column means what"
-      for a given dataset.
-    - Let the rest of the app talk in terms of semantic roles (cluster, condition,
-      sample, etc.) instead of hardcoding raw `.obs` column names.
-
-    Typical usage:
-        ObsColumns(
-            cluster="leiden",         # column in .obs holding cluster labels
-            condition="treatment",    # column for experimental condition
-            sample="sample_id",       # (optional) column for sample / donor id
-        )
-
-    Fields:
-    - cluster: required; the column in `.obs` that encodes cluster / group labels
-    - condition: optional; column encoding treatment / condition group
-    - sample: optional; column encoding sample / donor / batch identifier
     """
-
-    cluster: str
+    cell_id: str
+    cluster: Optional[str] = None
     condition: Optional[str] = None
     sample: Optional[str] = None
-
+    batch: Optional[str] = None
+    cell_type: Optional[str] = None
 
 @dataclass
 class DatasetConfig:
     """
     Parsed config entry for a single dataset.
-
-    This is a thin wrapper around the raw config dict plus a few derived fields
-    that make it easier to work with inside the app.
-
-    Attributes
-    ----------
-    raw:
-        The original config entry as loaded from JSON/YAML (one dataset block).
-    source_path:
-        Path to the config file this entry came from. Useful for error messages
-        and relative paths.
-    index:
-        Index of this dataset entry within the config file (0-based), used to
-        generate a fallback name if none is provided.
     """
-
     raw: Dict[str, Any]
     source_path: Path
     index: int
 
     @property
     def name(self) -> str:
-        """
-        Human-readable name for this dataset.
-
-        Resolution order:
-        - If `raw["name"]` exists, return that
-        - Otherwise fall back to "Dataset <index>"
-        """
         return self.raw.get("name", f"Dataset {self.index}")
+
+    @property
+    def path(self) -> Path:
+        return Path(self.raw["file"])
+
+    @property
+    def obs_columns(self) -> ObsColumns:
+        return ObsColumns(**self.raw.get("obs_columns", {}))
 
 
 @dataclass
 class GlobalConfig:
-    """
-    Top-level config object for the application.
-
-    This is the structured representation of your config file, after parsing.
-
-    Attributes
-    ----------
-    ui_title:
-        Title to display in the UI (e.g. app header).
-    default_group:
-        Default dataset "group" to select when the UI loads (e.g. a project or study).
-    datasets:
-        List of dataset configs available in this deployment.
-    """
-
     ui_title: str
     default_group: str
     datasets: List[DatasetConfig]
+
+
+# ---- Preview + Inference Functions ----
+
+def infer_column_roles(obs_df: pd.DataFrame) -> Dict[str, Optional[str]]:
+    """Heuristic-based inference of semantic column roles."""
+    colnames = obs_df.columns
+    roles = {
+        "cluster": next((col for col in colnames if col.lower() in ["cluster", "leiden", "louvain"]), None),
+        "condition": next((col for col in colnames if col.lower() in ["condition", "treatment", "group"]), None),
+        "sample": next((col for col in colnames if col.lower() in ["sample", "donor", "replicate"]), None),
+        "batch": next((col for col in colnames if col.lower() in ["batch", "batch_id"]), None),
+        "cell_type": next((col for col in colnames if col.lower() in ["cell_type", "type", "annotation"]), None),
+    }
+    return roles
+
+def preview_adata_columns(file_path: Path) -> Dict[str, Any]:
+    adata = anndata.read_h5ad(file_path, backed='r')
+    obs_df = adata.obs
+    inferred_roles = infer_column_roles(obs_df)
+    return {
+        "obs_columns": list(obs_df.columns),
+        "suggested_roles": inferred_roles,
+        "n_obs": adata.n_obs,
+        "n_vars": adata.n_vars,
+        "obsm_keys": list(adata.obsm.keys()),
+    }
+

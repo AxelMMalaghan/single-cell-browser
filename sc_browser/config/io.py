@@ -1,26 +1,15 @@
-# sc_browser/config/io.py
-
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import List, Tuple
 
-from ..config.model import GlobalConfig, DatasetConfig
+from .model import GlobalConfig, DatasetConfig
 from sc_browser.core.dataset import Dataset
 
 
 def load_global_config(path: str | Path) -> GlobalConfig:
-    """
-    Load the raw JSON config and return a GlobalConfig object.
-
-    This only describes:
-      - UI title
-      - default group
-      - per-dataset raw config entries (wrapped in DatasetConfig)
-    """
     path = Path(path)
-
     raw = json.loads(path.read_text())
 
     global_part = raw.get("global", {}) or {}
@@ -39,13 +28,6 @@ def load_global_config(path: str | Path) -> GlobalConfig:
 
 
 def load_datasets(path: str | Path) -> Tuple[GlobalConfig, List[Dataset]]:
-    """
-    High-level loader used by the Dash app.
-
-    Returns:
-      - GlobalConfig  (UI / metadata)
-      - List[Dataset] (domain objects the views work with)
-    """
     global_config = load_global_config(path)
 
     datasets: List[Dataset] = [
