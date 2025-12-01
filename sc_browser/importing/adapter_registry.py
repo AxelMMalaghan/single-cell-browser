@@ -1,71 +1,72 @@
+# sc_browser/importing/adapter_registry.py
 from __future__ import annotations
 
 from typing import List, Any, Dict
 
-from sc_browser.core import Dataset
-from sc_browser.importing.adapters import BaseConfigAdapter
+from sc_browser.core.dataset import Dataset
+from sc_browser.importing.base_adapter import BaseConfigAdapter
+from sc_browser.importing.single_cell_adapter import SimpleSingleCellAdapter
 
 
 class AdapterRegistry:
     """
-    Handles the registry of adapters.
+    Registry of adapters.
 
-    Given a config entry, it finds the adapter which returns True (can handle the schema)
+    Given a config entry, it finds the adapter which returns True from can_handle(),
+    then uses that adapter to build a Dataset.
     """
 
     def __init__(self) -> None:
-        self.adapters: List[BaseConfigAdapter] = []
+        self._adapters: List[BaseConfigAdapter] = []
 
+    @property
+    def adapters(self) -> List[BaseConfigAdapter]:
+        return self._adapters
 
     def register(self, adapter: BaseConfigAdapter) -> None:
         """
-        Register a new adapter instance
-        :param adapter: the adapter to instantiate
-        :raises ValueError: if an adapter with the same id already exists
+        Register a new adapter instance.
+        :raises ValueError: if an adapter with the same id already exists.
         """
-        for existing in self.adapters:
+        for existing in self._adapters:
             if existing.id == adapter.id:
-                raise ValueError(f"The adapter {existing} already exists")
+                raise ValueError(f"The adapter '{existing.id}' already exists")
 
-        self.adapters.append(adapter)
-
+        self._adapters.append(adapter)
 
     def create_dataset(self, entry: Dict[str, Any]) -> Dataset:
         """
-        Finds the first adapter that can handle the given entry
+        Finds the adapter that can handle the given entry
+        and uses it to build a Dataset.
 
-        creates the dataset from an entry
-        :param entry:
-        :return:
-        :raises ValueError: if not adapter can handle the entry
+        :param entry: the incoming dataset config dict
+        :return: a Dataset object
+        :raises ValueError: if no adapter can handle the entry
         """
-
-        for adapter in self.adapters:
+        for adapter in self._adapters:
             if adapter.can_handle(entry):
                 return adapter.build_dataset(entry)
 
-
-        name=entry.get["name", "<unnamed dataset>"]
-        schema=entry.get["shema", "<no schema specified>"]
+        name = entry.get("name", "<unnamed dataset>")
+        schema = entry.get("schema", "<no schema specified>")
         raise ValueError(
             f"No config adapter could handle dataset entry "
             f"name='{name}', schema='{schema}'. "
             f"Registered adapters: {[a.id for a in self._adapters]}"
         )
 
-
     def get_adapters(self) -> List[BaseConfigAdapter]:
         """
         :return: a list of all adapters
         """
-        return list(self.adapters)
-
+        return list(self._adapters)
 
 
 def create_single_cell_registry() -> AdapterRegistry:
     """
-    Builds a registry with all known single-cell adapters
+    Builds a registry with all known single-cell adapters.
+    For now, just the simple entry-based adapter.
     """
     registry = AdapterRegistry()
-    # registry.register() //TODO: add registries based on real data
+    registry.register(SimpleSingleCellAdapter())
     return registry

@@ -10,7 +10,7 @@ from plotly.graph_objs import Figure
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.state import FilterState
-from sc_browser.core.view_base import BaseView
+from sc_browser.core.base_view import BaseView
 
 class DatasetSummary(BaseView):
     """

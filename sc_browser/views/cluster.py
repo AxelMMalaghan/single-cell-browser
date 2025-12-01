@@ -5,7 +5,7 @@ import plotly.express as px
 from plotly.graph_objs import Figure
 
 from ..core.state import FilterState
-from ..core.view_base import BaseView
+from ..core.base_view import BaseView
 
 
 class ClusterView(BaseView):

@@ -7,7 +7,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-from sc_browser.core.view_base import BaseView
+from sc_browser.core.base_view import BaseView
 from sc_browser.core.state import FilterState
 
 class Dotplot(BaseView):

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, List, Type
 
 from .dataset import Dataset
-from .view_base import BaseView
+from .base_view import BaseView
 
 class ViewRegistry:
     """
