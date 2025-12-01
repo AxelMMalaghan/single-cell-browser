@@ -40,9 +40,9 @@ def _build_navbar(datasets) -> dbc.Navbar:
                 # Title + subtitle on the left
                 html.Div(
                     [
-                        html.H2("Single-cell Browser", className="mb-0"),
+                        html.H2("Single-Cell Browser", className="mb-0"),
                         html.Small(
-                            "Demo dataset explorer",
+                            "Interactive Dataset Explorer",
                             className="text-muted",
                             id="navbar-subtitle",
                         ),
@@ -199,7 +199,7 @@ def create_dash_app() -> Dash:
     (Dataset, FilterState, ViewRegistry, Views).
     """
     # ----- Load datasets -----
-    global_config, datasets = load_datasets("config/datasets_mapped.json")
+    global_config, datasets = load_datasets("config/datasets.json")
     if not datasets:
         raise RuntimeError("No datasets were loaded from config/datasets.json")
 

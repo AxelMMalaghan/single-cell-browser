@@ -9,6 +9,11 @@ from sc_browser.core.dataset import Dataset
 
 
 def load_global_config(path: str | Path) -> GlobalConfig:
+    """
+    Loads the top level application configuration f
+    :param path:
+    :return:
+    """
     path = Path(path)
     raw = json.loads(path.read_text())
 
