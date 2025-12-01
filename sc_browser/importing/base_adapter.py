@@ -7,8 +7,12 @@ from sc_browser.core.dataset import Dataset
 
 class BaseConfigAdapter(ABC):
     """
-    Takes a raw config entry (from JSON) and returns a dict compatible with
-    {@link Dataset.from_config_entry()}
+    Abstract Base Class for all config adapters
+
+    Defines the contract that every adapter in the app must follow
+    - expose an 'id' used internally to identify the adapter
+    - implement 'can_handle' method to check if this adapter is able to standardise this config
+    - implement 'build_dataset' method to build the dataset from the config entry
     """
     id: str
 
@@ -29,31 +33,8 @@ class BaseConfigAdapter(ABC):
 
 
 
-# second iteration, converts .h5ad files
-
-# third iteration - legacy data formats (seurat) converts, etc...
+    # second iteration, converts .h5ad files
 
 
-class SimpleSingleCellAdapter(BaseConfigAdapter):
-    """
-    Very simple adapter for your current single-cell config schema, e.g.:
+    # third iteration - legacy data formats (seurat) converts, etc...
 
-    {
-      "name": "Demo dataset",
-      "group": "Example",
-      "file": "data/demo.h5ad",
-      "cluster_key": "cluster",
-      "condition_key": "condition",
-      "embedding_key": "X_umap"
-    }
-    """
-
-    id = "singlecell_simple"
-
-    def can_handle(self, entry: Dict[str, Any]) -> bool:
-        required = {"name", "group", "cluster_key", "condition_key", "embedding_key"}
-        return required.issubset(entry.keys())
-
-    def build_dataset(self, entry: Dict[str, Any]) -> Dataset:
-        # Delegate actual construction to Dataset.from_config_entry
-        return Dataset.from_config_entry(entry)

@@ -1,156 +1,138 @@
+# sc_browser/views/dataset_summary.py
+
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-from plotly.graph_objs import Figure
+from plotly.subplots import make_subplots
 
-from sc_browser.core.dataset import Dataset
-from sc_browser.core.state import FilterState
 from sc_browser.core.base_view import BaseView
+from sc_browser.core.state import FilterState
+from sc_browser.core.dataset import Dataset
+
 
 class DatasetSummary(BaseView):
     """
-    Dataset summary / inspector view
+    Lightweight dataset inspector.
 
-    - Respects current filters (clusters/conditions)
-    - Shows bar charts of clister sizes and condition trees
-    - Annotates n_cells, n_genes, and obs schema info
+    Shows:
+      - n_cells, n_genes
+      - bar chart of cluster sizes
+      - bar chart of condition sizes
+
+    This is mainly a debugging / sanity-check view to confirm that:
+      - config keys match AnnData.obs
+      - filters (clusters/conditions) are being applied as expected
     """
 
-    id = "summary"
-    label = "Dataset summary"
+    id = "dataset_summary"
+    label = "Dataset Summary"
 
-    def compute_data(self, state: FilterState) -> pd.DataFrame:
-
+    def compute_data(self, state: FilterState) -> Dict[str, Any]:
+        # Apply filters via the Dataset abstraction
         ds: Dataset = self.dataset.subset(
-            clusters=self.clusters or None,
-            conditions=self.conditions or None,
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
         )
 
         adata = ds.adata
 
         if adata.n_obs == 0:
-            return pd.DataFrame(columns=["category", "count", "group_type"])
+            # No cells after filtering – tell render_figure to show a message
+            return {}
 
+        n_cells, n_genes = adata.n_obs, adata.n_vars
+
+        # obs schema table (for future use in a table view or debugging)
+        obs_schema = (
+            adata.obs.dtypes.reset_index()
+            .rename(columns={"index": "column", 0: "dtype"})
+        )
+        obs_schema["n_unique"] = [
+            adata.obs[col].nunique() for col in obs_schema["column"]
+        ]
+
+        # cluster & condition counts (already strings via Dataset)
         cluster_counts = (
             ds.clusters.value_counts()
-            .rename_axis("category")
-            .reset_index(name="count")
+            .reset_index()
+            .rename(columns={"index": "cluster", self.dataset.cluster_key: "cluster", 0: "count"})
         )
-        cluster_counts["group_type"] = "Cluster"
+        cluster_counts.columns = ["cluster", "count"]
 
         condition_counts = (
             ds.conditions.value_counts()
-            .rename_axis("category")
-            .reset_index(name="count")
+            .reset_index()
+            .rename(columns={"index": "condition", self.dataset.condition_key: "condition", 0: "count"})
         )
+        condition_counts.columns = ["condition", "count"]
 
-        condition_counts["group_type"] = "Condition"
+        return {
+            "n_cells": n_cells,
+            "n_genes": n_genes,
+            "obs_schema": obs_schema,
+            "cluster_counts": cluster_counts,
+            "condition_counts": condition_counts,
+        }
 
-        counts_df = pd.concat([cluster_counts, condition_counts], ignore_index=True)
+    def render_figure(self, data: Dict[str, Any], state: FilterState) -> go.Figure:
+        # data is a dict, not a DataFrame – so do NOT call data.empty
 
-        counts_df.attrs["n_cells"] = int(adata.n_obs)
-        counts_df.attrs["n_genes"] = int(adata.n_vars)
-        counts_df.attrs["dataset_name"] = ds.name
-
-        obs = adata.obs
-        schema_rows = []
-        for col in obs.columns:
-            series = obs[col]
-            schema_rows.append(
-                {
-                    "column": str(col),
-                    "dtype": str(series.dtype),
-                    "n_unique": int(series.nunique()),
-                }
-            )
-        schema_df = pd.DataFrame(schema_rows).sort_values("column")
-        counts_df.attrs["obs_schema"] = schema_df
-
-        return counts_df
-
-
-    def render_figure(self, data: Any, state: FilterState) -> Figure:
-
-        if data is None or data.empty:
+        if not data:
             fig = go.Figure()
             fig.update_layout(
-                title="No cells available for current filters",
+                title="No cells after filtering – adjust cluster/condition filters",
                 xaxis={"visible": False},
                 yaxis={"visible": False},
             )
             return fig
 
-        n_cells = data.attrs.get("n_cells", None)
-        n_genes = data.attrs.get("n_genes", None)
-        dataset_name = data.attrs.get("dataset_name", self.dataset.name)
-        obs_schema: pd.DataFrame = data.attrs.get("obs_schema")
+        n_cells = data["n_cells"]
+        n_genes = data["n_genes"]
+        cluster_counts: pd.DataFrame = data["cluster_counts"]
+        condition_counts: pd.DataFrame = data["condition_counts"]
 
-        # --- Main bar chart: cluster + condition sizes, faceted ---
-        fig = px.bar(
-            data,
-            x="category",
-            y="count",
-            color="group_type",
-            facet_col="group_type",
-            facet_col_spacing=0.08,
-            labels={"category": "Label", "count": "Cells", "group_type": ""},
+        # Build a 1x2 subplot: clusters (left), conditions (right)
+        fig = make_subplots(
+            rows=1,
+            cols=2,
+            subplot_titles=("Cluster sizes", "Condition sizes"),
         )
 
-        fig.update_xaxes(tickangle=45)
+        # Cluster bar chart
+        if not cluster_counts.empty:
+            fig.add_bar(
+                x=cluster_counts["cluster"],
+                y=cluster_counts["count"],
+                row=1,
+                col=1,
+                name="Clusters",
+            )
+
+        # Condition bar chart
+        if not condition_counts.empty:
+            fig.add_bar(
+                x=condition_counts["condition"],
+                y=condition_counts["count"],
+                row=1,
+                col=2,
+                name="Conditions",
+            )
+
+        fig.update_xaxes(title_text="Cluster", row=1, col=1)
+        fig.update_yaxes(title_text="# cells", row=1, col=1)
+
+        fig.update_xaxes(title_text="Condition", row=1, col=2)
+        fig.update_yaxes(title_text="# cells", row=1, col=2)
+
         fig.update_layout(
-            height=650,
-            margin=dict(l=40, r=40, t=80, b=100),
+            height=600,
+            margin=dict(l=40, r=40, t=60, b=40),
+            title=f"Dataset summary: {n_cells} cells, {n_genes} genes",
             showlegend=False,
         )
 
-        # --- Title / subtitle ---
-        title_text = f"Dataset summary – {dataset_name}"
-        subtitle_parts = []
-        if n_cells is not None:
-            subtitle_parts.append(f"Cells: {n_cells:,}")
-        if n_genes is not None:
-            subtitle_parts.append(f"Genes: {n_genes:,}")
-        subtitle = " | ".join(subtitle_parts) if subtitle_parts else ""
-
-        fig.update_layout(
-            title={
-                "text": f"{title_text}<br><sup>{subtitle}</sup>",
-                "x": 0.0,
-                "xanchor": "left",
-            }
-        )
-
-        # --- Optional: embed a compact obs schema as text annotation ---
-        if isinstance(obs_schema, pd.DataFrame) and not obs_schema.empty:
-            # Limit to first 10 rows so it doesn't get insane
-            head = obs_schema.head(10)
-            lines = [
-                f"{row['column']}  ({row['dtype']}, {row['n_unique']} levels)"
-                for _, row in head.iterrows()
-            ]
-            if len(obs_schema) > len(head):
-                lines.append(f"... (+{len(obs_schema) - len(head)} more columns)")
-
-            schema_text = "obs columns:\n" + "\n".join(lines)
-
-            fig.add_annotation(
-                text=f"<b>Schema</b><br><span style='font-size:11px; white-space:pre'>{schema_text}</span>",
-                xref="paper",
-                yref="paper",
-                x=1.02,
-                y=1.0,
-                xanchor="left",
-                yanchor="top",
-                showarrow=False,
-                align="left",
-            )
-
         return fig
-
-
-

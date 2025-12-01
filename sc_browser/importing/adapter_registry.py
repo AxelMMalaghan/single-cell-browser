@@ -1,4 +1,3 @@
-# sc_browser/importing/adapter_registry.py
 from __future__ import annotations
 
 from typing import List, Any, Dict
@@ -10,10 +9,20 @@ from sc_browser.importing.single_cell_adapter import SimpleSingleCellAdapter
 
 class AdapterRegistry:
     """
-    Registry of adapters.
+    Registry of adapters for turning dataset config entries into Dataset objects.
 
-    Given a config entry, it finds the adapter which returns True from can_handle(),
-    then uses that adapter to build a Dataset.
+    Purpose:
+    - Acts as the source of truth for which adapters are registered
+    - Decouples io/config parsing from adapter implementations by exposing {@link create_dataset_(entry) as the construction API}
+    - Enables support for multiple config schemas or data sources without changing call sites
+
+    Design Notes:
+    - Stores instances of {@link BaseConfigAdapter}
+    - Enforces variants:
+        * only {@link BaseConfigAdapter} instances are registered
+        * each adapter's 'id' is unique
+    - Resolution is first-hit: the first adapters where {@link BaseConfigAdapter} can handle the entry
+    - Centralising creation logic makes it easier to extend later without touching rest of codebase
     """
 
     def __init__(self) -> None:
@@ -21,6 +30,9 @@ class AdapterRegistry:
 
     @property
     def adapters(self) -> List[BaseConfigAdapter]:
+        """
+        :return: a list of all adapters
+        """
         return self._adapters
 
     def register(self, adapter: BaseConfigAdapter) -> None:
@@ -37,10 +49,10 @@ class AdapterRegistry:
     def create_dataset(self, entry: Dict[str, Any]) -> Dataset:
         """
         Finds the adapter that can handle the given entry
-        and uses it to build a Dataset.
+        and uses it to build a {@link Dataset} object
 
         :param entry: the incoming dataset config dict
-        :return: a Dataset object
+        :return: a {@link Dataset} object
         :raises ValueError: if no adapter can handle the entry
         """
         for adapter in self._adapters:
@@ -57,7 +69,7 @@ class AdapterRegistry:
 
     def get_adapters(self) -> List[BaseConfigAdapter]:
         """
-        :return: a list of all adapters
+        :return: a list of all adapters (shallow copy)
         """
         return list(self._adapters)
 

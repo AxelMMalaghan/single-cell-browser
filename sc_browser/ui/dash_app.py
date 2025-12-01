@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 from dash import Dash, dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 
-from sc_browser.config import load_datasets
+from sc_browser.config.io import load_datasets
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.views import (
@@ -14,7 +14,7 @@ from sc_browser.views import (
     FeatureCountView,
     Dotplot,
     HeatmapView,
-    VolcanoPlotView,
+    VolcanoPlotView, DatasetSummary,
 )
 
 def _build_view_registry() -> ViewRegistry:
@@ -25,6 +25,7 @@ def _build_view_registry() -> ViewRegistry:
     registry.register(Dotplot)
     registry.register(HeatmapView)
     registry.register(VolcanoPlotView)
+    registry.register(DatasetSummary)
     return registry
 
 
