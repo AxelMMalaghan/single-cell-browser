@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import scipy.sparse as sp
 
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.state import FilterState
@@ -25,100 +26,125 @@ class DotplotView(BaseView):
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         # ---- Subset dataset according to filters ----
-        samples = getattr(state, "samples", None)  # be robust if samples isn't wired yet
+        samples = getattr(state, "samples", None)
 
         ds = self.dataset.subset(
-            clusters=state.clusters,
-            conditions=state.conditions,
-            samples=samples,
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
+            samples=samples or None,
         )
 
-        adata_sub = ds.adata
-        obs_sub = adata_sub.obs.copy()
+        adata = ds.adata
 
         # No cells or no genes selected
-        if adata_sub.n_obs == 0 or not state.genes:
+        if adata.n_obs == 0 or not state.genes:
             return pd.DataFrame()
 
         # Keep only genes that exist in this dataset
-        genes = [g for g in state.genes if g in adata_sub.var_names]
+        genes: List[str] = [g for g in state.genes if g in adata.var_names]
         if not genes:
             return pd.DataFrame()
 
         # --- expression matrix (cells x genes) ---
-        # Assuming this returns a DataFrame with index = cell IDs, columns = gene names
-        expression_df = ds.extract_expression_matrix(adata_sub, genes)
-        if expression_df.empty:
-            return pd.DataFrame()
-
-        # Ensure we have a proper cellID index name for merging later
-        expression_df = expression_df.copy()
-        if expression_df.index.name != "cellID":
-            expression_df.index = expression_df.index.astype(str)
-            expression_df.index.name = "cellID"
-
-        # Wide -> long: one row per (cell, gene)
-        long_expression = (
-            expression_df
-            .reset_index()  # brings cellID out as a column
-            .melt(
-                id_vars="cellID",
-                var_name="gene",
-                value_name="count",
-            )
-        )
+        X = adata[:, genes].X
+        if sp.issparse(X):
+            X = X.tocsr()
 
         # --- group definitions (cluster / condition) ---
+        obs = adata.obs
+
         cluster_key = ds.get_obs_column("cluster")
         condition_key = ds.get_obs_column("condition")
 
-        if cluster_key and cluster_key in obs_sub.columns:
-            cluster = obs_sub[cluster_key].astype(str)
+        if cluster_key and cluster_key in obs.columns:
+            cluster = obs[cluster_key].astype(str)
         else:
-            cluster = pd.Series("unknown", index=obs_sub.index)
+            cluster = pd.Series("unknown", index=obs.index)
 
-        if condition_key and condition_key in obs_sub.columns:
-            condition = obs_sub[condition_key].astype(str)
+        if condition_key and condition_key in obs.columns:
+            condition = obs[condition_key].astype(str)
         else:
-            condition = pd.Series("unknown", index=obs_sub.index)
+            condition = pd.Series("unknown", index=obs.index)
 
         if state.split_by_condition:
             cell_identity = cluster + "-" + condition
         else:
             cell_identity = cluster
 
-        cell_meta = pd.DataFrame(
+        # Categorical groups so we can index them efficiently
+        groups = pd.Categorical(cell_identity)
+        group_codes = groups.codes  # int code per cell
+        group_names = list(groups.categories)
+        n_groups = len(group_names)
+        n_genes = len(genes)
+
+        # Pre-allocate matrices: group x gene
+        mean_expr = np.zeros((n_groups, n_genes), dtype=float)
+        pct_expr = np.zeros((n_groups, n_genes), dtype=float)
+
+        for g_idx in range(n_groups):
+            mask = (group_codes == g_idx)
+            if not np.any(mask):
+                continue
+
+            Xg = X[mask]
+
+            if sp.issparse(Xg):
+                # sums and non-zero counts per gene
+                sums = np.asarray(Xg.sum(axis=0)).ravel()
+                nonzero = np.asarray((Xg > 0).sum(axis=0)).ravel()
+            else:
+                sums = Xg.sum(axis=0)
+                nonzero = (Xg > 0).sum(axis=0)
+
+            n_cells = mask.sum()
+            mean_expr[g_idx, :] = sums / n_cells
+            pct_expr[g_idx, :] = (nonzero / n_cells) * 100.0
+
+        # Build tidy DataFrame: one row per (group, gene)
+        cell_identity_col = np.repeat(group_names, n_genes)
+        gene_col = np.tile(genes, n_groups)
+
+        df = pd.DataFrame(
             {
-                "cellID": obs_sub.index.astype(str),
-                "cell_identity": cell_identity.values,
-                "cluster": cluster.values,
-                "condition": condition.values,
+                "cell_identity": cell_identity_col,
+                "gene": gene_col,
+                "meanExpr": mean_expr.ravel(),
+                "pctExpressed": pct_expr.ravel(),
             }
         )
 
-        # --- join expression with metadata ---
-        merged = long_expression.merge(cell_meta, on="cellID", how="left")
-
-        # --- aggregate per (group, gene) ---
-        def percent_expressed(x: pd.Series) -> float:
-            return 100.0 * (x != 0).sum() / len(x) if len(x) else 0.0
-
-        agg = (
-            merged
-            .groupby(["cell_identity", "gene"], as_index=False)["count"]
-            .agg(meanExpr="mean", pctExpressed=percent_expressed)
+        # Add cluster/condition for hover
+        meta = (
+            pd.DataFrame(
+                {
+                    "cell_identity": cell_identity,
+                    "cluster": cluster,
+                    "condition": condition,
+                }
+            )
+            .drop_duplicates("cell_identity")
         )
+        df = df.merge(meta, on="cell_identity", how="left")
 
-        # --- normalise expression for coloring ---
-        agg["logMeanExpression"] = np.log2(1.0 + agg["meanExpr"])
-        agg["maxMeanExpression"] = agg.groupby("gene")["meanExpr"].transform("max")
-        agg["relMeanExpression"] = np.where(
-            agg["maxMeanExpression"] > 0,
-            agg["meanExpr"] / agg["maxMeanExpression"],
+        # Normalise expression for coloring
+        df["logMeanExpression"] = np.log2(1.0 + df["meanExpr"])
+        df["maxMeanExpression"] = df.groupby("gene")["meanExpr"].transform("max")
+        df["relMeanExpression"] = np.where(
+            df["maxMeanExpression"] > 0,
+            df["meanExpr"] / df["maxMeanExpression"],
             0.0,
         )
 
-        return agg.sort_values(["gene", "cell_identity"]).reset_index(drop=True)
+        # Order axes nicely
+        df["gene"] = pd.Categorical(df["gene"], categories=genes, ordered=True)
+        df["cell_identity"] = pd.Categorical(
+            df["cell_identity"],
+            categories=group_names,
+            ordered=True,
+        )
+
+        return df.sort_values(["gene", "cell_identity"]).reset_index(drop=True)
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
         if data is None or data.empty:
@@ -142,6 +168,8 @@ class DotplotView(BaseView):
                 "pctExpressed": True,
                 "meanExpr": True,
                 "logMeanExpression": True,
+                "cluster": True,
+                "condition": True,
             },
         )
 

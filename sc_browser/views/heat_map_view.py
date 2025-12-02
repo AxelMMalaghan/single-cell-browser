@@ -32,7 +32,11 @@ class HeatmapView(BaseView):
         if adata.n_obs == 0 or not state.genes:
             return pd.DataFrame()
 
-        # Filter genes to those present in the dataset
+        genes = [g for g in state.genes if g in adata.var_names]
+        if not genes:
+            return pd.DataFrame()
+
+            # Filter genes to those present in the dataset
         genes: List[str] = [g for g in state.genes if g in adata.var_names]
         if not genes:
             return pd.DataFrame()

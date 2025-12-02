@@ -44,6 +44,8 @@ class DatasetSummary(BaseView):
         if adata.n_obs == 0:
             return {}
 
+
+
         n_cells, n_genes = adata.n_obs, adata.n_vars
 
         # obs schema table (column name, dtype, unique values)

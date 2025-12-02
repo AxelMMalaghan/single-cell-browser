@@ -213,18 +213,18 @@ class Dataset:
             columns=[f"dim{i + 1}" for i in range(emb.shape[1])],
         )
 
-    def extract_expression_matrix(
-            self,
-            adata: AnnData,
-            genes: List[str],
-            layer: str | None = None,
-    ) -> pd.DataFrame:
-        """Safely return expression matrix (cells x genes) as DataFrame."""
-        valid_genes = [g for g in genes if g in adata.var_names]
-        if not valid_genes:
-            return pd.DataFrame()
+    def extract_expression_matrix(self, adata, genes: List[str]) -> pd.DataFrame:
+        import scipy.sparse
 
-        matrix = self.get_dense_matrix(adata[:, valid_genes], layer=layer)
-        return pd.DataFrame(matrix, index=adata.obs_names, columns=valid_genes)
+        X = adata[:, genes].X
+        var_names = adata[:, genes].var_names
+
+        if scipy.sparse.issparse(X):
+            df = pd.DataFrame.sparse.from_spmatrix(X, columns=var_names)
+        else:
+            df = pd.DataFrame(X, columns=var_names)
+
+        df.index = adata.obs_names
+        return df
 
 

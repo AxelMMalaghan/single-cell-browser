@@ -38,6 +38,10 @@ class ExpressionView(BaseView):
         if gene not in adata.var_names:
             return pd.DataFrame()
 
+        genes = [g for g in state.genes if g in adata.var_names]
+        if not genes:
+            return pd.DataFrame()
+
         expression_df = ds.extract_expression_matrix(adata, [gene])
         if expression_df.empty:
             return pd.DataFrame()

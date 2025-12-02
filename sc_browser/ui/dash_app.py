@@ -176,7 +176,7 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
     )
 
 def create_dash_app() -> Dash:
-    global_config, datasets = load_datasets("config/datasets.json")
+    global_config, datasets = load_datasets("config/datasets_mapped.json")
     if not datasets:
         raise RuntimeError("No datasets were loaded from config/datasets.json")
 
