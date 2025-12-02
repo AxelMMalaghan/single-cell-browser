@@ -5,7 +5,7 @@ class ScBrowserError(Exception):
     pass
 
 class ConfigError(ScBrowserError):
-    """Invalid or inconsistent datasets.json or global config"""
+    """Invalid or inconsistent demo1dataset.json or global config"""
     pass
 
 class DatasetSchemaError(ScBrowserError):

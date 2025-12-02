@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 
+from sc_browser.config import GlobalConfig
 from sc_browser.config.io import load_datasets
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
@@ -176,9 +178,13 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
     )
 
 def create_dash_app() -> Dash:
-    global_config, datasets = load_datasets("config/datasets_mapped.json")
+
+    config_root = Path("config")
+
+    global_config, datasets = load_datasets(config_root)
+
     if not datasets:
-        raise RuntimeError("No datasets were loaded from config/datasets.json")
+        raise RuntimeError("No datasets were loaded from config/demo1dataset.json")
 
     dataset_by_name: Dict[str, object] = {ds.name: ds for ds in datasets}
     default_dataset = datasets[0]

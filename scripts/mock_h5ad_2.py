@@ -26,9 +26,9 @@ def main() -> None:
     # ---- obs: per-cell metadata ----
     obs = pd.DataFrame(
         {
-            # this must match "cluster_key": "cluster" in datasets.json
+            # this must match "cluster_key": "cluster" in demo1dataset.json
             "cluster": rng.choice(["C0", "C1", "C2", "C3"], size=n_cells),
-            # this must match "condition_key": "condition" in datasets.json
+            # this must match "condition_key": "condition" in demo1dataset.json
             "condition": rng.choice(["ctrl", "stim"], size=n_cells),
         },
         index=[f"cell_{i}" for i in range(n_cells)],

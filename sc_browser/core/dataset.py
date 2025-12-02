@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 import anndata as ad
 import pandas as pd
@@ -16,7 +16,7 @@ class Dataset:
     This class hides all the AnnData- and schema specific details from the rest of the app
 
     Design goals:
-    - Provide a stale, typed interface for views and other users to access clusters, conditions, genes, and embeddings
+    - Provide a stable, type-safe interface for views and other users to access clusters, conditions, genes, and embeddings
     without depending on the underlying AnnData structure.
     - Centralise config-driven concerns such as column keys so that changing schema only requires changes in one place.
     - Cheap creation of filtered views of the data via subset() without exposing raw AnnData objects.
@@ -114,8 +114,6 @@ class Dataset:
             condition_key=condition_key,
             embedding_key=embedding_key,
         )
-
-    from typing import Optional, List
 
     def subset(
             self,

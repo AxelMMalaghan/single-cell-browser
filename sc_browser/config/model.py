@@ -9,17 +9,7 @@ import pandas as pd
 
 # ---- Updated Semantic Mapping and DatasetConfig ----
 
-@dataclass(frozen=True)
-class ObsColumns:
-    """
-    Semantic names for `.obs` columns used internally by the app.
-    """
-    cell_id: str
-    cluster: Optional[str] = None
-    condition: Optional[str] = None
-    sample: Optional[str] = None
-    batch: Optional[str] = None
-    cell_type: Optional[str] = None
+
 
 @dataclass
 class DatasetConfig:
@@ -42,12 +32,29 @@ class DatasetConfig:
     def obs_columns(self) -> ObsColumns:
         return ObsColumns(**self.raw.get("obs_columns", {}))
 
+    @classmethod
+    def from_raw(cls, raw: Dict[str, Any], source_path: Path, index: int) -> DatasetConfig:
+        return cls(raw=raw, source_path=source_path, index=index)
+
 
 @dataclass
 class GlobalConfig:
     ui_title: str
     default_group: str
     datasets: List[DatasetConfig]
+
+
+@dataclass(frozen=True)
+class ObsColumns:
+    """
+    Semantic names for `.obs` columns used internally by the app.
+    """
+    cell_id: str
+    cluster: Optional[str] = None
+    condition: Optional[str] = None
+    sample: Optional[str] = None
+    batch: Optional[str] = None
+    cell_type: Optional[str] = None
 
 
 # ---- Preview + Inference Functions ----
