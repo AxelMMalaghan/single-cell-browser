@@ -1,4 +1,4 @@
-# sc_browser/views/dataset_summary.py
+# sc_browser/views/dataset_summary_view.py
 
 from __future__ import annotations
 
@@ -36,38 +36,29 @@ class DatasetSummary(BaseView):
         ds: Dataset = self.dataset.subset(
             clusters=state.clusters or None,
             conditions=state.conditions or None,
+            samples=state.samples or None,
         )
 
         adata = ds.adata
 
         if adata.n_obs == 0:
-            # No cells after filtering – tell render_figure to show a message
             return {}
 
         n_cells, n_genes = adata.n_obs, adata.n_vars
 
-        # obs schema table (for future use in a table view or debugging)
+        # obs schema table (column name, dtype, unique values)
         obs_schema = (
             adata.obs.dtypes.reset_index()
             .rename(columns={"index": "column", 0: "dtype"})
         )
-        obs_schema["n_unique"] = [
-            adata.obs[col].nunique() for col in obs_schema["column"]
-        ]
+        obs_schema["n_unique"] = obs_schema["column"].map(lambda col: adata.obs[col].nunique())
 
-        # cluster & condition counts (already strings via Dataset)
-        cluster_counts = (
-            ds.clusters.value_counts()
-            .reset_index()
-            .rename(columns={"index": "cluster", self.dataset.cluster_key: "cluster", 0: "count"})
-        )
+        # Cluster counts
+        cluster_counts = ds.clusters.value_counts().reset_index()
         cluster_counts.columns = ["cluster", "count"]
 
-        condition_counts = (
-            ds.conditions.value_counts()
-            .reset_index()
-            .rename(columns={"index": "condition", self.dataset.condition_key: "condition", 0: "count"})
-        )
+        # Condition counts
+        condition_counts = ds.conditions.value_counts().reset_index()
         condition_counts.columns = ["condition", "count"]
 
         return {

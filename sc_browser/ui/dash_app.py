@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
+import pandas as pd
 
 from sc_browser.config.io import load_datasets
 from sc_browser.core.state import FilterState
@@ -152,11 +153,7 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
         className="scb-sidebar",
     )
 
-
 def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
-    """
-    Right card: tabs + main plot area.
-    """
     return dbc.Card(
         [
             dbc.CardHeader(
@@ -172,15 +169,30 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
                 className="p-0",
             ),
             dbc.CardBody(
-                dcc.Loading(
-                    id="main-graph-loading",
-                    type="default",
-                    children=dcc.Graph(
-                        id="main-graph",
-                        style={"height": "650px"},
-                        config={"responsive": True},
+                [
+                    dcc.Loading(
+                        id="main-graph-loading",
+                        type="default",
+                        children=dcc.Graph(
+                            id="main-graph",
+                            style={"height": "650px"},
+                            config={"responsive": True},
+                        ),
                     ),
-                ),
+                    html.Div(
+                        [
+                            dbc.Button(
+                                "Download data (CSV)",
+                                id="download-data-btn",
+                                color="secondary",
+                                size="sm",
+                                className="mt-2 me-2",
+                            ),
+                            dcc.Download(id="download-data"),
+                        ],
+                        className="d-flex justify-content-end",
+                    ),
+                ],
                 className="scb-main-body",
             ),
         ],
@@ -278,5 +290,47 @@ def create_dash_app() -> Dash:
         data = view.compute_data(state)
         fig = view.render_figure(data, state)
         return fig
+
+
+    @app.callback(
+        Output("download-data", "data"),
+        Input("download-data-btn", "n_clicks"),
+        State("view-tabs", "value"),
+        State("dataset-select", "value"),
+        State("cluster-select", "value"),
+        State("condition-select", "value"),
+        State("gene-select", "value"),
+        State("options-checklist", "value"),
+        prevent_initial_call=True,
+    )
+    def download_current_data(
+        n_clicks,
+        view_id: str,
+        dataset_name: str,
+        clusters,
+        conditions,
+        genes,
+        options,
+    ):
+        ds = dataset_by_name[dataset_name]
+
+        state = FilterState(
+            genes=genes or [],
+            clusters=clusters or [],
+            conditions=conditions or [],
+            split_by_condition="split_by_condition" in (options or []),
+        )
+
+        view = registry.create(view_id, ds)
+        data = view.compute_data(state)
+
+        # If view returns non-tabular data, just bail for now
+        if not isinstance(data, pd.DataFrame) or data.empty:
+            return None
+
+        filename = f"{view_id}_{dataset_name.replace(' ', '_')}.csv"
+
+        # dcc.send_data_frame will call df.to_csv(...) under the hood
+        return dcc.send_data_frame(data.to_csv, filename, index=False)
 
     return app

@@ -59,6 +59,11 @@ class VolcanoPlotView(BaseView):
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
 
+        ds = self.dataset.subset(
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
+        )
+
         # Pick groupby/ group1 / group2 based on state + dataset
         groupby, group1, group2 = self._choose_groups(state)
 

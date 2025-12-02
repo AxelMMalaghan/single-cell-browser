@@ -21,6 +21,8 @@ class FilterState:
     genes: List[str] = field(default_factory=list)
     clusters: List[str] = field(default_factory=list)
     conditions: List[str] = field(default_factory=list)
+    samples: List[str] = field(default_factory=list)
+    cell_types: List[str] = field(default_factory=list)
 
 
     merge_genes: bool = False

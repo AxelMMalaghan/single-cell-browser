@@ -22,15 +22,30 @@ class ClusterView(BaseView):
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         ds = self.dataset.subset(
-            clusters = state.clusters or None,
-            conditions = state.conditions or None,
+            clusters=state.clusters,
+            conditions=state.conditions,
+            samples=state.samples,
         )
+        adata_sub = ds.adata
+        obs_sub = adata_sub.obs.copy()
 
-        embedding = ds.adata.obsm[ds.embedding_key]
+        if adata_sub.n_obs == 0:
+            return pd.DataFrame()
 
-        df = pd.DataFrame(embedding[:, :2], columns=["dim1", "dim2"])
-        df["cluster"] = ds.clusters.to_numpy()
-        df["condition"] = ds.conditions.to_numpy()
+        # Embedding
+        embedding = adata_sub.obsm.get(ds.embedding_key)
+        if embedding is None or embedding.shape[1] < 2:
+            return pd.DataFrame()
+
+        cluster = ds.clusters.astype(str)
+        condition = ds.conditions.astype(str)
+
+        df = pd.DataFrame(
+            embedding[:, :2], columns=["dim1", "dim2"], index=adata_sub.obs_names
+        )
+        df["cluster"] = cluster.values
+        df["condition"] = condition.values
+
         return df
 
 

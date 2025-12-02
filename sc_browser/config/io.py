@@ -10,7 +10,7 @@ from sc_browser.core.dataset import Dataset
 
 def load_global_config(path: str | Path) -> GlobalConfig:
     """
-    Loads the top level application configuration f
+    Loads the top level application configuration from a JSON file
     :param path:
     :return:
     """

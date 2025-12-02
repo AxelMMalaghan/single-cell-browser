@@ -23,99 +23,65 @@ class Dotplot(BaseView):
     label = "Dot Plot"
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        adata = self.dataset.adata
-        obs = adata.obs.copy()
+        # Apply filtering through Dataset abstraction
+        ds = self.dataset.subset(
+            clusters=state.clusters,
+            conditions=state.conditions,
+            samples=state.samples
+        )
+        adata_sub = ds.adata
+        obs_sub = adata_sub.obs.copy()
 
-        # --- mask by cluster / condition
-        mask = np.ones(len(obs), dtype=bool)
-
-        if state.clusters:
-            mask &= obs[self.dataset.cluster_key].astype(str).isin(state.clusters)
-
-        if state.conditions:
-            mask &= obs[self.dataset.condition_key].astype(str).isin(state.conditions)
-
-        adata_sub = adata[mask].copy()
-        obs_sub = obs[mask].copy()
-
-        if adata_sub.n_obs == 0:
-            return pd.DataFrame()
-
-        # --- gene selection ---
-
-        if not state.genes or len(state.genes) == 0:
+        if adata_sub.n_obs == 0 or not state.genes:
             return pd.DataFrame()
 
         genes = [g for g in state.genes if g in adata_sub.var_names]
-        if len(genes) == 0:
+        if not genes:
             return pd.DataFrame()
 
-        # --- matrix (cell x genes) ---
-        X = adata_sub[:, genes].X
-        if hasattr(X, "toarray"):
-            X = X.toarray()
+        # --- expression matrix (cells x genes) ---
+        expression_df = self.dataset.extract_expression_matrix(adata_sub, genes)
+        if expression_df.empty:
+            return pd.DataFrame()
 
-        expression_df = pd.DataFrame(
-            X,
-            index=adata_sub.obs_names,
-            columns=genes
-        )
+        cluster_key = self.dataset.get_obs_column("cluster")
+        condition_key = self.dataset.get_obs_column("condition")
 
-        # long format: cellID, gene, count
-        long_expression = (
-            expression_df
-            .reset_index(names="cellID")
-            .melt(id_vars="cellID", var_name="gene", value_name="count")
-        )
-
-        # --- group (cluster or cluster-condition) ---
-        cluster = obs_sub[self.dataset.cluster_key].astype(str)
-        condition = obs_sub[self.dataset.condition_key].astype(str)
+        cluster = obs_sub[cluster_key].astype(str) if cluster_key else pd.Series("unknown", index=obs_sub.index)
+        condition = obs_sub[condition_key].astype(str) if condition_key else pd.Series("unknown", index=obs_sub.index)
 
         if state.split_by_condition:
             cell_identity = cluster + "-" + condition
         else:
             cell_identity = cluster
 
-        cell_meta = pd.DataFrame(
-            {
-                "cellID": obs_sub.index,
-                "cell_identity": cell_identity.values,
-                "cluster": cluster.values,
-                "condition": condition.values,
-            }
-        )
+        cell_meta = pd.DataFrame({
+            "cellID": obs_sub.index,
+            "cell_identity": cell_identity.values,
+            "cluster": cluster.values,
+            "condition": condition.values,
+        })
 
         merged = long_expression.merge(cell_meta, on="cellID", how="left")
 
-        # --- aggregate per cell ---
         def percent_expressed(x: pd.Series) -> float:
-            if x.sum() == 0:
-                return np.nan
-            return 100.0 * (x != 0).sum() / len(x)
+            return 100.0 * (x != 0).sum() / len(x) if len(x) else 0.0
 
-        grouped = merged.groupby(["cell_identity", "gene"], as_index=False)
-        agg = grouped["count"].agg(
-            meanExpr="mean",
-            pctExpressed=percent_expressed,
+        agg = (
+            merged
+            .groupby(["cell_identity", "gene"], as_index=False)["count"]
+            .agg(meanExpr="mean", pctExpressed=percent_expressed)
         )
 
-        # log mean expression
         agg["logMeanExpression"] = np.log2(1.0 + agg["meanExpr"])
-
-        #relative expression per gene
-        agg["maxMeanExpression"] = agg.groupby("gene")["meanExpr"].transform(
-            lambda s: s.max(skipna=True)
-        )
+        agg["maxMeanExpression"] = agg.groupby("gene")["meanExpr"].transform("max")
         agg["relMeanExpression"] = np.where(
             agg["maxMeanExpression"] > 0,
             agg["meanExpr"] / agg["maxMeanExpression"],
             0.0
         )
 
-        agg = agg.sort_values(["gene", "cell_identity"]).reset_index(drop=True)
-
-        return agg
+        return agg.sort_values(["gene", "cell_identity"]).reset_index(drop=True)
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
         if data is None or data.empty:

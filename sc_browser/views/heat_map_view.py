@@ -20,60 +20,44 @@ class HeatmapView(BaseView):
     label = "Heatmap"
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        adata = self.dataset.adata
-        obs = adata.obs.copy()
+        # Apply filters using the unified Dataset.subset abstraction
+        ds = self.dataset.subset(
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
+            samples=state.samples or None,
+        )
 
-        # --- masking by cluster / condition ---
-        mask = np.ones(len(obs), dtype=bool)
+        adata = ds.adata
 
-        if state.clusters:
-            mask &= obs[self.dataset.cluster_key].astype(str).isin(state.clusters)
-
-        if state.conditions:
-            mask &= obs[self.dataset.condition_key].astype(str).isin(state.conditions)
-
-        adata_sub = adata[mask].copy()
-        obs_sub = adata_sub.obs.copy()
-
-        if adata_sub.n_obs == 0:
+        if adata.n_obs == 0 or not state.genes:
             return pd.DataFrame()
 
-        # --- gene selection ---
-        if not state.genes:
-            return pd.DataFrame()
-
-        # keep only genes present in AnnData
-        genes: List[str] = [g for g in state.genes if g in adata_sub.var_names]
-        if len(genes) == 0:
+        # Filter genes to those present in the dataset
+        genes: List[str] = [g for g in state.genes if g in adata.var_names]
+        if not genes:
             return pd.DataFrame()
 
         # cells x genes matrix
-        X = adata_sub[:, genes].X
-        if hasattr(X, "toarray"):
-            X = X.toarray()
+        expression_df = self.dataset.extract_expression_matrix(adata, genes)
+        if expression_df.empty:
+            return pd.DataFrame()
 
-        expression_df = pd.DataFrame(X, columns=genes, index=obs_sub.index)
+        cluster = ds.clusters.astype(str)
+        condition = ds.conditions.astype(str)
 
-        cluster = obs_sub[self.dataset.cluster_key].astype(str)
-        condition = obs_sub[self.dataset.condition_key].astype(str)
-
-        if state.split_by_condition:
-            group = cluster + "_" + condition
-        else:
-            group = cluster
-
+        group = cluster + "_" + condition if state.split_by_condition else cluster
         expression_df["group"] = group.values
 
-        # tidy: group, gene, expression
+        # Compute average expression per group and gene
         long_df = (
             expression_df
             .melt(id_vars="group", var_name="gene", value_name="expression")
             .groupby(["group", "gene"], as_index=False)
             .agg(mean_expression=("expression", "mean"))
         )
+
         long_df["log_mean_expression"] = np.log1p(long_df["mean_expression"])
 
-        # put genes and groups in stable order
         long_df["gene"] = pd.Categorical(
             long_df["gene"],
             categories=[g for g in genes if g in long_df["gene"].unique()],
@@ -85,6 +69,7 @@ class HeatmapView(BaseView):
             categories=sorted(long_df["group"].unique()),
             ordered=True,
         )
+
         return long_df
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
