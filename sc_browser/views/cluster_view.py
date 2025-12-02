@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.express as px
 from plotly.graph_objs import Figure
 
-from ..core.state import FilterState
-from ..core.base_view import BaseView
+from sc_browser.core.state import FilterState
+from sc_browser.core.base_view import BaseView
 
 
 class ClusterView(BaseView):

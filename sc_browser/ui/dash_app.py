@@ -13,44 +13,43 @@ from sc_browser.views import (
     ClusterView,
     ExpressionView,
     FeatureCountView,
-    Dotplot,
+    DotplotView,
     HeatmapView,
-    VolcanoPlotView, DatasetSummary,
+    VolcanoPlotView,
+    DatasetSummary,
 )
+
+def get_filter_dropdown_options(dataset) -> Tuple[List[dict], List[dict], List[dict]]:
+    cluster_options = [{"label": c, "value": c} for c in sorted(dataset.clusters.unique())]
+    condition_options = [{"label": c, "value": c} for c in sorted(dataset.conditions.unique())]
+    gene_options = [{"label": g, "value": g} for g in sorted(dataset.genes)]
+    return cluster_options, condition_options, gene_options
 
 def _build_view_registry() -> ViewRegistry:
     registry = ViewRegistry()
     registry.register(ClusterView)
     registry.register(ExpressionView)
     registry.register(FeatureCountView)
-    registry.register(Dotplot)
+    registry.register(DotplotView)
     registry.register(HeatmapView)
     registry.register(VolcanoPlotView)
     registry.register(DatasetSummary)
     return registry
 
-
-def _build_navbar(datasets) -> dbc.Navbar:
-    """
-    Top navbar: title on the left, dataset selector on the right.
-    """
+def _build_navbar(datasets, global_config) -> dbc.Navbar:
+    title = getattr(global_config, "ui_title", "Single-Cell Browser")
+    subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
     return dbc.Navbar(
         dbc.Container(
             fluid=True,
             children=[
-                # Title + subtitle on the left
                 html.Div(
                     [
-                        html.H2("Single-Cell Browser", className="mb-0"),
-                        html.Small(
-                            "Interactive Dataset Explorer",
-                            className="text-muted",
-                            id="navbar-subtitle",
-                        ),
+                        html.H2(title, className="mb-0"),
+                        html.Small(subtitle, className="text-muted", id="navbar-subtitle"),
                     ],
                     className="d-flex flex-column justify-content-center",
                 ),
-                # Dataset selector on the right
                 html.Div(
                     dcc.Dropdown(
                         id="dataset-select",
@@ -66,16 +65,13 @@ def _build_navbar(datasets) -> dbc.Navbar:
                 ),
             ],
         ),
-        color="light",  # theme primary colour
-        dark=False,        # white text on coloured navbar
+        color="light",
+        dark=False,
         className="shadow-sm scb-navbar",
     )
 
-
 def _build_filter_panel(default_dataset) -> dbc.Card:
-    """
-    Left sidebar with filters (cluster, condition, genes, options)
-    """
+    cluster_options, condition_options, gene_options = get_filter_dropdown_options(default_dataset)
     return dbc.Card(
         [
             dbc.CardHeader("Filters", className="fw-semibold"),
@@ -84,10 +80,7 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
                     html.Label("Filter clusters", className="form-label"),
                     dcc.Dropdown(
                         id="cluster-select",
-                        options=[
-                            {"label": c, "value": c}
-                            for c in sorted(default_dataset.clusters.unique())
-                        ],
+                        options=cluster_options,
                         multi=True,
                         placeholder="All clusters",
                         className="mb-3",
@@ -95,10 +88,7 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
                     html.Label("Filter conditions", className="form-label"),
                     dcc.Dropdown(
                         id="condition-select",
-                        options=[
-                            {"label": c, "value": c}
-                            for c in sorted(default_dataset.conditions.unique())
-                        ],
+                        options=condition_options,
                         multi=True,
                         placeholder="All conditions",
                         className="mb-3",
@@ -106,10 +96,7 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
                     html.Label("Gene(s)", className="form-label"),
                     dcc.Dropdown(
                         id="gene-select",
-                        options=[
-                            {"label": g, "value": g}
-                            for g in sorted(default_dataset.genes)
-                        ],
+                        options=gene_options,
                         multi=True,
                         placeholder="Select gene(s)",
                         className="mb-3",
@@ -117,28 +104,18 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
                     html.Hr(),
                     dbc.Checklist(
                         id="options-checklist",
-                        options=[
-                            {
-                                "label": " Split by condition",
-                                "value": "split_by_condition",
-                            },
-                        ],
+                        options=[{"label": " Split by condition", "value": "split_by_condition"}],
                         value=[],
                         switch=True,
                     ),
                     html.Hr(),
-                    # Tiny dataset summary
                     html.Div(
                         [
-                            html.Div(
-                                f"{default_dataset.name}",
-                                className="fw-semibold",
-                            ),
+                            html.Div(default_dataset.name, className="fw-semibold"),
                             html.Div(
                                 [
                                     html.Span(
-                                        f"{default_dataset.adata.n_obs} cells · "
-                                        f"{default_dataset.adata.n_vars} genes",
+                                        f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
                                         className="text-muted",
                                     ),
                                 ],
@@ -161,8 +138,7 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
                     id="view-tabs",
                     value=ClusterView.id,
                     children=[
-                        dcc.Tab(label=cls.label, value=cls.id)
-                        for cls in registry.all_classes()
+                        dcc.Tab(label=cls.label, value=cls.id) for cls in registry.all_classes()
                     ],
                     className="scb-tabs",
                 ),
@@ -199,18 +175,7 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
         className="scb-maincard",
     )
 
-
-# ----------------------------------------------------------------------
-# App factory
-# ----------------------------------------------------------------------
-
-
 def create_dash_app() -> Dash:
-    """
-    Build and wire a complete Dash app around the core domain objects
-    (Dataset, FilterState, ViewRegistry, Views).
-    """
-    # ----- Load datasets -----
     global_config, datasets = load_datasets("config/datasets.json")
     if not datasets:
         raise RuntimeError("No datasets were loaded from config/datasets.json")
@@ -218,13 +183,11 @@ def create_dash_app() -> Dash:
     dataset_by_name: Dict[str, object] = {ds.name: ds for ds in datasets}
     default_dataset = datasets[0]
 
-    # ----- View registry -----
     registry = _build_view_registry()
 
-    # ----- Create Dash app with a coloured theme -----
     app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 
-    navbar = _build_navbar(datasets)
+    navbar = _build_navbar(datasets, global_config)
     filter_panel = _build_filter_panel(default_dataset)
     plot_panel = _build_plot_panel(registry)
 
@@ -243,10 +206,6 @@ def create_dash_app() -> Dash:
         ],
     )
 
-    # ------------------------------------------------------------------
-    # Callbacks
-    # ------------------------------------------------------------------
-
     @app.callback(
         Output("cluster-select", "options"),
         Output("condition-select", "options"),
@@ -254,11 +213,7 @@ def create_dash_app() -> Dash:
         Input("dataset-select", "value"),
     )
     def update_filters(dataset_name: str):
-        ds = dataset_by_name[dataset_name]
-        cluster_options = [{"label": c, "value": c} for c in sorted(ds.clusters.unique())]
-        condition_options = [{"label": c, "value": c} for c in sorted(ds.conditions.unique())]
-        gene_options = [{"label": g, "value": g} for g in sorted(ds.genes)]
-        return cluster_options, condition_options, gene_options
+        return get_filter_dropdown_options(dataset_by_name[dataset_name])
 
     @app.callback(
         Output("main-graph", "figure"),
@@ -278,19 +233,15 @@ def create_dash_app() -> Dash:
         options: List[str] | None,
     ):
         ds = dataset_by_name[dataset_name]
-
         state = FilterState(
             genes=genes or [],
             clusters=clusters or [],
             conditions=conditions or [],
             split_by_condition="split_by_condition" in (options or []),
         )
-
         view = registry.create(view_id, ds)
         data = view.compute_data(state)
-        fig = view.render_figure(data, state)
-        return fig
-
+        return view.render_figure(data, state)
 
     @app.callback(
         Output("download-data", "data"),
@@ -313,24 +264,17 @@ def create_dash_app() -> Dash:
         options,
     ):
         ds = dataset_by_name[dataset_name]
-
         state = FilterState(
             genes=genes or [],
             clusters=clusters or [],
             conditions=conditions or [],
             split_by_condition="split_by_condition" in (options or []),
         )
-
         view = registry.create(view_id, ds)
         data = view.compute_data(state)
-
-        # If view returns non-tabular data, just bail for now
         if not isinstance(data, pd.DataFrame) or data.empty:
             return None
-
         filename = f"{view_id}_{dataset_name.replace(' ', '_')}.csv"
-
-        # dcc.send_data_frame will call df.to_csv(...) under the hood
         return dcc.send_data_frame(data.to_csv, filename, index=False)
 
     return app

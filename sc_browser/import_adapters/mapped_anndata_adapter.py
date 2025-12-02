@@ -4,7 +4,7 @@ from typing import Any, Dict
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.base_adapter import BaseConfigAdapter
 from sc_browser.config.model import DatasetConfig
-from sc_browser.core.adapters import AnnDataAdapter
+from sc_browser.core.adapters.anndata_adapter import AnnDataAdapter
 
 class MappedAnnDataAdapter(BaseConfigAdapter):
 

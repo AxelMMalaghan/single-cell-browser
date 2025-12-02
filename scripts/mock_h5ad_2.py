@@ -21,7 +21,7 @@ def main() -> None:
 
     # ---- expression matrix X (cells x genes) ----
     # Poisson counts so feature/count plots look sane
-    X = rng.poisson(lam=1.0, size=(n_cells, n_genes)).astype("float32")
+    X = rng.random(size=(n_cells, n_genes)).astype("float32")
 
     # ---- obs: per-cell metadata ----
     obs = pd.DataFrame(
@@ -47,7 +47,7 @@ def main() -> None:
     adata = ad.AnnData(X=X, obs=obs, var=var)
     adata.obsm["X_umap"] = umap
 
-    out_path = data_dir / "demo.h5ad"
+    out_path = data_dir / "demo3.h5ad"
     adata.write_h5ad(out_path)
 
     print(f"Wrote: {out_path}")

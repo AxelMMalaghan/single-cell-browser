@@ -31,8 +31,10 @@ class FeatureCountView(BaseView):
         if adata.n_obs == 0:
             return pd.DataFrame()
 
+        genes = list(adata.var_names)
+
         # Use unified method to get expression matrix
-        expression_df = ds.extract_expression_matrix(adata)
+        expression_df = ds.extract_expression_matrix(adata, genes)
         if expression_df.empty:
             return pd.DataFrame()
 

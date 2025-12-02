@@ -13,6 +13,16 @@
       "cluster_key": "cluster",
       "condition_key": "condition",
       "embedding_key": "X_umap"
+    },
+    {
+      "name": "Demo dataset 2",
+      "group": "Example",
+
+      "file": "data/demo2.h5ad",
+
+      "cluster_key": "cluster",
+      "condition_key": "condition",
+      "embedding_key": "X_umap"
     }
   ]
 }
