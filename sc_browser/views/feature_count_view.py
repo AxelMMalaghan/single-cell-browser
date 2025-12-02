@@ -28,6 +28,7 @@ class FeatureCountView(BaseView):
 
         adata = ds.adata
 
+
         if adata.n_obs == 0:
             return pd.DataFrame()
 
