@@ -4,12 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import anndata
-import pandas as pd
-
-# ---- Updated Semantic Mapping and DatasetConfig ----
-
-
 
 @dataclass
 class DatasetConfig:

@@ -4,15 +4,22 @@ import json
 from pathlib import Path
 from typing import List, Tuple, Set
 
-from .model import GlobalConfig, DatasetConfig
-from ..core import Dataset
+from sc_browser.config.model import DatasetConfig, GlobalConfig
+from sc_browser.core.dataset_loader import from_config
+from sc_browser.core.dataset import Dataset
 
 
 def load_global_config(path: Path) -> GlobalConfig:
     """
-    Loads the top level application configuration from a JSON file
-    :param path:
-    :return:
+    Loads the top-level application configuration from a JSON file or directory
+
+    This supports two layout styles:
+
+    1 - Directory
+    2 - Legacy (single file) - Only here for demo datasets TODO: migrate away after demo on Friday
+    :param path: Points to a directory or single file containing global.json AND datasets.json
+    :return: Parsed 'GlobalConfig' instance describing app setup
+    :raises FileNotFoundError: if path or file does not exist
     """
 
     if path.is_dir():
@@ -23,6 +30,19 @@ def load_global_config(path: Path) -> GlobalConfig:
 
 
 def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
+    """
+    Loads the global configuration and instantiates all Dataset objects
+
+    Main entrypoint used by UI/services
+
+    1. Loads the top-level 'GlobalConfig' from 'path' supporting both directory and file.
+    2. Merges:
+        - All 'DatasetConfig' instances defined in the config and
+        - Any additional datasets discovered under 'GlobalConfig.data_root'
+    3. Materialises each 'DatasetConfig' into a 'Dataset' by calling 'Dataset.from_config'
+    :param path: Path to config directory
+    :return: A tuple of (GlobalConfig, Datasets)
+    """
     global_config = load_global_config(path)
 
     # Merge configured + discovered
@@ -33,22 +53,34 @@ def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
 
     datasets: List[Dataset] = []
     for ds_cfg in all_cfgs:
-        datasets.append(Dataset.from_config(ds_cfg))
+        datasets.append(from_config(ds_cfg))
 
     return global_config, datasets
 
 
 
-
-
 def _load_global_from_dir(root: Path) -> GlobalConfig:
     """
-    New loader
+    Loads configuration from a directory using the new multi-file layout
 
-    :param root: is a directory containing :
-                    root/global.json
-                    root/dataset/*.json
-    :return: the Global config and a list of Datasets
+    Expected structure:
+
+        root/
+            global.json
+            datasets/
+                dataset_1.json
+                dataset_2.json
+
+    Each file in 'datasets/' is parsed into a 'DatasetConfig'. The resulting 'Global Config' includes:
+
+    - ui_title: title for UI, defaults to 'Single-Cell Browser'
+    - default_group: group for UI, defaults to 'Default'
+    - datasets: list of DatasetConfigs
+    - data_root: root directory for datasets
+
+    :param root: Directory containing 'global.json' and datasets/
+    :return: A GlobalConfig instance
+    :raises FileNotFoundError: global.json does not exist
     """
 
     global_path = root / "global.json"

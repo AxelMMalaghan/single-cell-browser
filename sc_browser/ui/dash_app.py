@@ -128,11 +128,16 @@ def _build_filter_panel(default_dataset) -> dbc.Card:
                     html.Hr(),
                     html.Div(
                         [
-                            html.Div(default_dataset.name, className="fw-semibold"),
+                            html.Div(
+                                default_dataset.name,
+                                id="sidebar-dataset-name",
+                                className="fw-semibold",
+                            ),
                             html.Div(
                                 [
                                     html.Span(
                                         f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
+                                        id="sidebar-dataset-meta",
                                         className="text-muted",
                                     ),
                                 ],
@@ -231,25 +236,34 @@ def _obs_preview_table(ds, max_rows: int = 5) -> html.Table:
     )
 
 
-def _build_dataset_manager_panel(datasets) -> dbc.Row:
-    """Datasets screen: manage / inspect / map datasets + import."""
-    return dbc.Row(
-        [
-            dbc.Col(
-                [
-                    html.H4("Datasets"),
-                    dcc.Dropdown(
-                        id="dm-dataset-select",
-                        options=[{"label": ds.name, "value": ds.name} for ds in datasets],
-                        value=datasets[0].name if datasets else None,
-                        clearable=False,
-                        className="mb-3",
-                    ),
-                    html.Div(id="dm-status-text", className="mb-2 fw-semibold"),
-                    html.Div(id="dm-summary-text", className="text-muted mb-3"),
+def _build_dataset_manager_panel() -> dbc.Container:
+    """
+    Datasets screen: manage / inspect / map datasets + import.
 
+    Uses the global dataset-select as the source of truth.
+    Layout:
+      - Top row: status/import (left), mapping form (right)
+      - Bottom row: full-width obs preview
+    """
+    status_card = dbc.Card(
+        [
+            dbc.CardHeader("Current dataset"),
+            dbc.CardBody(
+                [
+                    html.Div(
+                        id="dm-current-dataset",
+                        className="mb-1 fw-semibold",
+                    ),
+                    html.Div(
+                        id="dm-status-text",
+                        className="mb-1",
+                    ),
+                    html.Div(
+                        id="dm-summary-text",
+                        className="text-muted mb-3",
+                    ),
                     html.Hr(),
-                    html.H5("Import dataset (.h5ad)", className="mt-3"),
+                    html.H6("Import dataset (.h5ad)", className="mt-1"),
                     dcc.Upload(
                         id="dm-upload",
                         children=html.Div(
@@ -265,22 +279,56 @@ def _build_dataset_manager_panel(datasets) -> dbc.Row:
                         id="dm-import-status",
                         className="small text-muted mt-2",
                     ),
-                ],
-                md=4,
-                className="mt-3",
+                ]
             ),
-            dbc.Col(
+        ],
+        className="h-100",
+    )
+
+    mapping_card = dbc.Card(
+        [
+            dbc.CardHeader("Mapping"),
+            dbc.CardBody(
                 [
-                    html.H4("Mapping"),
-                    html.Label("Cluster column", className="form-label"),
-                    dcc.Dropdown(id="dm-cluster-key", className="mb-2"),
-                    html.Label("Condition column", className="form-label"),
-                    dcc.Dropdown(id="dm-condition-key", className="mb-2"),
-                    html.Label("Sample column", className="form-label"),
-                    dcc.Dropdown(id="dm-sample-key", className="mb-2"),
-                    html.Label("Cell type column", className="form-label"),
-                    dcc.Dropdown(id="dm-celltype-key", className="mb-2"),
-                    html.Label("Embedding key", className="form-label"),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Cluster column", className="form-label"),
+                                    dcc.Dropdown(id="dm-cluster-key", className="mb-2"),
+                                ],
+                                md=6,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Condition column", className="form-label"),
+                                    dcc.Dropdown(id="dm-condition-key", className="mb-2"),
+                                ],
+                                md=6,
+                            ),
+                        ],
+                        className="gx-3",
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Sample column", className="form-label"),
+                                    dcc.Dropdown(id="dm-sample-key", className="mb-2"),
+                                ],
+                                md=6,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Cell type column", className="form-label"),
+                                    dcc.Dropdown(id="dm-celltype-key", className="mb-2"),
+                                ],
+                                md=6,
+                            ),
+                        ],
+                        className="gx-3",
+                    ),
+                    html.Label("Embedding key", className="form-label mt-2"),
                     dcc.Dropdown(id="dm-embedding-key", className="mb-3"),
                     dbc.Button(
                         "Save mapping",
@@ -289,17 +337,45 @@ def _build_dataset_manager_panel(datasets) -> dbc.Row:
                         size="sm",
                         className="mt-1",
                     ),
-                    html.Span(id="dm-save-status", className="ms-2 small text-muted"),
-
-                    html.Hr(),
-                    html.H5("Obs preview", className="mt-3"),
-                    html.Div(id="dm-obs-preview"),
-                ],
-                md=8,
-                className="mt-3",
+                    html.Span(
+                        id="dm-save-status",
+                        className="ms-2 small text-muted",
+                    ),
+                ]
             ),
         ],
-        className="gx-3",
+        className="h-100",
+    )
+
+    obs_card = dbc.Card(
+        [
+            dbc.CardHeader("Obs preview"),
+            dbc.CardBody(
+                html.Div(id="dm-obs-preview"),
+                className="p-2",
+            ),
+        ],
+        className="mt-3",
+    )
+
+    return dbc.Container(
+        fluid=True,
+        children=[
+            dbc.Row(
+                [
+                    dbc.Col(status_card, md=4, className="mt-3"),
+                    dbc.Col(mapping_card, md=8, className="mt-3"),
+                ],
+                className="gx-3",
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(obs_card, md=12),
+                ],
+                className="gx-3",
+            ),
+        ],
+        className="scb-datasets-view",
     )
 
 
@@ -320,7 +396,7 @@ def create_dash_app() -> Dash:
     navbar = _build_navbar(datasets, global_config)
     filter_panel = _build_filter_panel(datasets[0])
     plot_panel = _build_plot_panel(registry)
-    dataset_manager = _build_dataset_manager_panel(datasets)
+    dataset_manager = _build_dataset_manager_panel()
 
     app.layout = dbc.Container(
         fluid=True,
@@ -360,6 +436,29 @@ def create_dash_app() -> Dash:
     # -------------------------------------------------------------------------
     # Explore callbacks
     # -------------------------------------------------------------------------
+    @app.callback(
+        Output("sidebar-dataset-name", "children"),
+        Output("sidebar-dataset-meta", "children"),
+        Input("dataset-select", "value"),
+    )
+    def update_sidebar_dataset_summary(dataset_name: str):
+        ds = dataset_by_name[dataset_name]
+        name = ds.name
+        meta = f"{ds.adata.n_obs} cells · {ds.adata.n_vars} genes"
+        return name, meta
+
+
+
+    @app.callback(
+        Output("cluster-select", "value"),
+        Output("condition-select", "value"),
+        Output("gene-select", "value"),
+        Input("dataset-select", "value"),
+    )
+    def reset_filters_on_dataset_change(dataset_name: str):
+        # When the dataset changes, clear all filters.
+        return [], [], []
+
 
     @app.callback(
         Output("cluster-select", "options"),
@@ -376,33 +475,24 @@ def create_dash_app() -> Dash:
         State("gene-select", "value"),
     )
     def update_gene_options(search_value, dataset_name, selected_genes):
-        """
-        Server-side gene search.
-
-        Avoids sending ~30k gene options to the browser;
-        returns a small subset of matches plus already-selected genes.
-        """
         ds = dataset_by_name[dataset_name]
-        all_genes = list(ds.genes)  # Index -> list
+        all_genes = list(ds.genes)
+        gene_set = set(all_genes)
 
         selected_genes = selected_genes or []
 
-        # No search yet: only show selected genes
+        # Remove stale genes from previous dataset
+        selected_genes = [g for g in selected_genes if g in gene_set]
+
+        # No search performed yet → only return selected genes
         if not search_value or not search_value.strip():
             return [{"label": g, "value": g} for g in selected_genes]
 
         query = search_value.lower()
-
-        # Filter genes by substring match (can switch to prefix if you want)
         matches = [g for g in all_genes if query in g.lower()]
+        suggestions = matches[:100]
 
-        # Limit to keep payload small
-        max_suggestions = 50
-        suggestions = matches[:max_suggestions]
-
-        # Ensure selected genes stay in the options
-        union = list(dict.fromkeys(list(selected_genes) + suggestions))
-
+        union = list(dict.fromkeys(selected_genes + suggestions))
         return [{"label": g, "value": g} for g in union]
 
     @app.callback(
@@ -415,6 +505,7 @@ def create_dash_app() -> Dash:
         Input("options-checklist", "value"),
     )
     def update_main_graph(
+
         view_id: str,
         dataset_name: str,
         clusters: List[str] | None,
@@ -423,6 +514,12 @@ def create_dash_app() -> Dash:
         options: List[str] | None,
     ):
         ds = dataset_by_name[dataset_name]
+
+
+        if genes:
+            gene_set = set(ds.genes)
+            genes = [g for g in genes if g in gene_set]
+
         state = FilterState(
             genes=genes or [],
             clusters=clusters or [],
@@ -431,6 +528,7 @@ def create_dash_app() -> Dash:
         )
 
         view = registry.create(view_id, ds)
+
 
         try:
             data = view.compute_data(state)
@@ -499,7 +597,7 @@ def create_dash_app() -> Dash:
         return dash_dcc.send_data_frame(data.to_csv, filename, index=False)
 
     # -------------------------------------------------------------------------
-    # Dataset manager callbacks
+    # Dataset manager callbacks (all driven by dataset-select)
     # -------------------------------------------------------------------------
 
     @app.callback(
@@ -560,7 +658,7 @@ def create_dash_app() -> Dash:
     @app.callback(
         Output("dm-save-status", "children"),
         Input("dm-save-btn", "n_clicks"),
-        State("dm-dataset-select", "value"),
+        State("dataset-select", "value"),
         State("dm-cluster-key", "value"),
         State("dm-condition-key", "value"),
         State("dm-sample-key", "value"),
@@ -605,13 +703,12 @@ def create_dash_app() -> Dash:
         Output("dm-import-status", "children"),
         Output("dataset-select", "options"),
         Output("dataset-select", "value"),
-        Output("dm-dataset-select", "options"),
-        Output("dm-dataset-select", "value"),
         Input("dm-upload", "contents"),
         State("dm-upload", "filename"),
+        State("dataset-select", "value"),
         prevent_initial_call=True,
     )
-    def import_dataset(contents, filename):
+    def import_dataset(contents, filename, current_dataset_name):
         nonlocal global_config, datasets, dataset_by_name
 
         if not contents or not filename:
@@ -619,11 +716,9 @@ def create_dash_app() -> Dash:
 
         if not filename.endswith(".h5ad"):
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
-            current = datasets[0].name if datasets else None
+            current = current_dataset_name or (datasets[0].name if datasets else None)
             return (
                 f"Unsupported file type for '{filename}'. Please upload a .h5ad file.",
-                opts,
-                current,
                 opts,
                 current,
             )
@@ -635,11 +730,9 @@ def create_dash_app() -> Dash:
         except Exception as e:
             logger.exception("Failed to decode uploaded file")
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
-            current = datasets[0].name if datasets else None
+            current = current_dataset_name or (datasets[0].name if datasets else None)
             return (
                 f"Failed to decode uploaded file: {e}",
-                opts,
-                current,
                 opts,
                 current,
             )
@@ -655,11 +748,9 @@ def create_dash_app() -> Dash:
         except Exception as e:
             logger.exception("Failed to write uploaded file to disk")
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
-            current = datasets[0].name if datasets else None
+            current = current_dataset_name or (datasets[0].name if datasets else None)
             return (
                 f"Failed to save file to {out_path}: {e}",
-                opts,
-                current,
                 opts,
                 current,
             )
@@ -670,11 +761,9 @@ def create_dash_app() -> Dash:
         except Exception as e:
             logger.exception("Reloading datasets after import failed")
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
-            current = datasets[0].name if datasets else None
-            return(
+            current = current_dataset_name or (datasets[0].name if datasets else None)
+            return (
                 f"File saved to {out_path}, but reloading datasets failed: {e}",
-                opts,
-                current,
                 opts,
                 current,
             )
@@ -704,8 +793,6 @@ def create_dash_app() -> Dash:
 
         return (
             status_msg,
-            opts,
-            selected,
             opts,
             selected,
         )
