@@ -26,7 +26,24 @@ class DatasetConfig:
 
     @property
     def path(self) -> Path:
-        return Path(self.raw["file"])
+        """
+           Return the .h5ad path for this dataset.
+
+           Supports both:
+           - new schema:  "path": "data/foo.h5ad"
+           - legacy:      "file": "data/foo.h5ad" or "file_path": "data/foo.h5ad"
+           """
+        raw_path = (
+                self.raw.get("path")
+                or self.raw.get("file")
+                or self.raw.get("file_path")
+        )
+        if raw_path is None:
+            raise KeyError(
+                f"No 'path', 'file', or 'file_path' in dataset config: {self.raw}"
+            )
+        # Keep behaviour same as old code: interpret relative paths from CWD
+        return Path(raw_path)
 
     @property
     def obs_columns(self) -> ObsColumns:
@@ -42,6 +59,7 @@ class GlobalConfig:
     ui_title: str
     default_group: str
     datasets: List[DatasetConfig]
+    data_root: Optional[Path] = None
 
 
 @dataclass(frozen=True)
@@ -55,31 +73,4 @@ class ObsColumns:
     sample: Optional[str] = None
     batch: Optional[str] = None
     cell_type: Optional[str] = None
-
-
-# ---- Preview + Inference Functions ----
-
-def infer_column_roles(obs_df: pd.DataFrame) -> Dict[str, Optional[str]]:
-    """Heuristic-based inference of semantic column roles."""
-    colnames = obs_df.columns
-    roles = {
-        "cluster": next((col for col in colnames if col.lower() in ["cluster", "leiden", "louvain"]), None),
-        "condition": next((col for col in colnames if col.lower() in ["condition", "treatment", "group"]), None),
-        "sample": next((col for col in colnames if col.lower() in ["sample", "donor", "replicate"]), None),
-        "batch": next((col for col in colnames if col.lower() in ["batch", "batch_id"]), None),
-        "cell_type": next((col for col in colnames if col.lower() in ["cell_type", "type", "annotation"]), None),
-    }
-    return roles
-
-def preview_adata_columns(file_path: Path) -> Dict[str, Any]:
-    adata = anndata.read_h5ad(file_path, backed='r')
-    obs_df = adata.obs
-    inferred_roles = infer_column_roles(obs_df)
-    return {
-        "obs_columns": list(obs_df.columns),
-        "suggested_roles": inferred_roles,
-        "n_obs": adata.n_obs,
-        "n_vars": adata.n_vars,
-        "obsm_keys": list(adata.obsm.keys()),
-    }
 

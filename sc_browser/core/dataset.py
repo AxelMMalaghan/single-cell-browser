@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 from anndata import AnnData
 
+from sc_browser.config.inference_helpers import _infer_condition_key, _infer_cluster_key, _infer_sample_key, _infer_embedding_key, _infer_cell_type_key
+
 
 class Dataset:
     """
@@ -31,6 +33,7 @@ class Dataset:
         condition_key: str,
         embedding_key: str,
         obs_columns: Optional[Dict[str, str]] = None,
+        file_path: Optional[Path] = None,
 
     ) -> None:
         self.name = name
@@ -40,6 +43,7 @@ class Dataset:
         self.condition_key = condition_key
         self.embedding_key = embedding_key
         self.obs_columns = obs_columns or {}
+        self.file_path = file_path
 
 
     @classmethod
@@ -71,40 +75,70 @@ class Dataset:
             raise KeyError("Config entry must contain 'file' or 'file_path'")
 
         file_path = Path(file_value)
-        adata = ad.read_h5ad(file_path)
 
-        # optional but recommended: make obs names unique
+        adata = ad.read_h5ad(file_path)
         adata.obs_names_make_unique()
+        adata.var_names_make_unique()
+
 
         # ---- obs column mapping ----
-        obs_cols = entry.get("obs_columns", {}) or {}
+        obs_cols: Dict[str, str] = entry.get("obs_columns", {}) or {}
 
         # legacy top-level keys take precedence, then fall back to obs_columns
         cluster_key = entry.get("cluster_key") or obs_cols.get("cluster")
         condition_key = entry.get("condition_key") or obs_cols.get("condition")
 
+        # Inference for missing cluster/condition
+        if cluster_key is None:
+            cluster_key = _infer_cluster_key(adata)
+            if cluster_key is not None:
+                obs_cols.setdefault("cluster", cluster_key)
+
+        if condition_key is None:
+            condition_key = _infer_condition_key(adata)
+            if condition_key is not None:
+                obs_cols.setdefault("condition", condition_key)
+
         if cluster_key is None:
             raise KeyError(
-                "No cluster key configured. Provide either "
-                "'cluster_key' at the top level or obs_columns.cluster."
+                "No cluster key configured and could not infer one. "
+                "Provide either 'cluster_key' at the top level or "
+                "obs_columns.cluster in the dataset config."
             )
 
         if condition_key is None:
             raise KeyError(
-                "No condition key configured. Provide either "
-                "'condition_key' at the top level or obs_columns.condition."
+                "No condition key configured and could not infer one. "
+                "Provide either 'condition_key' at the top level or "
+                "obs_columns.condition in the dataset config."
             )
+
+        # Optionally infer extra semantic columns
+        sample_key = obs_cols.get("sample")
+        if sample_key is None:
+            inferred_sample = _infer_sample_key(adata)
+            if inferred_sample is not None:
+                obs_cols["sample"] = inferred_sample
+
+        cell_type_key = obs_cols.get("cell_type")
+        if cell_type_key is None:
+            inferred_ct = _infer_cell_type_key(adata)
+            if inferred_ct is not None:
+                obs_cols["cell_type"] = inferred_ct
 
         # ---- embedding key ----
         embedding_key = entry.get("embedding_key")
+        if embedding_key is None:
+            embedding_key = _infer_embedding_key(adata)
 
-        # you *could* try to infer it from adata.obsm here, but for now
-        # we keep it explicit to avoid surprises
         if embedding_key is None:
             raise KeyError(
-                "No embedding key configured. Provide 'embedding_key' "
-                "(e.g. 'X_umap') in the dataset config entry."
+                "No embedding key configured and could not infer one. "
+                "Provide 'embedding_key' (e.g. 'X_umap') in the dataset "
+                "config entry, or ensure an appropriate embedding exists "
+                "in `.obsm`."
             )
+
 
         return cls(
             name=entry.get("name", "Unnamed dataset"),
@@ -113,7 +147,33 @@ class Dataset:
             cluster_key=cluster_key,
             condition_key=condition_key,
             embedding_key=embedding_key,
+            obs_columns=obs_cols,  # <--- IMPORTANT: preserve inferred mapping
+            file_path=file_path,
         )
+
+
+
+
+    @classmethod
+    def from_config(cls, cfg: "DatasetConfig") -> "Dataset":
+        """
+        Build a Dataset from a DatasetConfig (new config layer).
+
+        This is a thin adapter around from_config_entry so we keep all
+        the actual wiring logic in one place.
+        """
+        # Start from the raw JSON payload
+        entry: Dict[str, Any] = dict(cfg.raw)
+
+        # Normalise file path: our new schema uses "path", legacy might use "file"
+        # from_config_entry expects "file" or "file_path", so we inject one.
+        entry["file_path"] = str(cfg.path)
+
+        # (Optional) ensure name/group are present, falling back to DatasetConfig
+        entry.setdefault("name", cfg.name)
+        entry.setdefault("group", entry.get("group", "Default"))
+
+        return cls.from_config_entry(entry)
 
     def subset(
             self,
@@ -138,13 +198,14 @@ class Dataset:
         if conditions:
             mask &= obs[self.condition_key].astype(str).isin(conditions)
 
-        # Optional filters based on configured obs_columns
-        sample_key = getattr(self.obs_columns, "sample", None)
-        if samples and sample_key in obs.columns:
+
+        # Optional filters based on configured obs_columns (dict of semantic name -> obs column)
+        sample_key = self.obs_columns.get("sample")
+        if samples and sample_key and sample_key in obs.columns:
             mask &= obs[sample_key].astype(str).isin(samples)
 
-        cell_type_key = getattr(self.obs_columns, "cell_type", None)
-        if cell_types and cell_type_key in obs.columns:
+        cell_type_key = self.obs_columns.get("cell_type")
+        if cell_types and cell_type_key and cell_type_key in obs.columns:
             mask &= obs[cell_type_key].astype(str).isin(cell_types)
 
         # Subset the data
@@ -158,6 +219,7 @@ class Dataset:
             condition_key=self.condition_key,
             embedding_key=self.embedding_key,
             obs_columns=self.obs_columns,  # preserve extended keys
+            file_path=self.file_path,
         )
 
     def get_dense_matrix(self, adata: AnnData, layer: str = None, max_cells: int = 10000) -> np.ndarray:

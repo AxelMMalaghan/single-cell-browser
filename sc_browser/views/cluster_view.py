@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 from plotly.graph_objs import Figure
 
+from sc_browser.core import Dataset
 from sc_browser.core.state import FilterState
 from sc_browser.core.base_view import BaseView
 
@@ -21,30 +23,34 @@ class ClusterView(BaseView):
     label = "Cluster Plot"
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        ds = self.dataset.subset(
-            clusters=state.clusters,
-            conditions=state.conditions,
-            samples=state.samples,
+        ds: Dataset = self.dataset
+
+        # Apply filters using Dataset abstraction
+        ds_sub = ds.subset(
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
         )
-        adata_sub = ds.adata
-        obs_sub = adata_sub.obs.copy()
+        adata_sub = ds_sub.adata
 
-        if adata_sub.n_obs == 0:
-            return pd.DataFrame()
-
-        # Embedding
-        embedding = adata_sub.obsm.get(ds.embedding_key)
-        if embedding is None or embedding.shape[1] < 2:
-            return pd.DataFrame()
-
-        cluster = ds.clusters.astype(str)
-        condition = ds.conditions.astype(str)
+        # Get embedding as array (2D)
+        emb = ds_sub.adata.obsm[ds_sub.embedding_key]
+        if isinstance(emb, pd.DataFrame):
+            emb_arr = emb.values
+        else:
+            emb_arr = np.asarray(emb)
 
         df = pd.DataFrame(
-            embedding[:, :2], columns=["dim1", "dim2"], index=adata_sub.obs_names
+            emb_arr[:, :2],
+            columns=["dim1", "dim2"],
+            index=adata_sub.obs_names,
         )
-        df["cluster"] = cluster.values
-        df["condition"] = condition.values
+
+        # 🔹 Add cluster / condition columns for Plotly
+        df["cluster"] = adata_sub.obs[ds_sub.cluster_key].astype(str).values
+
+        # Optional: only if you use it elsewhere
+        if ds_sub.condition_key:
+            df["condition"] = adata_sub.obs[ds_sub.condition_key].astype(str).values
 
         return df
 

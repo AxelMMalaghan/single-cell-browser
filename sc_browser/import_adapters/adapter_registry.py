@@ -5,7 +5,6 @@ from typing import List, Any, Dict
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.base_adapter import BaseConfigAdapter
 from sc_browser.import_adapters.mapped_anndata_adapter import MappedAnnDataAdapter
-from sc_browser.import_adapters.single_cell_adapter import SimpleSingleCellAdapter
 
 
 class AdapterRegistry:
@@ -81,6 +80,5 @@ def create_single_cell_registry() -> AdapterRegistry:
     For now, just the simple entry-based adapter.
     """
     registry = AdapterRegistry()
-    registry.register(SimpleSingleCellAdapter())
     registry.register(MappedAnnDataAdapter())
     return registry

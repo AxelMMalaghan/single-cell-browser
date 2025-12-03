@@ -1,4 +1,5 @@
 {
     "ui_title": "Single-Cell Browser",
-    "default_group": "Default Group"
+    "default_group": "Default Group",
+    "data_root": "data"
 }

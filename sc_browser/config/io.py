@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Set
 
-from sc_browser.config import GlobalConfig
 from .model import GlobalConfig, DatasetConfig
 from ..core import Dataset
 
@@ -22,19 +21,19 @@ def load_global_config(path: Path) -> GlobalConfig:
         return _load_global_from_file(path)
     raise FileNotFoundError(f"File not found at {path}")
 
-def load_datasets(path: Path) -> List[DatasetConfig]:
-    """
-    Load dataset configs from the given config path
-    :param path: can either be a legacy JSON file or a config root directory
-    :return: loaded config datasets
-    """
+
+def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
     global_config = load_global_config(path)
 
+    # Merge configured + discovered
+    all_cfgs: List[DatasetConfig] = [
+        *global_config.datasets,
+        *_discover_dataset_configs(global_config),
+    ]
+
     datasets: List[Dataset] = []
-    for ds_cfg in global_config.datasets:
-        datasets.append(
-            Dataset.from_config(ds_cfg)
-        )
+    for ds_cfg in all_cfgs:
+        datasets.append(Dataset.from_config(ds_cfg))
 
     return global_config, datasets
 
@@ -73,6 +72,7 @@ def _load_global_from_dir(root: Path) -> GlobalConfig:
             ui_title=raw_global.get("ui_title", "Single-Cell Browser"),
             default_group=raw_global.get("default_group", "Default"),
             datasets=datasets,
+            data_root=Path(raw_global.get("data_root", "data")).resolve()
         )
 
 
@@ -98,3 +98,40 @@ def _load_global_from_file(path: Path) -> GlobalConfig:
         default_group=raw_config.get("default_group", "group"),
         datasets=datasets,
     )
+
+def _discover_dataset_configs(global_config: GlobalConfig) -> List[DatasetConfig]:
+    """
+    Find .h5ad files under data_root that are not already configured
+    and create minimal DatasetConfig entries for them.
+    """
+    if global_config.data_root is None:
+        return []
+
+    data_root = global_config.data_root
+    if not data_root.is_dir():
+        return []
+
+    # Paths already covered by explicit configs
+    configured_paths: Set[Path] = {
+        cfg.path.resolve() for cfg in global_config.datasets
+    }
+
+    discovered: List[DatasetConfig] = []
+    idx_offset = len(global_config.datasets)
+
+    for idx, path in enumerate(sorted(data_root.rglob("*.h5ad"))):
+        if path.resolve() in configured_paths:
+            continue
+
+        raw = {
+            "name": path.stem,
+            "group": "Discovered",
+            "path": str(path),
+            # minimal config – no obs_columns yet
+            # views will still work for things that don't need cluster/condition
+        }
+        discovered.append(
+            DatasetConfig.from_raw(raw, source_path=path, index=idx_offset + idx)
+        )
+
+    return discovered

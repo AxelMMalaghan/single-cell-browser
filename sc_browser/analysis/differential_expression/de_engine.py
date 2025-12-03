@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Optional
 
 import scanpy as sc
-import pandas as pd
 
-from .de_model import DEConfig, DEResult
+from sc_browser.analysis.differential_expression.de_model import DEConfig, DEResult
 
 def _validate_config(config: DEConfig) -> None:
+
     adata = config.dataset.adata
     groupby = config.groupby
 
@@ -62,20 +62,25 @@ def run_de(config: DEConfig) -> DEResult:
             groups=[group1],
             reference="rest",
             method=method,
-            use_raw=work.raw is not None,
+            use_raw=False
         )
         comparison_label = f"{group1} v. rest"
     else:
         # Group 1 v. Group 2
         mask = adata.obs[groupby].isin([group1, group2])
         work = adata[mask].copy()
+        work.obs[groupby] = work.obs[groupby].astype(str)
+
+        group1 = str(config.group1)
+        group2 = str(config.group2) if config.group2 is not None else None
+
         sc.tl.rank_genes_groups(
             work,
             groupby=groupby,
             groups=[group1],
             reference=group2,
             method=method,
-            use_raw=work.raw is not None,
+            use_raw=False
         )
         comparison_label = f"{group1} v. {group2}"
 
@@ -103,3 +108,5 @@ def run_de(config: DEConfig) -> DEResult:
     df["comparison"] = comparison_label
 
     return DEResult(config=config, table=df[required+ ["comparison"]])
+
+

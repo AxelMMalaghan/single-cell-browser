@@ -49,7 +49,7 @@ class VolcanoPlotView(BaseView):
 
         if state.conditions:
             group1 = state.conditions[0]
-            group2 = state.conditions[1]
+            group2 = state.conditions[1] if len(state.conditions) > 1 else None
         else:
             group1 = unique_conds[0]
             group2 = None
@@ -64,11 +64,11 @@ class VolcanoPlotView(BaseView):
             conditions=state.conditions or None,
         )
 
-        # Pick groupby/ group1 / group2 based on state + dataset
+        # Pick groupby / group1 / group2 based on current state
         groupby, group1, group2 = self._choose_groups(state)
 
         config = DEConfig(
-            dataset=self.dataset,
+            dataset=ds,          # use subset, not full dataset
             groupby=groupby,
             group1=group1,
             group2=group2,
@@ -80,7 +80,10 @@ class VolcanoPlotView(BaseView):
 
         # Pre compute -log10(p) and significance flags
         # Avoid log10(0)
-        df["neg_log10_pvalue"] = -np.log10(df["pvalue"])
+        eps = 1e-300
+        p = df["pvalue"].to_numpy()
+        p_safe = np.clip(p, eps, 1.0)
+        df["neg_log10_pvalue"] = -np.log10(p_safe)
 
         log_fc_threshold = 1.0
         pval_threshold = 0.05
