@@ -35,6 +35,8 @@ class FilterState:
     # Display / plotting options
     merge_genes: bool = False
     split_by_condition: bool = False
+    is_3d: bool = False
+
     color_scale: str = "viridis"
 
 

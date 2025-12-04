@@ -252,6 +252,28 @@ class Dataset:
         cols = [f"dim{i + 1}" for i in range(n_dims)]
         return pd.DataFrame(arr, index=self.adata.obs.index, columns=cols)
 
+
+    def get_embedding_matrix(self, key):
+        """Return embedding matrix as numpy array."""
+        emb = self.adata.obsm[key]
+
+        # DataFrame -> numpy
+        if hasattr(emb, "values"):
+            return emb.values
+        return emb
+
+    def get_embedding_labels(self, key):
+        """Return names of embedding axes."""
+        emb = self.adata.obsm[key]
+
+        # Pandas DataFrame: use column names
+        if hasattr(emb, "columns"):
+            return [str(c) for c in emb.columns]
+
+        # numpy: default labels
+        n = emb.shape[1]
+        return [f"Dim {i + 1}" for i in range(n)]
+
     @property
     def embedding(self) -> pd.DataFrame:
         """Default embedding using this dataset's embedding_key."""

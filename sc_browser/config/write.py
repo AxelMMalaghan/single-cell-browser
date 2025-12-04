@@ -21,7 +21,7 @@ def save_dataset_config(
     :param config_root: the root of the config file
     :param filename: the filename
     :param schema: the schema of the dataset
-    :return:
+
     """
 
     datasets_dir = config_root / "datasets"

@@ -1,118 +1,146 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
-from plotly.graph_objs import Figure
+import plotly.graph_objs as go
 
-from sc_browser.core.dataset import Dataset
-from sc_browser.core.state import FilterState, FilterProfile
 from sc_browser.core.base_view import BaseView
+from sc_browser.core.filter_state import FilterState, FilterProfile
 
 
 class ClusterView(BaseView):
-    """
-    UMAP/TSNE/PCA /.... cluster plot
-
-    - X/Y from embedding
-    - Color by cluster
-    - Optional facet by condition
-    """
-
     id = "cluster"
-    label = "Cluster Plot"
+    label = "Clusters"
+    filter_profile = FilterProfile(embedding=True)
 
-    # This view cares about clusters, conditions, samples, cell types, and embedding;
-    # no gene widget needed.
-    filter_profile = FilterProfile(
-        clusters=True,
-        conditions=True,
-        samples=True,
-        cell_types=True,
-        genes=False,
-        embedding=True,
-    )
-
+    # -----------------------------------------------------------
+    # compute_data
+    # -----------------------------------------------------------
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        ds: Dataset = self.dataset
-
-        # Apply filters using Dataset abstraction (this hits the subset cache)
-        ds_sub = ds.subset(
+        ds = self.dataset.subset(
             clusters=state.clusters or None,
             conditions=state.conditions or None,
             samples=state.samples or None,
-            cell_types=state.cell_types or None,
         )
 
-        # No cells after filtering → return empty frame
-        if ds_sub.adata.n_obs == 0:
-            return pd.DataFrame(columns=["dim1", "dim2", "cluster", "condition"])
+        adata = ds.adata
 
-        # Decide which embedding key to use:
-        #  - use the widget selection if set
-        #  - otherwise fall back to the dataset's configured embedding_key
-        emb_key = state.embedding or ds_sub.embedding_key
-        if emb_key not in ds_sub.adata.obsm:
-            raise ValueError(
-                f"Selected embedding '{emb_key}' not found in adata.obsm. "
-                f"Available keys: {list(ds_sub.adata.obsm.keys())}"
-            )
+        if adata.n_obs == 0:
+            return pd.DataFrame()
 
-        emb = ds_sub.adata.obsm[emb_key]
+        # Determine embedding
+        emb_key = state.embedding or ds.embedding_key
+        if emb_key not in ds.adata.obsm:
+            raise ValueError(f"Embedding '{emb_key}' not found in .obsm")
 
-        # Handle both DataFrame and array-like obsm storage
-        if isinstance(emb, pd.DataFrame):
-            arr = emb.to_numpy()
-        else:
-            arr = np.asarray(emb)
+        # Unified Dataset API
+        coords = ds.get_embedding_matrix(emb_key)
+        labels = ds.get_embedding_labels(emb_key)
 
-        if arr.ndim != 2 or arr.shape[1] < 2:
-            raise ValueError(
-                f"Embedding '{emb_key}' must be a 2D array with at least 2 columns, "
-                f"got shape {arr.shape}"
-            )
-
-        # Build embedding DataFrame with dim1/dim2
-        emb_df = pd.DataFrame(
-            arr[:, :2],
-            index=ds_sub.adata.obs_names,
-            columns=["dim1", "dim2"],
+        # Build dataframe
+        df = pd.DataFrame(
+            {
+                "x": coords[:, 0],
+                "y": coords[:, 1],
+            },
+            index=adata.obs_names,
         )
 
-        # Attach cluster labels (pre-normalised in Dataset)
-        emb_df["cluster"] = ds_sub.clusters.astype(str).values
+        # Optional z dimension
+        if coords.shape[1] >= 3:
+            df["z"] = coords[:, 2]
 
-        # Attach condition only if available
-        if ds_sub.condition_key is not None and ds_sub.conditions is not None:
-            emb_df["condition"] = ds_sub.conditions.astype(str).values
-        else:
-            emb_df["condition"] = None
+        # Store axis labels for renderer
+        df.attrs["embedding_labels"] = labels
 
-        return emb_df
+        # Metadata
+        df["cluster"] = ds.clusters.astype(str).values
+        df["condition"] = (
+            ds.conditions.values if ds.conditions is not None else "all"
+        )
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Figure:
-        # If there is no data, return an empty figure with a friendly title
+        return df
+
+    # -----------------------------------------------------------
+    # render_figure
+    # -----------------------------------------------------------
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
         if data.empty:
-            fig = px.scatter(
-                title=f"{self.dataset.name} Cluster Plot (no cells after filtering)"
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No cells after filtering",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
             )
-            fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
             return fig
 
-        facet_col = (
-            "condition"
-            if state.split_by_condition and "condition" in data.columns
-            else None
+        # 3D only if requested AND z-dim exists
+        if state.is_3d and "z" in data.columns:
+            return self._render_3d(data)
+        else:
+            return self._render_2d(data)
+
+    # -----------------------------------------------------------
+    # 2D renderer
+    # -----------------------------------------------------------
+    def _render_2d(self, data: pd.DataFrame) -> go.Figure:
+        labels = data.attrs.get("embedding_labels", ["Dim 1", "Dim 2"])
+
+        fig = go.Figure()
+
+        for cluster, dfc in data.groupby("cluster"):
+            fig.add_trace(
+                go.Scattergl(
+                    x=dfc["x"],
+                    y=dfc["y"],
+                    mode="markers",
+                    name=str(cluster),
+                    marker={"size": 5, "opacity": 0.7},
+                )
+            )
+
+        fig.update_layout(
+            xaxis_title=labels[0],
+            yaxis_title=labels[1],
+            legend_title="Cluster",
+            margin=dict(l=40, r=40, t=40, b=40),
         )
 
-        fig = px.scatter(
-            data,
-            x="dim1",
-            y="dim2",
-            color="cluster",
-            facet_col=facet_col,
-            title=f"{self.dataset.name} Cluster Plot",
+        return fig
+
+    # -----------------------------------------------------------
+    # 3D renderer
+    # -----------------------------------------------------------
+    def _render_3d(self, data: pd.DataFrame) -> go.Figure:
+        labels = data.attrs.get(
+            "embedding_labels",
+            ["Dim 1", "Dim 2", "Dim 3"]
         )
-        fig.update_traces(marker=dict(size=4))
-        fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
+
+        fig = go.Figure()
+
+        for cluster, dfc in data.groupby("cluster"):
+            fig.add_trace(
+                go.Scatter3d(
+                    x=dfc["x"],
+                    y=dfc["y"],
+                    z=dfc["z"],
+                    mode="markers",
+                    name=str(cluster),
+                    marker=dict(size=3, opacity=0.7),
+                )
+            )
+
+        fig.update_layout(
+            scene=dict(
+                xaxis_title=labels[0],
+                yaxis_title=labels[1],
+                zaxis_title=labels[2] if len(labels) > 2 else "Dim 3",
+            ),
+            legend_title="Cluster",
+            margin=dict(l=0, r=0, t=40, b=0),
+        )
+
         return fig

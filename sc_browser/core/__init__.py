@@ -4,7 +4,7 @@ and the view registry
 """
 
 from .dataset import Dataset
-from .state import FilterState
+from .filter_state import FilterState
 from .base_view import BaseView
 from .view_registry import ViewRegistry
 
