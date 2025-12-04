@@ -29,3 +29,22 @@ class FilterState:
     split_by_condition: bool = False
     color_scale: str = "viridis"
 
+
+@dataclass
+class FilterProfile:
+    """
+    Represents the widget dependencies for different views.
+
+    Fields:
+
+    - genes: the gene widget
+    - clusters: the cluster widget
+    - conditions: the condition widget
+    - samples: the sample widget
+    - cell_types: the cell type widget
+    """
+    clusters: bool = True
+    conditions: bool = True
+    samples: bool = True
+    cell_types: bool = True
+    genes: bool = False
