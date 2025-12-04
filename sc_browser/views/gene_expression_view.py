@@ -7,8 +7,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 
-from sc_browser.core.state import FilterState
+from sc_browser.core.state import FilterState, FilterProfile
 from sc_browser.core.base_view import BaseView
+from sc_browser.core.dataset import Dataset
 
 
 class ExpressionView(BaseView):
@@ -19,61 +20,80 @@ class ExpressionView(BaseView):
 
     id = "expression"
     label = "Expression"
+    filter_profile = FilterProfile(genes=True)
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        ds = self.dataset.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=state.samples or None,
-        )
-
-        adata = ds.adata
+        ds: Dataset = self.dataset
 
         # --- gene selection ---
-        if not state.genes or len(state.genes) == 0:
+        if not state.genes:
             return pd.DataFrame()
 
-        gene = state.genes[0]  # MVP: only first gene
+        # MVP: only the first gene
+        gene = state.genes[0]
+
+        # Apply filters using Dataset abstraction (hits subset cache)
+        ds_sub = ds.subset(
+            clusters=state.clusters or None,
+            conditions=state.conditions or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=getattr(state, "cell_types", None) or None,
+        )
+
+        adata = ds_sub.adata
+        if adata.n_obs == 0:
+            return pd.DataFrame()
 
         if gene not in adata.var_names:
             return pd.DataFrame()
 
-        genes = [g for g in state.genes if g in adata.var_names]
-        if not genes:
+        # Use Dataset.expression_matrix for dense extraction + caching
+        expr_df = ds_sub.expression_matrix([gene])
+        if expr_df.empty:
             return pd.DataFrame()
 
-        expression_df = ds.extract_expression_matrix(adata, [gene])
-        if expression_df.empty:
-            return pd.DataFrame()
-
-        expression = expression_df[gene].to_numpy()
-        obs_index = expression_df.index
+        expression = expr_df[gene].to_numpy()
+        obs_index = expr_df.index
 
         # --- embedding ---
-        embedding = ds.embedding.loc[obs_index].copy()
+        embedding = ds_sub.embedding.loc[obs_index].copy()
         embedding = embedding.rename(columns={"dim1": "x", "dim2": "y"})
 
         # --- grouping ---
-        cluster = ds.clusters.loc[obs_index].astype(str)
-        condition = ds.conditions.loc[obs_index].astype(str)
+        clusters = ds_sub.clusters.loc[obs_index] if ds_sub.clusters is not None else pd.Series(
+            ["NA"] * len(obs_index),
+            index=obs_index,
+        )
 
-        group = cluster + "_" + condition if state.split_by_condition else cluster
+        conditions = (
+            ds_sub.conditions.loc[obs_index]
+            if ds_sub.condition_key is not None and ds_sub.conditions is not None
+            else pd.Series(["NA"] * len(obs_index), index=obs_index)
+        )
 
-        df = pd.DataFrame({
-            "x": embedding["x"],
-            "y": embedding["y"],
-            "expression": expression,
-            "cluster": cluster,
-            "condition": condition,
-            "group": group,
-            "gene": gene,
-        }, index=obs_index)
+        if state.split_by_condition:
+            group = clusters.astype(str) + "_" + conditions.astype(str)
+        else:
+            group = clusters.astype(str)
 
-        df["log_expression"] = np.log1p(df["expression"])
+        df = pd.DataFrame(
+            {
+                "x": embedding["x"],
+                "y": embedding["y"],
+                "expression": expression,
+                "log_expression": np.log1p(expression),
+                "cluster": clusters.astype(str),
+                "condition": conditions.astype(str),
+                "group": group.astype(str),
+                "gene": gene,
+            },
+            index=obs_index,
+        )
+
         return df
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
-        if data.empty:
+        if data is None or data.empty:
             fig = go.Figure()
             fig.update_layout(
                 title="Select at least one gene to show expression",
@@ -82,12 +102,14 @@ class ExpressionView(BaseView):
             )
             return fig
 
+        color_scale = getattr(state, "color_scale", "viridis")
+
         fig = px.scatter(
             data,
             x="x",
             y="y",
             color="log_expression",
-            color_continuous_scale="viridis",
+            color_continuous_scale=color_scale,
             hover_data={
                 "cluster": True,
                 "condition": True,

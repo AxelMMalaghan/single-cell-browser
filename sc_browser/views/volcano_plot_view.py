@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from sc_browser.analysis import DEConfig
+from sc_browser.analysis import DEConfig, run_de
 from sc_browser.core.base_view import BaseView
-from sc_browser.core.state import FilterState
-from sc_browser.analysis import run_de
+from sc_browser.core.state import FilterState, FilterProfile
+from sc_browser.core.dataset import Dataset
 
 
 class VolcanoPlotView(BaseView):
     """
-    Volcano plot for differential expression analysis
+    Volcano plot for differential expression analysis.
 
     X: log2 fold change
     Y: -log10(p-value)
@@ -24,26 +24,32 @@ class VolcanoPlotView(BaseView):
 
     id = "volcano"
     label = "Volcano"
+    filter_profile = FilterProfile(clusters=True,
+                                   conditions=False,
+                                   samples=True,
+                                   cell_types=True,
+                                   genes=False
+    )
 
-    def _choose_groups(self, state: FilterState) -> tuple[str, str | None, str]:
+    def _choose_groups(self, state: FilterState, ds: Dataset) -> Tuple[str, str, str | None]:
         """
-        Decide which obs column and groups to compare
+        Decide which obs column and groups to compare.
 
-        For MVP:
+        MVP behaviour:
         - use condition_key as groupby
-        - if user has picked 1 or more conditions, first = group1
-        - if user has picked 2 or more conditions, second = group2
+        - if user has picked ≥1 conditions: first = group1
+        - if user has picked ≥2 conditions: second = group2
         - else: group1 = first condition in dataset, group2 = None (vs rest)
-
-        :param state: state of the FilterState - what the user has toggled for
-        :return: groups
         """
+        groupby = ds.condition_key
+        if groupby is None:
+            raise ValueError("No condition_key configured for DE")
 
-        groupby = self.dataset.condition_key
+        conditions = ds.conditions
+        if conditions is None:
+            raise ValueError("No condition values available for DE")
 
-        conditions = self.dataset.conditions.astype(str)
-        unique_conds: List[str] = sorted(conditions.unique().tolist())
-
+        unique_conds: List[str] = sorted(conditions.astype(str).unique().tolist())
         if not unique_conds:
             raise ValueError("No condition values available for DE")
 
@@ -56,16 +62,24 @@ class VolcanoPlotView(BaseView):
 
         return groupby, group1, group2
 
-
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-
-        ds = self.dataset.subset(
+        # Apply filters (hits subset cache); DE runs on the filtered dataset
+        ds: Dataset = self.dataset.subset(
             clusters=state.clusters or None,
             conditions=state.conditions or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=getattr(state, "cell_types", None) or None,
         )
 
-        # Pick groupby / group1 / group2 based on current state
-        groupby, group1, group2 = self._choose_groups(state)
+        if ds.adata.n_obs == 0:
+            return pd.DataFrame()
+
+        # Pick groupby / group1 / group2 based on current state *and* filtered dataset
+        try:
+            groupby, group1, group2 = self._choose_groups(state, ds)
+        except ValueError:
+            # No valid grouping → no DE to show
+            return pd.DataFrame()
 
         config = DEConfig(
             dataset=ds,          # use subset, not full dataset
@@ -78,13 +92,16 @@ class VolcanoPlotView(BaseView):
         de_result = run_de(config)
         df = de_result.table.copy()
 
-        # Pre compute -log10(p) and significance flags
-        # Avoid log10(0)
+        if df.empty:
+            return df
+
+        # Pre-compute -log10(p) and significance flags
         eps = 1e-300
         p = df["pvalue"].to_numpy()
         p_safe = np.clip(p, eps, 1.0)
         df["neg_log10_pvalue"] = -np.log10(p_safe)
 
+        # Thresholds – could be made configurable later
         log_fc_threshold = 1.0
         pval_threshold = 0.05
 
@@ -95,10 +112,16 @@ class VolcanoPlotView(BaseView):
         df.loc[up, "significance"] = "Upregulated"
         df.loc[down, "significance"] = "Downregulated"
 
-        # Store thresholds for the renderer (so we don't hardcode twice)
+        # Store thresholds and comparison meta for renderer
         df.attrs["log_fc_threshold"] = log_fc_threshold
         df.attrs["pval_threshold"] = pval_threshold
-        df.attrs["comparison"] = de_result.table["comparison"].iloc[0]
+
+        # be defensive: table may not have comparison column if run_de changes
+        comparison_col = "comparison"
+        if comparison_col in df.columns and not df[comparison_col].empty:
+            df.attrs["comparison"] = df[comparison_col].iloc[0]
+        else:
+            df.attrs["comparison"] = f"{group1} vs {group2 or 'rest'}"
 
         return df
 
@@ -165,4 +188,3 @@ class VolcanoPlotView(BaseView):
         )
 
         return fig
-

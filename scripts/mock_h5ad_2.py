@@ -14,14 +14,14 @@ def main() -> None:
     data_dir.mkdir(exist_ok=True)
 
     # ---- basic sizes ----
-    n_cells = 10000
+    n_cells = 1000000
     n_genes = 5000
 
     rng = np.random.default_rng(42)
 
     # ---- expression matrix X (cells x genes) ----
     # Poisson counts so feature/count plots look sane
-    X = rng.random(size=(n_cells, n_genes)).astype("float32")
+    X = rng.poisson(size=(n_cells, n_genes)).astype("float32")
 
     # ---- obs: per-cell metadata ----
     obs = pd.DataFrame(

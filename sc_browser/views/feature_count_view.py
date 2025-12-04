@@ -6,26 +6,28 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import scipy.sparse as sp
 
-from sc_browser.core.state import FilterState
 from sc_browser.core.base_view import BaseView
+from sc_browser.core.state import FilterState, FilterProfile
+from sc_browser.core.dataset import Dataset
 
 
 class FeatureCountView(BaseView):
     """
-    QC plot: per cell total counts vs number of detected features
+    QC plot: per cell total counts vs number of detected features.
     """
 
     id = "feature_count"
     label = "Feature v. Count"
+    filter_profile = FilterProfile()
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        # Apply filters using Dataset abstraction
-        ds = self.dataset.subset(
+        # Apply filters using Dataset abstraction (hits subset cache)
+        ds: Dataset = self.dataset.subset(
             clusters=state.clusters or None,
             conditions=state.conditions or None,
-            samples=state.samples or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=getattr(state, "cell_types", None) or None,
         )
 
         adata = ds.adata
@@ -36,24 +38,33 @@ class FeatureCountView(BaseView):
         # Work directly on the matrix: cells x genes
         X = adata.X
 
-        # Total counts per cell
-        # works for both dense and sparse; result is (n_cells, 1) or (n_cells,)
+        # Total counts per cell (works for dense and sparse)
         n_counts = np.asarray(X.sum(axis=1)).ravel()
 
         # Number of detected features per cell: how many genes > 0
-        # (X > 0) stays sparse if X is sparse, so this is efficient.
         n_features = np.asarray((X > 0).sum(axis=1)).ravel()
 
-        cluster = ds.clusters.astype(str)
-        condition = ds.conditions.astype(str)
-        group = cluster + "_" + condition if state.split_by_condition else cluster
+        # Pre-normalised labels from Dataset
+        cluster = ds.clusters
+        if cluster is None:
+            cluster = pd.Series(["NA"] * adata.n_obs, index=adata.obs_names)
+
+        conditions = ds.conditions
+        if conditions is None:
+            conditions = pd.Series(["NA"] * adata.n_obs, index=adata.obs_names)
+
+        # Group for coloring: cluster or cluster_condition if split_by_condition
+        if state.split_by_condition:
+            group = cluster.astype(str) + "_" + conditions.astype(str)
+        else:
+            group = cluster.astype(str)
 
         df = pd.DataFrame(
             {
                 "n_counts": n_counts,
                 "n_features": n_features,
                 "cluster": cluster.values,
-                "condition": condition.values,
+                "condition": conditions.values,
                 "group": group.values,
             },
             index=adata.obs_names,
@@ -65,7 +76,7 @@ class FeatureCountView(BaseView):
         if data is None or data.empty:
             fig = go.Figure()
             fig.update_layout(
-                title="No cells after filtering - adjust cluster/condition filters",
+                title="No cells after filtering - adjust filters",
                 xaxis={"visible": False},
                 yaxis={"visible": False},
             )

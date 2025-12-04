@@ -5,7 +5,7 @@ from typing import Any
 from plotly.graph_objs import Figure
 
 from .dataset import Dataset
-from .state import FilterState
+from .state import FilterState, FilterProfile
 
 
 class BaseView(ABC):
@@ -21,6 +21,7 @@ class BaseView(ABC):
 
     id: str = None
     label: str = None
+    filter_profile = FilterProfile()
 
     def __init__(self, dataset: Dataset):
         self.dataset = dataset

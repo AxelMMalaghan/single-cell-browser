@@ -53,7 +53,7 @@ def _build_view_registry() -> ViewRegistry:
 
 
 def _build_navbar(datasets, global_config) -> dbc.Navbar:
-    title = getattr(global_config, "ui_title", "Single-Cell Browser")
+    title = getattr(global_config, "ui_title", "scB++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
     return dbc.Navbar(
         dbc.Container(

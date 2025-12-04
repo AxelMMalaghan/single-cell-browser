@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Sequence
 
 import scanpy as sc
 
 from sc_browser.analysis.differential_expression.de_model import DEConfig, DEResult
 
-def _validate_config(config: DEConfig) -> None:
 
+def _validate_config(config: DEConfig) -> None:
     adata = config.dataset.adata
     groupby = config.groupby
 
@@ -18,7 +18,7 @@ def _validate_config(config: DEConfig) -> None:
             f"Available columns: {list(adata.obs.columns)}"
         )
 
-    # Get **values** from that column and normalise to string
+    # Get values from that column and normalise to string
     groups = adata.obs[groupby].astype(str).unique()
 
     # Validate group1
@@ -36,25 +36,49 @@ def _validate_config(config: DEConfig) -> None:
         )
 
 
+def _maybe_subset_genes(adata, config: DEConfig):
+    """
+    Optional: restrict DE to a subset of genes if config exposes a 'genes' field.
+
+    This is purely an optimisation / convenience; if the config has no such field,
+    we return the original AnnData unchanged.
+    """
+    genes: Optional[Sequence[str]] = getattr(config, "genes", None)
+    if not genes:
+        return adata
+
+    gene_mask = adata.var_names.isin(genes)
+    if not gene_mask.any():
+        # No overlap: let scanpy handle the empty case later (will likely error),
+        # or you could raise here if you want stricter behaviour.
+        return adata
+
+    # Return a view; caller decides if they copy
+    return adata[:, gene_mask]
+
+
 def run_de(config: DEConfig) -> DEResult:
     """
     Run a differential expression analysis using scanpy.rank_genes_groups.
 
     Notes:
-    - If config.group1 is None: group1 v. rest
+    - If config.group1 is not None and config.group2 is None: group1 v. rest
     - If config.group2 is set: group1 v. group2 only (subset)
     """
     _validate_config(config)
 
-    adata = config.dataset.adata
+    base_adata = config.dataset.adata
     groupby = config.groupby
     group1 = config.group1
     group2: Optional[str] = config.group2
     method = config.method
 
-    # Work on a copy to not mutate the AnnData
+    # Optional gene restriction (if config has .genes)
+    adata = _maybe_subset_genes(base_adata, config)
+
+    # Group 1 v. rest
     if group2 is None:
-        # Group 1 v. rest
+        # Work on a copy to avoid mutating the shared Dataset AnnData
         work = adata.copy()
         sc.tl.rank_genes_groups(
             work,
@@ -62,40 +86,45 @@ def run_de(config: DEConfig) -> DEResult:
             groups=[group1],
             reference="rest",
             method=method,
-            use_raw=False
+            use_raw=False,
         )
         comparison_label = f"{group1} v. rest"
+
     else:
         # Group 1 v. Group 2
-        mask = adata.obs[groupby].isin([group1, group2])
+        # First subset to only the two groups of interest
+        mask = adata.obs[groupby].astype(str).isin([group1, group2])
         work = adata[mask].copy()
+
+        # Normalise categories to str to match group1/group2
         work.obs[groupby] = work.obs[groupby].astype(str)
 
-        group1 = str(config.group1)
-        group2 = str(config.group2) if config.group2 is not None else None
+        g1 = str(group1)
+        g2 = str(group2)
 
         sc.tl.rank_genes_groups(
             work,
             groupby=groupby,
-            groups=[group1],
-            reference=group2,
+            groups=[g1],
+            reference=g2,
             method=method,
-            use_raw=False
+            use_raw=False,
         )
-        comparison_label = f"{group1} v. {group2}"
+        comparison_label = f"{g1} v. {g2}"
 
     # Convert scanpy result to a flat DataFrame
     df = sc.get.rank_genes_groups_df(
         work,
-        group=config.group1,
+        group=group1,
     )
 
-    # Normalise schema //TODO: standardise schema?
-    df = df.rename(columns={
-        "names": "gene",
-        "logfoldchanges": "log2FC",
-        "pvals": "pvalue",
-        "pvals_adj": "adj_pvalue",
+    # Normalise schema
+    df = df.rename(
+        columns={
+            "names": "gene",
+            "logfoldchanges": "log2FC",
+            "pvals": "pvalue",
+            "pvals_adj": "adj_pvalue",
         }
     )
 
@@ -103,10 +132,8 @@ def run_de(config: DEConfig) -> DEResult:
     required = ["gene", "log2FC", "pvalue", "adj_pvalue"]
     missing = [c for c in required if c not in df.columns]
     if missing:
-        raise RuntimeError(f"Missing columns: {missing}")
+        raise RuntimeError(f"Missing columns from DE result: {missing}")
 
     df["comparison"] = comparison_label
 
-    return DEResult(config=config, table=df[required+ ["comparison"]])
-
-
+    return DEResult(config=config, table=df[required + ["comparison"]])

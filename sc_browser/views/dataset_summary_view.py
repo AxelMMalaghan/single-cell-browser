@@ -1,16 +1,13 @@
-# sc_browser/views/dataset_summary_view.py
-
 from __future__ import annotations
 
 from typing import Any, Dict
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from sc_browser.core.base_view import BaseView
-from sc_browser.core.state import FilterState
+from sc_browser.core.state import FilterState, FilterProfile
 from sc_browser.core.dataset import Dataset
 
 
@@ -30,13 +27,17 @@ class DatasetSummary(BaseView):
 
     id = "dataset_summary"
     label = "Dataset Summary"
+    filter_profile = FilterProfile()
 
     def compute_data(self, state: FilterState) -> Dict[str, Any]:
-        # Apply filters via the Dataset abstraction
-        ds: Dataset = self.dataset.subset(
+        base_ds: Dataset = self.dataset
+
+        # Apply filters via the Dataset abstraction (hits subset cache)
+        ds: Dataset = base_ds.subset(
             clusters=state.clusters or None,
             conditions=state.conditions or None,
-            samples=state.samples or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=getattr(state, "cell_types", None) or None,
         )
 
         adata = ds.adata
@@ -44,24 +45,29 @@ class DatasetSummary(BaseView):
         if adata.n_obs == 0:
             return {}
 
-
-
         n_cells, n_genes = adata.n_obs, adata.n_vars
 
         # obs schema table (column name, dtype, unique values)
+        # This is mainly for debugging, so if it ever becomes expensive on huge datasets,
+        # we could gate it behind a debug flag.
         obs_schema = (
             adata.obs.dtypes.reset_index()
             .rename(columns={"index": "column", 0: "dtype"})
         )
-        obs_schema["n_unique"] = obs_schema["column"].map(lambda col: adata.obs[col].nunique())
+        obs_schema["n_unique"] = obs_schema["column"].map(
+            lambda col: adata.obs[col].nunique()
+        )
 
-        # Cluster counts
+        # Cluster counts using pre-normalised Series from Dataset
         cluster_counts = ds.clusters.value_counts().reset_index()
         cluster_counts.columns = ["cluster", "count"]
 
-        # Condition counts
-        condition_counts = ds.conditions.value_counts().reset_index()
-        condition_counts.columns = ["condition", "count"]
+        # Condition counts – only if a condition_key is configured
+        if ds.condition_key is not None and ds.conditions is not None:
+            condition_counts = ds.conditions.value_counts().reset_index()
+            condition_counts.columns = ["condition", "count"]
+        else:
+            condition_counts = pd.DataFrame(columns=["condition", "count"])
 
         return {
             "n_cells": n_cells,
@@ -73,11 +79,10 @@ class DatasetSummary(BaseView):
 
     def render_figure(self, data: Dict[str, Any], state: FilterState) -> go.Figure:
         # data is a dict, not a DataFrame – so do NOT call data.empty
-
         if not data:
             fig = go.Figure()
             fig.update_layout(
-                title="No cells after filtering – adjust cluster/condition filters",
+                title="No cells after filtering – adjust filters",
                 xaxis={"visible": False},
                 yaxis={"visible": False},
             )
@@ -105,7 +110,7 @@ class DatasetSummary(BaseView):
                 name="Clusters",
             )
 
-        # Condition bar chart
+        # Condition bar chart (only if there is a condition field)
         if not condition_counts.empty:
             fig.add_bar(
                 x=condition_counts["condition"],
