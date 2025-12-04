@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from dash import dcc as dash_dcc
+from dash import Dash, dcc, html, Input, Output, State
 import base64
 import logging
 
 import dash
-from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objs as go
@@ -735,7 +736,7 @@ def create_dash_app() -> Dash:
             embedding,
             options,
     ):
-        from dash import dcc as dash_dcc
+
 
         ds = dataset_by_name[dataset_name]
         state = FilterState(
@@ -944,4 +945,6 @@ def create_dash_app() -> Dash:
         return status_msg, opts, selected
 
     return app
+
+
 
