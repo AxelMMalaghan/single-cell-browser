@@ -152,6 +152,17 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                         ],
                     ),
+                    html.Div(
+                        [
+                            html.Label("Dimension X", className="form-label"),
+                            dcc.Dropdown(id="dim-x-select", className="mb-2"),
+                            html.Label("Dimension Y", className="form-label"),
+                            dcc.Dropdown(id="dim-y-select", className="mb-2"),
+                            html.Label("Dimension Z", className="form-label"),
+                            dcc.Dropdown(id="dim-z-select", className="mb-2"),
+                        ],
+                        className="mb-3"
+                    ),
                     html.Hr(),
                     dbc.Checklist(
                         id="options-checklist",

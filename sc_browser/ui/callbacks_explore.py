@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import List, Optional, TYPE_CHECKING
-
 import logging
 
 import dash
@@ -13,13 +12,16 @@ from sc_browser.core.filter_state import FilterState
 from .helpers import get_filter_dropdown_options
 
 if TYPE_CHECKING:
-    from .context import AppContext   # <- type-only import
-
+    from .context import AppContext   # type-only import
 
 logger = logging.getLogger(__name__)
 
 
 def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+
+    # ---------------------------------------------------------
+    # Sidebar metadata
+    # ---------------------------------------------------------
     @app.callback(
         Output("sidebar-dataset-name", "children"),
         Output("sidebar-dataset-meta", "children"),
@@ -31,6 +33,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         meta = f"{ds.adata.n_obs} cells · {ds.adata.n_vars} genes"
         return name, meta
 
+    # ---------------------------------------------------------
+    # Reset filters when dataset changes
+    # ---------------------------------------------------------
     @app.callback(
         Output("cluster-select", "value"),
         Output("condition-select", "value"),
@@ -38,13 +43,21 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("celltype-select", "value"),
         Output("gene-select", "value"),
         Output("embedding-select", "value"),
+        Output("dim-x-select", "value"),
+        Output("dim-y-select", "value"),
+        Output("dim-z-select", "value"),
         Input("dataset-select", "value"),
     )
     def reset_filters_on_dataset_change(dataset_name: str):
         ds = ctx.dataset_by_name[dataset_name]
         emb_val = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
-        return [], [], [], [], [], emb_val
 
+        # Default dims: 0,1,(2)
+        return [], [], [], [], [], emb_val, 0, 1, 2
+
+    # ---------------------------------------------------------
+    # Update dropdown options for filters
+    # ---------------------------------------------------------
     @app.callback(
         Output("cluster-select", "options"),
         Output("condition-select", "options"),
@@ -57,6 +70,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         ds = ctx.dataset_by_name[dataset_name]
         return get_filter_dropdown_options(ds)
 
+    # ---------------------------------------------------------
+    # Live gene search
+    # ---------------------------------------------------------
     @app.callback(
         Output("gene-select", "options"),
         Input("gene-select", "search_value"),
@@ -68,8 +84,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         all_genes = list(ds.genes)
         gene_set = set(all_genes)
 
-        selected_genes = selected_genes or []
-        selected_genes = [g for g in selected_genes if g in gene_set]
+        selected_genes = [g for g in (selected_genes or []) if g in gene_set]
 
         if not search_value or not search_value.strip():
             return [{"label": g, "value": g} for g in selected_genes]
@@ -81,6 +96,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         union = list(dict.fromkeys(selected_genes + suggestions))
         return [{"label": g, "value": g} for g in union]
 
+    # ---------------------------------------------------------
+    # Hide/show filters based on active view
+    # ---------------------------------------------------------
     @app.callback(
         Output("cluster-filter-container", "style"),
         Output("condition-filter-container", "style"),
@@ -111,6 +129,33 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             style(getattr(profile, "embedding", False)),
         )
 
+    # ---------------------------------------------------------
+    # Dimension selector population
+    # ---------------------------------------------------------
+    @app.callback(
+        Output("dim-x-select", "options"),
+        Output("dim-y-select", "options"),
+        Output("dim-z-select", "options"),
+        Output("dim-z-select", "style"),
+        Input("embedding-select", "value"),
+        State("dataset-select", "value"),
+    )
+    def update_dim_selectors(emb_key, dataset_name):
+        ds = ctx.dataset_by_name[dataset_name]
+
+        coords = ds.get_embedding_matrix(emb_key)
+        labels = ds.get_embedding_labels(emb_key)
+
+        options = [{"label": labels[i], "value": i} for i in range(len(labels))]
+
+        # Show Z selector only if 3 dims available
+        show_z = {} if len(labels) >= 3 else {"display": "none"}
+
+        return options, options, options, show_z
+
+    # ---------------------------------------------------------
+    # Main figure
+    # ---------------------------------------------------------
     @app.callback(
         Output("main-graph", "figure"),
         Input("view-tabs", "value"),
@@ -121,6 +166,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Input("celltype-select", "value"),
         Input("gene-select", "value"),
         Input("embedding-select", "value"),
+        Input("dim-x-select", "value"),
+        Input("dim-y-select", "value"),
+        Input("dim-z-select", "value"),
         Input("options-checklist", "value"),
     )
     def update_main_graph(
@@ -132,6 +180,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         cell_types: List[str] | None,
         genes: List[str] | None,
         embedding: Optional[str],
+        dim_x: int,
+        dim_y: int,
+        dim_z: int,
         options: List[str] | None,
     ):
         ds = ctx.dataset_by_name[dataset_name]
@@ -147,6 +198,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             samples=samples or [],
             cell_types=cell_types or [],
             embedding=embedding,
+            dim_x=dim_x,
+            dim_y=dim_y,
+            dim_z=dim_z,
             split_by_condition="split_by_condition" in (options or []),
             is_3d="is_3d" in (options or []),
         )
@@ -154,40 +208,17 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         view = ctx.registry.create(view_id, ds)
 
         try:
-            print("DEBUG: view_id =", view_id)
-            print("DEBUG: state =", state)
-
             data = view.compute_data(state)
-            print("DEBUG: compute_data returned", type(data), data.shape if hasattr(data, "shape") else None)
-
             fig = view.render_figure(data, state)
-            print("DEBUG: render_figure returned a figure")
-
             return fig
 
         except Exception as e:
             print("DEBUG ERROR:", repr(e))
             raise
 
-        label = getattr(view, "label", view_id)
-        fallback = go.Figure()
-        fallback.add_annotation(
-            text=msg,
-            showarrow=False,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            font=dict(size=14),
-        )
-        fallback.update_layout(
-            title=f"{label} – unavailable",
-            xaxis={"visible": False},
-            yaxis={"visible": False},
-            margin=dict(l=40, r=40, t=60, b=40),
-        )
-        return fallback
-
+    # ---------------------------------------------------------
+    # Download CSV
+    # ---------------------------------------------------------
     @app.callback(
         Output("download-data", "data"),
         Input("download-data-btn", "n_clicks"),
@@ -199,6 +230,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         State("celltype-select", "value"),
         State("gene-select", "value"),
         State("embedding-select", "value"),
+        State("dim-x-select", "value"),
+        State("dim-y-select", "value"),
+        State("dim-z-select", "value"),
         State("options-checklist", "value"),
         prevent_initial_call=True,
     )
@@ -212,9 +246,12 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         cell_types,
         genes,
         embedding,
+        dim_x,
+        dim_y,
+        dim_z,
         options,
     ):
-        from dash import dcc as dash_dcc  # local import to avoid circulars
+        from dash import dcc as dash_dcc
 
         ds = ctx.dataset_by_name[dataset_name]
         state = FilterState(
@@ -224,11 +261,16 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             samples=samples or [],
             cell_types=cell_types or [],
             embedding=embedding,
+            dim_x=dim_x,
+            dim_y=dim_y,
+            dim_z=dim_z,
             split_by_condition="split_by_condition" in (options or []),
         )
+
         view = ctx.registry.create(view_id, ds)
         data = view.compute_data(state)
         if not isinstance(data, pd.DataFrame) or data.empty:
             return None
+
         filename = f"{view_id}_{dataset_name.replace(' ', '_')}.csv"
         return dash_dcc.send_data_frame(data.to_csv, filename, index=False)

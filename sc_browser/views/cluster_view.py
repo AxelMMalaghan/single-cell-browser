@@ -13,7 +13,17 @@ class ClusterView(BaseView):
     filter_profile = FilterProfile(embedding=True)
 
     # -----------------------------------------------------------
-    # compute_data
+    # Derive human-readable axis names from embedding key
+    # -----------------------------------------------------------
+    def _derive_axis_labels(self, emb_key: str, n_dims: int) -> list[str]:
+        name = emb_key
+        if name.lower().startswith("x_"):
+            name = name[2:]  # strip leading X_
+        pretty = name.replace("_", " ").upper()
+        return [f"{pretty} {i+1}" for i in range(n_dims)]
+
+    # -----------------------------------------------------------
+    # Compute dataframe for rendering
     # -----------------------------------------------------------
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         ds = self.dataset.subset(
@@ -21,47 +31,45 @@ class ClusterView(BaseView):
             conditions=state.conditions or None,
             samples=state.samples or None,
         )
-
         adata = ds.adata
 
         if adata.n_obs == 0:
             return pd.DataFrame()
 
-        # Determine embedding
         emb_key = state.embedding or ds.embedding_key
         if emb_key not in ds.adata.obsm:
             raise ValueError(f"Embedding '{emb_key}' not found in .obsm")
 
-        # Unified Dataset API
         coords = ds.get_embedding_matrix(emb_key)
-        labels = ds.get_embedding_labels(emb_key)
+        labels = self._derive_axis_labels(emb_key, coords.shape[1])
 
-        # Build dataframe
-        df = pd.DataFrame(
-            {
-                "x": coords[:, 0],
-                "y": coords[:, 1],
-            },
-            index=adata.obs_names,
-        )
+        df = pd.DataFrame(index=adata.obs_names)
 
-        # Optional z dimension
-        if coords.shape[1] >= 3:
-            df["z"] = coords[:, 2]
+        # Safe dimension defaults
+        dim_x = state.dim_x if state.dim_x is not None else 0
+        dim_y = state.dim_y if state.dim_y is not None else 1
+        dim_z = state.dim_z if state.dim_z is not None else 2
 
-        # Store axis labels for renderer
+        df["x"] = coords[:, dim_x]
+        df["y"] = coords[:, dim_y]
+
+        if state.is_3d and coords.shape[1] > dim_z:
+            df["z"] = coords[:, dim_z]
+
+        # Store embedding labels
         df.attrs["embedding_labels"] = labels
+        df.attrs["x_label"] = labels[dim_x]
+        df.attrs["y_label"] = labels[dim_y]
+        df.attrs["z_label"] = labels[dim_z] if len(labels) > dim_z else None
 
         # Metadata
         df["cluster"] = ds.clusters.astype(str).values
-        df["condition"] = (
-            ds.conditions.values if ds.conditions is not None else "all"
-        )
+        df["condition"] = ds.conditions.values if ds.conditions is not None else "all"
 
         return df
 
     # -----------------------------------------------------------
-    # render_figure
+    # Render entrypoint
     # -----------------------------------------------------------
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
         if data.empty:
@@ -76,20 +84,18 @@ class ClusterView(BaseView):
             )
             return fig
 
-        # 3D only if requested AND z-dim exists
         if state.is_3d and "z" in data.columns:
             return self._render_3d(data)
-        else:
-            return self._render_2d(data)
+        return self._render_2d(data)
 
     # -----------------------------------------------------------
-    # 2D renderer
+    # 2D Renderer
     # -----------------------------------------------------------
     def _render_2d(self, data: pd.DataFrame) -> go.Figure:
-        labels = data.attrs.get("embedding_labels", ["Dim 1", "Dim 2"])
+        x_label = data.attrs["x_label"]
+        y_label = data.attrs["y_label"]
 
         fig = go.Figure()
-
         for cluster, dfc in data.groupby("cluster"):
             fig.add_trace(
                 go.Scattergl(
@@ -97,30 +103,27 @@ class ClusterView(BaseView):
                     y=dfc["y"],
                     mode="markers",
                     name=str(cluster),
-                    marker={"size": 5, "opacity": 0.7},
+                    marker=dict(size=5, opacity=0.7),
                 )
             )
 
         fig.update_layout(
-            xaxis_title=labels[0],
-            yaxis_title=labels[1],
+            xaxis_title=x_label,
+            yaxis_title=y_label,
             legend_title="Cluster",
             margin=dict(l=40, r=40, t=40, b=40),
         )
-
         return fig
 
     # -----------------------------------------------------------
-    # 3D renderer
+    # 3D Renderer
     # -----------------------------------------------------------
     def _render_3d(self, data: pd.DataFrame) -> go.Figure:
-        labels = data.attrs.get(
-            "embedding_labels",
-            ["Dim 1", "Dim 2", "Dim 3"]
-        )
+        x_label = data.attrs["x_label"]
+        y_label = data.attrs["y_label"]
+        z_label = data.attrs["z_label"]
 
         fig = go.Figure()
-
         for cluster, dfc in data.groupby("cluster"):
             fig.add_trace(
                 go.Scatter3d(
@@ -135,12 +138,11 @@ class ClusterView(BaseView):
 
         fig.update_layout(
             scene=dict(
-                xaxis_title=labels[0],
-                yaxis_title=labels[1],
-                zaxis_title=labels[2] if len(labels) > 2 else "Dim 3",
+                xaxis_title=x_label,
+                yaxis_title=y_label,
+                zaxis_title=z_label,
             ),
             legend_title="Cluster",
             margin=dict(l=0, r=0, t=40, b=0),
         )
-
         return fig

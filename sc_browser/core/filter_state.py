@@ -37,6 +37,11 @@ class FilterState:
     split_by_condition: bool = False
     is_3d: bool = False
 
+    # Dimension options
+    dim_x: int = 0
+    dim_y: int = 1
+    dim_z: int = 2
+
     color_scale: str = "viridis"
 
 
