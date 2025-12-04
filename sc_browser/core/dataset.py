@@ -220,34 +220,42 @@ class Dataset:
         """Return gene names."""
         return self.adata.var_names
 
-    @property
-    def embedding(self) -> pd.DataFrame:
+    def get_embedding(self, key: Optional[str] = None) -> pd.DataFrame:
         """
-        Return the 2D embedding as a DataFrame with dim1/dim2 columns.
+        Return the embedding for the given obsm key as a DataFrame with dim1/dim2,...
 
-        Handles both NumPy arrays and DataFrames in .obsm[embedding_key].
+        If key is None, uses this dataset's configured embedding_key.
         """
-        emb = self.adata.obsm[self.embedding_key]
+        emb_key = key or self.embedding_key
+        if emb_key is None:
+            raise ValueError("No embedding key specified for this dataset")
 
-        # If embedding is already a DataFrame, don't reindex columns incorrectly.
+        if emb_key not in self.adata.obsm:
+            raise ValueError(f"Embedding '{emb_key}' not found in adata.obsm")
+
+        emb = self.adata.obsm[emb_key]
+
+        # If already a DataFrame
         if isinstance(emb, pd.DataFrame):
             df = emb.copy()
-            # keep only first 2 dims if more are present
             if df.shape[1] > 2:
                 df = df.iloc[:, :2]
             df.columns = [f"dim{i + 1}" for i in range(df.shape[1])]
             return df
 
-        # Otherwise treat it as an array-like
+        # Otherwise assume array-like
         arr = np.asarray(emb)
         if arr.ndim != 2:
-            raise ValueError(
-                f"Embedding '{self.embedding_key}' must be 2D, got shape {arr.shape}"
-            )
+            raise ValueError(f"Embedding '{emb_key}' must be 2D, got shape {arr.shape}")
 
         n_dims = arr.shape[1]
         cols = [f"dim{i + 1}" for i in range(n_dims)]
         return pd.DataFrame(arr, index=self.adata.obs.index, columns=cols)
+
+    @property
+    def embedding(self) -> pd.DataFrame:
+        """Default embedding using this dataset's embedding_key."""
+        return self.get_embedding()
 
     def get_obs_column(self, key: str) -> Optional[str]:
         return self.obs_columns.get(key)

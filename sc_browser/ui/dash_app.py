@@ -1,3 +1,5 @@
+# sc_browser/ui/dash_app.py
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,6 +17,7 @@ from sc_browser.config.io import load_datasets
 from sc_browser.config.write import save_dataset_config
 from sc_browser.core.state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
+from sc_browser.core.dataset import Dataset
 from sc_browser.views import (
     ClusterView,
     ExpressionView,
@@ -28,16 +31,65 @@ from sc_browser.views import (
 logger = logging.getLogger(__name__)
 
 
-def get_filter_dropdown_options(dataset) -> Tuple[List[dict], List[dict]]:
+# -------------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------------
+
+
+def get_filter_dropdown_options(dataset: Dataset) -> Tuple[
+    List[dict], List[dict], List[dict], List[dict], List[dict]
+]:
     """
-    Return options for cluster and condition dropdowns.
+    Return options for cluster / condition / sample / cell type / embedding dropdowns.
 
     NOTE: genes are handled via a separate server-side search callback to avoid
     sending 30k+ options to the browser.
     """
-    cluster_options = [{"label": c, "value": c} for c in sorted(dataset.clusters.unique())]
-    condition_options = [{"label": c, "value": c} for c in sorted(dataset.conditions.unique())]
-    return cluster_options, condition_options
+    # Clusters
+    cluster_options = [
+        {"label": c, "value": c}
+        for c in sorted(dataset.clusters.unique())
+    ]
+
+    # Conditions (may be None)
+    condition_series = dataset.conditions
+    if condition_series is not None:
+        condition_options = [
+            {"label": c, "value": c}
+            for c in sorted(condition_series.unique())
+        ]
+    else:
+        condition_options = []
+
+    # Samples (via obs_columns mapping)
+    sample_options: List[dict] = []
+    sample_key = dataset.obs_columns.get("sample")
+    if sample_key and sample_key in dataset.adata.obs.columns:
+        vals = (
+            dataset.adata.obs[sample_key]
+            .astype(str)
+            .unique()
+        )
+        sample_options = [{"label": v, "value": v} for v in sorted(vals)]
+
+    # Cell types
+    celltype_options: List[dict] = []
+    celltype_key = dataset.obs_columns.get("cell_type")
+    if celltype_key and celltype_key in dataset.adata.obs.columns:
+        vals = (
+            dataset.adata.obs[celltype_key]
+            .astype(str)
+            .unique()
+        )
+        celltype_options = [{"label": v, "value": v} for v in sorted(vals)]
+
+    # Embedding choices (keys in .obsm)
+    emb_options = [
+        {"label": k, "value": k}
+        for k in dataset.adata.obsm.keys()
+    ]
+
+    return cluster_options, condition_options, sample_options, celltype_options, emb_options
 
 
 def _build_view_registry() -> ViewRegistry:
@@ -52,7 +104,7 @@ def _build_view_registry() -> ViewRegistry:
     return registry
 
 
-def _build_navbar(datasets, global_config) -> dbc.Navbar:
+def _build_navbar(datasets: List[Dataset], global_config) -> dbc.Navbar:
     title = getattr(global_config, "ui_title", "scB++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
     return dbc.Navbar(
@@ -87,36 +139,106 @@ def _build_navbar(datasets, global_config) -> dbc.Navbar:
     )
 
 
-def _build_filter_panel(default_dataset) -> dbc.Card:
-    cluster_options, condition_options = get_filter_dropdown_options(default_dataset)
+def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
+    (
+        cluster_options,
+        condition_options,
+        sample_options,
+        celltype_options,
+        emb_options,
+    ) = get_filter_dropdown_options(default_dataset)
+
     return dbc.Card(
         [
             dbc.CardHeader("Filters", className="fw-semibold"),
             dbc.CardBody(
                 [
-                    html.Label("Filter clusters", className="form-label"),
-                    dcc.Dropdown(
-                        id="cluster-select",
-                        options=cluster_options,
-                        multi=True,
-                        placeholder="All clusters",
-                        className="mb-3",
+                    # Cluster filter
+                    html.Div(
+                        id="cluster-filter-container",
+                        children=[
+                            html.Label("Filter clusters", className="form-label"),
+                            dcc.Dropdown(
+                                id="cluster-select",
+                                options=cluster_options,
+                                multi=True,
+                                placeholder="All clusters",
+                                className="mb-3",
+                            ),
+                        ],
                     ),
-                    html.Label("Filter conditions", className="form-label"),
-                    dcc.Dropdown(
-                        id="condition-select",
-                        options=condition_options,
-                        multi=True,
-                        placeholder="All conditions",
-                        className="mb-3",
+                    # Condition filter
+                    html.Div(
+                        id="condition-filter-container",
+                        children=[
+                            html.Label("Filter conditions", className="form-label"),
+                            dcc.Dropdown(
+                                id="condition-select",
+                                options=condition_options,
+                                multi=True,
+                                placeholder="All conditions",
+                                className="mb-3",
+                            ),
+                        ],
                     ),
-                    html.Label("Gene(s)", className="form-label"),
-                    dcc.Dropdown(
-                        id="gene-select",
-                        options=[],  # populated via server-side search callback
-                        multi=True,
-                        placeholder="Type to search genes",
-                        className="mb-3",
+                    # Sample filter
+                    html.Div(
+                        id="sample-filter-container",
+                        children=[
+                            html.Label("Filter samples", className="form-label"),
+                            dcc.Dropdown(
+                                id="sample-select",
+                                options=sample_options,
+                                multi=True,
+                                placeholder="All samples",
+                                className="mb-3",
+                            ),
+                        ],
+                    ),
+                    # Cell type filter
+                    html.Div(
+                        id="celltype-filter-container",
+                        children=[
+                            html.Label("Filter cell types", className="form-label"),
+                            dcc.Dropdown(
+                                id="celltype-select",
+                                options=celltype_options,
+                                multi=True,
+                                placeholder="All cell types",
+                                className="mb-3",
+                            ),
+                        ],
+                    ),
+                    # Gene selector
+                    html.Div(
+                        id="gene-filter-container",
+                        children=[
+                            html.Label("Gene(s)", className="form-label"),
+                            dcc.Dropdown(
+                                id="gene-select",
+                                options=[],  # populated via server-side search callback
+                                multi=True,
+                                placeholder="Type to search genes",
+                                className="mb-3",
+                            ),
+                        ],
+                    ),
+                    # Embedding selector (e.g. PCA / TSNE / UMAP)
+                    html.Div(
+                        id="embedding-filter-container",
+                        children=[
+                            html.Label("Embedding", className="form-label"),
+                            dcc.Dropdown(
+                                id="embedding-select",
+                                options=emb_options,
+                                value=default_dataset.embedding_key
+                                if default_dataset.embedding_key in default_dataset.adata.obsm
+                                else None,
+                                clearable=False,
+                                placeholder="Select embedding",
+                                className="mb-3",
+                            ),
+                        ],
                     ),
                     html.Hr(),
                     dbc.Checklist(
@@ -199,7 +321,7 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
     )
 
 
-def _dataset_status(ds) -> str:
+def _dataset_status(ds: Dataset) -> str:
     """Return a human-readable status string for the dataset."""
     obs = ds.adata.obs
     obsm = ds.adata.obsm
@@ -215,7 +337,7 @@ def _dataset_status(ds) -> str:
     return "✅ Ready"
 
 
-def _obs_preview_table(ds, max_rows: int = 5) -> html.Table:
+def _obs_preview_table(ds: Dataset, max_rows: int = 5) -> html.Table:
     """Build a small HTML table preview of .obs."""
     obs = ds.adata.obs.copy()
     if obs.empty:
@@ -226,9 +348,7 @@ def _obs_preview_table(ds, max_rows: int = 5) -> html.Table:
     rows = df.to_dict("records")
 
     header = html.Tr([html.Th(col) for col in columns])
-    body = [
-        html.Tr([html.Td(row[col]) for col in columns]) for row in rows
-    ]
+    body = [html.Tr([html.Td(row[col]) for col in columns]) for row in rows]
 
     return html.Table(
         [html.Thead(header), html.Tbody(body)],
@@ -250,35 +370,20 @@ def _build_dataset_manager_panel() -> dbc.Container:
             dbc.CardHeader("Current dataset"),
             dbc.CardBody(
                 [
-                    html.Div(
-                        id="dm-current-dataset",
-                        className="mb-1 fw-semibold",
-                    ),
-                    html.Div(
-                        id="dm-status-text",
-                        className="mb-1",
-                    ),
-                    html.Div(
-                        id="dm-summary-text",
-                        className="text-muted mb-3",
-                    ),
+                    html.Div(id="dm-current-dataset", className="mb-1 fw-semibold"),
+                    html.Div(id="dm-status-text", className="mb-1"),
+                    html.Div(id="dm-summary-text", className="text-muted mb-3"),
                     html.Hr(),
                     html.H6("Import dataset (.h5ad)", className="mt-1"),
                     dcc.Upload(
                         id="dm-upload",
                         children=html.Div(
-                            [
-                                "Drag and drop or ",
-                                html.A("select a .h5ad file"),
-                            ]
+                            ["Drag and drop or ", html.A("select a .h5ad file")]
                         ),
                         multiple=False,
                         className="scb-upload border rounded p-2 text-center",
                     ),
-                    html.Div(
-                        id="dm-import-status",
-                        className="small text-muted mt-2",
-                    ),
+                    html.Div(id="dm-import-status", className="small text-muted mt-2"),
                 ]
             ),
         ],
@@ -337,10 +442,7 @@ def _build_dataset_manager_panel() -> dbc.Container:
                         size="sm",
                         className="mt-1",
                     ),
-                    html.Span(
-                        id="dm-save-status",
-                        className="ms-2 small text-muted",
-                    ),
+                    html.Span(id="dm-save-status", className="ms-2 small text-muted"),
                 ]
             ),
         ],
@@ -350,10 +452,7 @@ def _build_dataset_manager_panel() -> dbc.Container:
     obs_card = dbc.Card(
         [
             dbc.CardHeader("Obs preview"),
-            dbc.CardBody(
-                html.Div(id="dm-obs-preview"),
-                className="p-2",
-            ),
+            dbc.CardBody(html.Div(id="dm-obs-preview"), className="p-2"),
         ],
         className="mt-3",
     )
@@ -368,15 +467,15 @@ def _build_dataset_manager_panel() -> dbc.Container:
                 ],
                 className="gx-3",
             ),
-            dbc.Row(
-                [
-                    dbc.Col(obs_card, md=12),
-                ],
-                className="gx-3",
-            ),
+            dbc.Row([dbc.Col(obs_card, md=12)], className="gx-3"),
         ],
         className="scb-datasets-view",
     )
+
+
+# -------------------------------------------------------------------------
+# App factory
+# -------------------------------------------------------------------------
 
 
 def create_dash_app() -> Dash:
@@ -387,7 +486,7 @@ def create_dash_app() -> Dash:
         raise RuntimeError("No datasets were loaded from config")
 
     # These will be mutated by the import callback via `nonlocal`
-    dataset_by_name: Dict[str, object] = {ds.name: ds for ds in datasets}
+    dataset_by_name: Dict[str, Dataset] = {ds.name: ds for ds in datasets}
 
     registry = _build_view_registry()
 
@@ -423,9 +522,7 @@ def create_dash_app() -> Dash:
                     dcc.Tab(
                         label="Datasets",
                         value="datasets",
-                        children=[
-                            dataset_manager,
-                        ],
+                        children=[dataset_manager],
                     ),
                 ],
                 className="mt-2",
@@ -436,6 +533,7 @@ def create_dash_app() -> Dash:
     # -------------------------------------------------------------------------
     # Explore callbacks
     # -------------------------------------------------------------------------
+
     @app.callback(
         Output("sidebar-dataset-name", "children"),
         Output("sidebar-dataset-meta", "children"),
@@ -447,26 +545,32 @@ def create_dash_app() -> Dash:
         meta = f"{ds.adata.n_obs} cells · {ds.adata.n_vars} genes"
         return name, meta
 
-
-
     @app.callback(
         Output("cluster-select", "value"),
         Output("condition-select", "value"),
+        Output("sample-select", "value"),
+        Output("celltype-select", "value"),
         Output("gene-select", "value"),
+        Output("embedding-select", "value"),
         Input("dataset-select", "value"),
     )
     def reset_filters_on_dataset_change(dataset_name: str):
-        # When the dataset changes, clear all filters.
-        return [], [], []
-
+        ds = dataset_by_name[dataset_name]
+        # Reset embedding to the dataset default, everything else cleared
+        emb_val = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
+        return [], [], [], [], [], emb_val
 
     @app.callback(
         Output("cluster-select", "options"),
         Output("condition-select", "options"),
+        Output("sample-select", "options"),
+        Output("celltype-select", "options"),
+        Output("embedding-select", "options"),
         Input("dataset-select", "value"),
     )
     def update_filters(dataset_name: str):
-        return get_filter_dropdown_options(dataset_by_name[dataset_name])
+        ds = dataset_by_name[dataset_name]
+        return get_filter_dropdown_options(ds)
 
     @app.callback(
         Output("gene-select", "options"),
@@ -496,26 +600,69 @@ def create_dash_app() -> Dash:
         return [{"label": g, "value": g} for g in union]
 
     @app.callback(
+        Output("cluster-filter-container", "style"),
+        Output("condition-filter-container", "style"),
+        Output("sample-filter-container", "style"),
+        Output("celltype-filter-container", "style"),
+        Output("gene-filter-container", "style"),
+        Output("embedding-filter-container", "style"),
+        Input("view-tabs", "value"),
+        State("dataset-select", "value"),
+    )
+    def update_filter_visibility(view_id: str, dataset_name: str):
+        ds = dataset_by_name[dataset_name]
+        view = registry.create(view_id, ds)
+        profile = getattr(view, "filter_profile", None)
+
+        def style(flag: bool) -> dict:
+            return {} if flag else {"display": "none"}
+
+        if profile is None:
+            # No profile defined → show everything
+            return (
+                style(True),  # clusters
+                style(True),  # conditions
+                style(True),  # samples
+                style(True),  # cell_types
+                style(True),  # genes
+                style(True),  # embedding
+            )
+
+        return (
+            style(getattr(profile, "clusters", True)),
+            style(getattr(profile, "conditions", True)),
+            style(getattr(profile, "samples", True)),
+            style(getattr(profile, "cell_types", True)),
+            style(getattr(profile, "genes", False)),
+            style(getattr(profile, "embedding", False)),
+        )
+
+    @app.callback(
         Output("main-graph", "figure"),
         Input("view-tabs", "value"),
         Input("dataset-select", "value"),
         Input("cluster-select", "value"),
         Input("condition-select", "value"),
+        Input("sample-select", "value"),
+        Input("celltype-select", "value"),
         Input("gene-select", "value"),
+        Input("embedding-select", "value"),
         Input("options-checklist", "value"),
     )
     def update_main_graph(
-
-        view_id: str,
-        dataset_name: str,
-        clusters: List[str] | None,
-        conditions: List[str] | None,
-        genes: List[str] | None,
-        options: List[str] | None,
+            view_id: str,
+            dataset_name: str,
+            clusters: List[str] | None,
+            conditions: List[str] | None,
+            samples: List[str] | None,
+            cell_types: List[str] | None,
+            genes: List[str] | None,
+            embedding: Optional[str],
+            options: List[str] | None,
     ):
         ds = dataset_by_name[dataset_name]
 
-
+        # Sanitize genes against dataset
         if genes:
             gene_set = set(ds.genes)
             genes = [g for g in genes if g in gene_set]
@@ -524,11 +671,13 @@ def create_dash_app() -> Dash:
             genes=genes or [],
             clusters=clusters or [],
             conditions=conditions or [],
+            samples=samples or [],
+            cell_types=cell_types or [],
+            embedding=embedding,  # assumes FilterState has this field
             split_by_condition="split_by_condition" in (options or []),
         )
 
         view = registry.create(view_id, ds)
-
 
         try:
             data = view.compute_data(state)
@@ -567,26 +716,35 @@ def create_dash_app() -> Dash:
         State("dataset-select", "value"),
         State("cluster-select", "value"),
         State("condition-select", "value"),
+        State("sample-select", "value"),
+        State("celltype-select", "value"),
         State("gene-select", "value"),
+        State("embedding-select", "value"),
         State("options-checklist", "value"),
         prevent_initial_call=True,
     )
     def download_current_data(
-        n_clicks,
-        view_id: str,
-        dataset_name: str,
-        clusters,
-        conditions,
-        genes,
-        options,
+            n_clicks,
+            view_id: str,
+            dataset_name: str,
+            clusters,
+            conditions,
+            samples,
+            cell_types,
+            genes,
+            embedding,
+            options,
     ):
-        from dash import dcc as dash_dcc  # avoid name clash with global dcc
+        from dash import dcc as dash_dcc
 
         ds = dataset_by_name[dataset_name]
         state = FilterState(
             genes=genes or [],
             clusters=clusters or [],
             conditions=conditions or [],
+            samples=samples or [],
+            cell_types=cell_types or [],
+            embedding=embedding,
             split_by_condition="split_by_condition" in (options or []),
         )
         view = registry.create(view_id, ds)
@@ -731,11 +889,7 @@ def create_dash_app() -> Dash:
             logger.exception("Failed to decode uploaded file")
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
             current = current_dataset_name or (datasets[0].name if datasets else None)
-            return (
-                f"Failed to decode uploaded file: {e}",
-                opts,
-                current,
-            )
+            return (f"Failed to decode uploaded file: {e}", opts, current)
 
         # Save to data/ directory next to config/
         data_dir = config_root.parent / "data"
@@ -749,11 +903,7 @@ def create_dash_app() -> Dash:
             logger.exception("Failed to write uploaded file to disk")
             opts = [{"label": ds.name, "value": ds.name} for ds in datasets]
             current = current_dataset_name or (datasets[0].name if datasets else None)
-            return (
-                f"Failed to save file to {out_path}: {e}",
-                opts,
-                current,
-            )
+            return (f"Failed to save file to {out_path}: {e}", opts, current)
 
         # Reload all datasets
         try:
@@ -791,10 +941,7 @@ def create_dash_app() -> Dash:
         else:
             status_msg += " (could not match to a specific dataset; using existing list.)"
 
-        return (
-            status_msg,
-            opts,
-            selected,
-        )
+        return status_msg, opts, selected
 
     return app
+

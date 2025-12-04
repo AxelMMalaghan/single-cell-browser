@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class FilterState:
@@ -18,13 +18,21 @@ class FilterState:
     - color_scale: Name of color scale used when rendering continuous values
 
     """
+
+    # Core selections
     genes: List[str] = field(default_factory=list)
     clusters: List[str] = field(default_factory=list)
     conditions: List[str] = field(default_factory=list)
+
+    # New dimensions
     samples: List[str] = field(default_factory=list)
     cell_types: List[str] = field(default_factory=list)
 
+    # Per-request embedding override (e.g. switch PCA/TSNE/UMAP)
+    # If None, views should default to Dataset.embedding_key
+    embedding: Optional[str] = None
 
+    # Display / plotting options
     merge_genes: bool = False
     split_by_condition: bool = False
     color_scale: str = "viridis"

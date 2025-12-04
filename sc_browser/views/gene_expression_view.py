@@ -56,7 +56,8 @@ class ExpressionView(BaseView):
         obs_index = expr_df.index
 
         # --- embedding ---
-        embedding = ds_sub.embedding.loc[obs_index].copy()
+        emb_key = state.embedding or ds.embedding_key
+        embedding = ds_sub.get_embedding(emb_key).loc[obs_index].copy()
         embedding = embedding.rename(columns={"dim1": "x", "dim2": "y"})
 
         # --- grouping ---
