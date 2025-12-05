@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from sc_browser.config.model import GlobalConfig
 from sc_browser.core.dataset import Dataset
@@ -20,4 +20,5 @@ class AppContext:
     global_config: GlobalConfig
     datasets: List[Dataset]
     dataset_by_name: Dict[str, Dataset]
+    default_dataset: Optional[Dataset]
     registry: ViewRegistry

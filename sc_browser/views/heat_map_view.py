@@ -30,12 +30,7 @@ class HeatmapView(BaseView):
             return pd.DataFrame()
 
         # Apply filters using the unified Dataset.subset abstraction (hits subset cache)
-        ds: Dataset = base_ds.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=getattr(state, "samples", None) or None,
-            cell_types=getattr(state, "cell_types", None) or None,
-        )
+        ds = self.dataset.subset_for_state(state)
 
         adata = ds.adata
         if adata.n_obs == 0:

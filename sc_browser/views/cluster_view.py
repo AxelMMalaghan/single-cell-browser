@@ -26,16 +26,14 @@ class ClusterView(BaseView):
     # Compute dataframe for rendering
     # -----------------------------------------------------------
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        ds = self.dataset.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=state.samples or None,
-        )
+        # Centralised filtering: let Dataset handle cluster/condition/sample/cell-type
+        ds = self.dataset.subset_for_state(state)
         adata = ds.adata
 
         if adata.n_obs == 0:
             return pd.DataFrame()
 
+        # Choose embedding: per-state override or dataset default
         emb_key = state.embedding or ds.embedding_key
         if emb_key not in ds.adata.obsm:
             raise ValueError(f"Embedding '{emb_key}' not found in .obsm")
@@ -56,15 +54,22 @@ class ClusterView(BaseView):
         if state.is_3d and coords.shape[1] > dim_z:
             df["z"] = coords[:, dim_z]
 
-        # Store embedding labels
+        # Store embedding labels for axis titles
         df.attrs["embedding_labels"] = labels
         df.attrs["x_label"] = labels[dim_x]
         df.attrs["y_label"] = labels[dim_y]
         df.attrs["z_label"] = labels[dim_z] if len(labels) > dim_z else None
 
         # Metadata
-        df["cluster"] = ds.clusters.astype(str).values
-        df["condition"] = ds.conditions.values if ds.conditions is not None else "all"
+        if ds.clusters is not None:
+            df["cluster"] = ds.clusters.astype(str).values
+        else:
+            df["cluster"] = "NA"
+
+        if ds.conditions is not None:
+            df["condition"] = ds.conditions.values
+        else:
+            df["condition"] = "all"
 
         return df
 

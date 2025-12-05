@@ -1,10 +1,14 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple, Sequence
+from typing import Dict, Optional, List, Tuple, Sequence, TYPE_CHECKING
 
 import anndata as ad
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    # Adjust path if FilterState lives somewhere else
+    from sc_browser.core.state import FilterState
 
 
 class Dataset:
@@ -162,6 +166,30 @@ class Dataset:
         return subset_ds
 
     # -------------------------------------------------------------------------
+    # Centralised subsetting based on FilterState
+    # -------------------------------------------------------------------------
+    def subset_for_state(self, state: "FilterState") -> "Dataset":
+        """
+        Convenience wrapper to subset this Dataset based on a FilterState.
+
+        This is the single entrypoint views should use for filtering so
+        cluster/condition/sample/cell-type semantics stay consistent.
+        """
+        # Be defensive about attribute names; different versions of FilterState
+        # might use 'celltypes' vs 'cell_types', etc.
+        cell_types = (
+            getattr(state, "cell_types", None)
+            or getattr(state, "celltypes", None)
+        )
+
+        return self.subset(
+            clusters=getattr(state, "clusters", None) or None,
+            conditions=getattr(state, "conditions", None) or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=cell_types or None,
+        )
+
+    # -------------------------------------------------------------------------
     # Expression Matrix Extraction (cached)
     # -------------------------------------------------------------------------
     def expression_matrix(self, genes: Sequence[str]) -> pd.DataFrame:
@@ -251,7 +279,6 @@ class Dataset:
         n_dims = arr.shape[1]
         cols = [f"dim{i + 1}" for i in range(n_dims)]
         return pd.DataFrame(arr, index=self.adata.obs.index, columns=cols)
-
 
     def get_embedding_matrix(self, key):
         """Return embedding matrix as numpy array."""

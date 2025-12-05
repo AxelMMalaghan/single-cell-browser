@@ -62,14 +62,10 @@ class VolcanoPlotView(BaseView):
 
         return groupby, group1, group2
 
+
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         # Apply filters (hits subset cache); DE runs on the filtered dataset
-        ds: Dataset = self.dataset.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=getattr(state, "samples", None) or None,
-            cell_types=getattr(state, "cell_types", None) or None,
-        )
+        ds = self.dataset.subset_for_state(state)
 
         if ds.adata.n_obs == 0:
             return pd.DataFrame()

@@ -44,17 +44,12 @@ class DotplotView(BaseView):
         ds: Dataset = self.dataset
 
         genes: List[str] = state.genes or []
-        # No genes selected → nothing to plot
+        # No genes selected so nothing to plot
         if not genes:
             return pd.DataFrame()
 
         # Apply filters (uses subset cache)
-        ds_sub = ds.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=getattr(state, "samples", None) or None,
-            cell_types=getattr(state, "cell_types", None) or None,
-        )
+        ds_sub = self.dataset.subset_for_state(state)
 
         adata = ds_sub.adata
         if adata.n_obs == 0:

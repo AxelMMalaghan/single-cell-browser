@@ -33,12 +33,7 @@ class ExpressionView(BaseView):
         gene = state.genes[0]
 
         # Apply filters using Dataset abstraction (hits subset cache)
-        ds_sub = ds.subset(
-            clusters=state.clusters or None,
-            conditions=state.conditions or None,
-            samples=getattr(state, "samples", None) or None,
-            cell_types=getattr(state, "cell_types", None) or None,
-        )
+        ds_sub = ds.subset_for_state(state)
 
         adata = ds_sub.adata
         if adata.n_obs == 0:

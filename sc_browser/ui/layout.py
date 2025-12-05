@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Optional
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
@@ -16,9 +16,16 @@ if TYPE_CHECKING:
     from .dash_app import AppContext
 
 
-def _build_navbar(datasets: List[Dataset], global_config) -> dbc.Navbar:
+def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Dataset | None) -> dbc.Navbar:
     title = getattr(global_config, "ui_title", "scB++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
+
+    # Decide which dataset is initially selected in the dropdown
+    if default_dataset is not None:
+        default_name = default_dataset.name
+    else:
+        default_name = datasets[0].name if datasets else None
+
     return dbc.Navbar(
         dbc.Container(
             fluid=True,
@@ -34,7 +41,7 @@ def _build_navbar(datasets: List[Dataset], global_config) -> dbc.Navbar:
                     dcc.Dropdown(
                         id="dataset-select",
                         options=[{"label": ds.name, "value": ds.name} for ds in datasets],
-                        value=datasets[0].name if datasets else None,
+                        value=default_name,
                         clearable=False,
                         placeholder="Select dataset",
                         style={"minWidth": "260px"},
@@ -49,7 +56,6 @@ def _build_navbar(datasets: List[Dataset], global_config) -> dbc.Navbar:
         dark=False,
         className="shadow-sm scb-navbar",
     )
-
 
 def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
     (
@@ -355,8 +361,20 @@ def _build_dataset_manager_panel() -> dbc.Container:
 
 
 def build_layout(ctx: "AppContext"):
-    navbar = _build_navbar(ctx.datasets, ctx.global_config)
-    filter_panel = _build_filter_panel(ctx.datasets[0])
+    # Decide which dataset is the default for the whole UI
+    default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
+
+    navbar = _build_navbar(ctx.datasets, ctx.global_config, default_dataset)
+
+    if default_dataset is None:
+        # Graceful empty state if no datasets are configured
+        filter_panel = dbc.Card(
+            dbc.CardBody("No datasets configured. Please add a dataset in the Datasets tab."),
+            className="scb-sidebar",
+        )
+    else:
+        filter_panel = _build_filter_panel(default_dataset)
+
     plot_panel = _build_plot_panel(ctx.registry)
     dataset_manager = _build_dataset_manager_panel()
 
@@ -392,3 +410,24 @@ def build_layout(ctx: "AppContext"):
             ),
         ],
     )
+
+
+def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[Dataset]:
+    """
+    Pick the default dataset based on global_config.default_group if possible,
+    otherwise fall back to the first dataset.
+
+    If no datasets are available, returns None.
+    """
+    if not datasets:
+        return None
+
+    default_group = getattr(global_config, "default_group", None)
+    if default_group:
+        for ds in datasets:
+            # Dataset should expose 'group' via config; be defensive if missing
+            if getattr(ds, "group", None) == default_group:
+                return ds
+
+    # Fallback: just use the first dataset
+    return datasets[0]
