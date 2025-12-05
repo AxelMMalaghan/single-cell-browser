@@ -42,7 +42,7 @@ Each view is a self-contained analysis/plotting module:
 - **FeatureCountView** – Total counts vs detected features  
 - **DotplotView** – Marker overview across cell groups  
 - **HeatmapView** – Expression heatmaps  
-- **DEView** *(DE branch)* – Differential expression testing between groups  
+- **DEView** – Differential expression testing between groups  
 
 Views automatically appear as tabs in the UI.
 
