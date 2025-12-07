@@ -70,7 +70,7 @@ class DEResult:
 
     # Backwards-compatible alias for the old typo, in case anything used it
     @property
-    def signifcant(self) -> pd.DataFrame:  # type: ignore[override]
+    def signifcant(self) -> pd.DataFrame:
         return self.significant
 
     def head(self, n: int = 10) -> pd.DataFrame:
