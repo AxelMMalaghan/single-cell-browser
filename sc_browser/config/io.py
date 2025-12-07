@@ -35,11 +35,7 @@ def load_global_config(path: Path) -> GlobalConfig:
     :return: Parsed GlobalConfig instance describing app setup.
     :raises FileNotFoundError: if path or file does not exist.
     """
-    if path.is_dir():
-        return _load_global_from_dir(path)
-    if path.is_file():
-        return _load_global_from_file(path)
-    raise FileNotFoundError(f"File or directory not found at {path}")
+    return _load_global_from_dir(path)
 
 
 def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
@@ -59,11 +55,7 @@ def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
     """
     global_config = load_global_config(path)
 
-    # Merge configured + discovered configs (discovery is a no-op if data_root is None)
-    all_cfgs: List[DatasetConfig] = [
-        *global_config.datasets,
-        *_discover_dataset_configs(global_config),
-    ]
+    all_cfgs: List[DatasetConfig] = global_config.datasets
 
     datasets: List[Dataset] = []
     for ds_cfg in all_cfgs:
@@ -136,84 +128,3 @@ def _load_global_from_dir(root: Path) -> GlobalConfig:
     )
 
 
-def _load_global_from_file(path: Path) -> GlobalConfig:
-    """
-    Legacy loader: single JSON file containing both global and dataset configuration.
-
-    Example:
-
-    {
-      "ui_title": "...",
-      "default_group": "...",
-      "datasets": [ {...}, {...} ]
-    }
-
-    NOTE:
-    - Legacy layout does not set 'data_root' explicitly; GlobalConfig should default it to None.
-    - Dataset paths in this mode are interpreted by DatasetConfig.from_raw.
-    """
-    with path.open() as f:
-        raw_config = json.load(f)
-
-    datasets: List[DatasetConfig] = []
-
-    for idx, entry in enumerate(raw_config.get("datasets", [])):
-        # Minimal sanity check; tighten if you want stricter validation.
-        if "name" not in entry:
-            raise ValueError(f"Dataset config at index {idx} is missing required field 'name'")
-        datasets.append(DatasetConfig.from_raw(entry, source_path=path, index=idx))
-
-    return GlobalConfig(
-        ui_title=raw_config.get("ui_title", "Single-Cell Browser"),
-        default_group=raw_config.get("default_group", "group"),
-        datasets=datasets,
-        # data_root intentionally left to GlobalConfig default (likely None) in legacy mode
-    )
-
-
-def _discover_dataset_configs(global_config: GlobalConfig) -> List[DatasetConfig]:
-    """
-    Find .h5ad files under data_root that are not already configured,
-    and create minimal DatasetConfig entries for them.
-
-    Discovery is intentionally minimal:
-    - name: derived from filename stem
-    - group: 'Discovered'
-    - path: full path to the file
-
-    Views that require specific obs-columns (cluster/condition) may not work
-    fully with these until they are explicitly configured.
-    """
-    if global_config.data_root is None:
-        return []
-
-    data_root = global_config.data_root
-    if not data_root.is_dir():
-        return []
-
-    # Paths already covered by explicit configs
-    configured_paths: Set[Path] = {
-        cfg.path.resolve() for cfg in global_config.datasets
-        if getattr(cfg, "path", None) is not None
-    }
-
-    discovered: List[DatasetConfig] = []
-    idx_offset = len(global_config.datasets)
-
-    for idx, path in enumerate(sorted(data_root.rglob("*.h5ad"))):
-        resolved = path.resolve()
-        if resolved in configured_paths:
-            continue
-
-        raw = {
-            "name": path.stem,
-            "group": "Discovered",
-            "path": str(resolved),
-            # Minimal config – no obs_columns yet.
-            # Cluster/condition-based views must be defensive for these.
-        }
-        discovered.append(
-            DatasetConfig.from_raw(raw, source_path=path, index=idx_offset + idx)
-        )
-
-    return discovered

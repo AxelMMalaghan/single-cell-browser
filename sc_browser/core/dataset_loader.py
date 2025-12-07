@@ -3,9 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import anndata as ad
+import logging
 
 from sc_browser.config.model import DatasetConfig, ObsColumns
 from sc_browser.core.dataset import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 def from_config(cfg: DatasetConfig) -> Dataset:
@@ -22,15 +25,23 @@ def from_config(cfg: DatasetConfig) -> Dataset:
 
     adata = ad.read_h5ad(path)
 
+    if not adata.obs_names.is_unique:
+        logger.warning(""
+                       "Observation names are not unique for dataset '%s' (%s), "
+                       "calling .obs_names_make_unique()",
+                       cfg.name,
+                       path)
+        adata = adata.copy()
+        adata.obs_names_make_unique()
+
+
     # Semantic obs mapping from config
     obs_cols: ObsColumns = cfg.obs_columns
 
     group = cfg.raw.get("group", "Default")
     embedding_key = cfg.raw.get("embedding_key", "X_umap")
 
-    # Pass cluster/condition explicitly and hand obs_cols to Dataset;
-    # Dataset.__init__'s _normalise_obs_columns will accept ObsColumns.
-    return Dataset(
+    dataset = Dataset(
         name=cfg.name,
         group=group,
         adata=adata,
@@ -38,5 +49,19 @@ def from_config(cfg: DatasetConfig) -> Dataset:
         condition_key=obs_cols.condition,
         embedding_key=embedding_key,
         obs_columns=obs_cols,
-        file_path=path,
+        file_path=path,)
+
+
+    logger.info(
+        "Loaded dataset",
+        extra={
+            "dataset": dataset.name,
+            "group": dataset.group,
+            "n_cells": dataset.adata.n_obs,
+            "n_genes": dataset.adata.n_vars,
+            "path": str(path),
+        },
     )
+
+    return dataset
+
