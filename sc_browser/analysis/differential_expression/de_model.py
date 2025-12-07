@@ -62,6 +62,7 @@ class DEResult:
     config: DEConfig
     table: pd.DataFrame
 
+
     @property
     def significant(self) -> pd.DataFrame:
         """Convenience: adjusted p < 0.05."""
