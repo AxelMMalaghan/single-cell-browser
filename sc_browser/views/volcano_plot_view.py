@@ -64,72 +64,93 @@ class VolcanoPlotView(BaseView):
 
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        # Apply filters (hits subset cache); DE runs on the filtered dataset
-        ds = self.dataset.subset_for_state(state)
+        # For DE we must NOT apply the condition filter before running DE,
+        # otherwise we can easily drop one of the comparison groups.
+        base_ds = self.dataset
 
-        if ds.adata.n_obs == 0:
+        # Apply only non-condition filters (hits subset cache)
+        ds_de = base_ds.subset(
+            clusters=state.clusters or None,
+            samples=getattr(state, "samples", None) or None,
+            cell_types=(
+                getattr(state, "cell_types", None)
+                or getattr(state, "celltypes", None)
+                or None
+            ),
+            conditions=None,  # <-- crucial: keep all condition groups for DE
+        )
+
+        if ds_de.adata.n_obs == 0:
             return pd.DataFrame()
 
-        # Pick groupby / group1 / group2 based on current state *and* filtered dataset
+        # Pick groupby / group1 / group2 based on current state *and* DE dataset
         try:
-            groupby, group1, group2 = self._choose_groups(state, ds)
+            groupby, group1, group2 = self._choose_groups(state, ds_de)
         except ValueError:
             # No valid grouping → no DE to show
             return pd.DataFrame()
 
         config = DEConfig(
-            dataset=ds,          # use subset, not full dataset
+            dataset=ds_de,
             groupby=groupby,
             group1=group1,
             group2=group2,
             method="wilcoxon",
         )
 
-        de_result = run_de(config)
-        df = de_result.table.copy()
+        # Run DE; if groups are still invalid for some reason, fail gracefully
+        try:
+            de_result = run_de(config)
+        except ValueError:
+            return pd.DataFrame()
 
+        df = de_result.table.copy()
         if df.empty:
             return df
 
-        # Pre-compute -log10(p) and significance flags
-        eps = 1e-300
-        p = df["pvalue"].to_numpy()
-        p_safe = np.clip(p, eps, 1.0)
-        df["neg_log10_pvalue"] = -np.log10(p_safe)
-
-        # Thresholds – could be made configurable later
+        # ------------------------------------------------------------------
+        # Derive volcano metrics and significance labels
+        # ------------------------------------------------------------------
+        # thresholds (could be later made configurable via UI)
         log_fc_threshold = 1.0
         pval_threshold = 0.05
 
+        # Use adjusted p-value if available, else fall back to raw p-value
+        if "adj_pvalue" in df.columns:
+            p = df["adj_pvalue"].astype(float).copy()
+        else:
+            p = df["pvalue"].astype(float).copy()
+
+        # Avoid log10(0) -> -inf
+        p = p.replace(0, np.nan)
+        df["neg_log10_pvalue"] = -np.log10(p)
+
+        # Default: not significant
         df["significance"] = "Not Significant"
-        up = (df["log2FC"] > log_fc_threshold) & (df["pvalue"] < pval_threshold)
-        down = (df["log2FC"] < -log_fc_threshold) & (df["pvalue"] < pval_threshold)
 
-        df.loc[up, "significance"] = "Upregulated"
-        df.loc[down, "significance"] = "Downregulated"
+        # Up / down regulated masks
+        sig_mask = p <= pval_threshold
+        up_mask = (df["log2FC"] >= log_fc_threshold) & sig_mask
+        down_mask = (df["log2FC"] <= -log_fc_threshold) & sig_mask
 
-        # Store thresholds and comparison meta for renderer
+        df.loc[up_mask, "significance"] = "Upregulated"
+        df.loc[down_mask, "significance"] = "Downregulated"
+
+        # Attach metadata for render_figure
         df.attrs["log_fc_threshold"] = log_fc_threshold
         df.attrs["pval_threshold"] = pval_threshold
-
-        # be defensive: table may not have comparison column if run_de changes
-        comparison_col = "comparison"
-        if comparison_col in df.columns and not df[comparison_col].empty:
-            df.attrs["comparison"] = df[comparison_col].iloc[0]
+        if group2 is None:
+            comparison = f"{group1} vs rest"
         else:
-            df.attrs["comparison"] = f"{group1} vs {group2 or 'rest'}"
+            comparison = f"{group1} vs {group2}"
+        df.attrs["comparison"] = comparison
 
         return df
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
+
         if data is None or data.empty:
-            fig = go.Figure()
-            fig.update_layout(
-                title="No DE results available for current selection",
-                xaxis={"visible": False},
-                yaxis={"visible": False},
-            )
-            return fig
+            return self.empty_figure("No data to show")
 
         log_fc_threshold = data.attrs.get("log_fc_threshold", 1.0)
         pval_threshold = data.attrs.get("pval_threshold", 0.05)

@@ -23,7 +23,7 @@ class FeatureCountView(BaseView):
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         # Apply filters using Dataset abstraction (hits subset cache)
-        ds = self.dataset.subset_for_state(state)
+        ds = self.filtered_dataset(state)
         adata = ds.adata
 
         if adata.n_obs == 0:
@@ -66,15 +66,10 @@ class FeatureCountView(BaseView):
 
         return df
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
+
         if data is None or data.empty:
-            fig = go.Figure()
-            fig.update_layout(
-                title="No cells after filtering - adjust filters",
-                xaxis={"visible": False},
-                yaxis={"visible": False},
-            )
-            return fig
+            return self.empty_figure("No data to show")
 
         fig = px.scatter(
             data,

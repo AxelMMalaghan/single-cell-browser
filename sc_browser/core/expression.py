@@ -8,11 +8,11 @@ import scipy
 
 def extract_expression_matrix(self, adata, genes: List[str]) -> pd.DataFrame:
     """
-    Extracts expression matrix from gene expression matrix.
-    :param self:
-    :param adata:
-    :param genes:
-    :return:
+    Extracts expression matrix from large matrix
+    :param self: the matrix
+    :param adata: the anndata
+    :param genes: the genes subset
+    :return: a new {@link pd.DataFrame} representing the expression Matrix
     """
 
     X = adata[:, genes].X

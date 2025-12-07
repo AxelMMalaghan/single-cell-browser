@@ -30,7 +30,7 @@ class HeatmapView(BaseView):
             return pd.DataFrame()
 
         # Apply filters using the unified Dataset.subset abstraction (hits subset cache)
-        ds = self.dataset.subset_for_state(state)
+        ds = self.filtered_dataset(state)
 
         adata = ds.adata
         if adata.n_obs == 0:
@@ -94,15 +94,10 @@ class HeatmapView(BaseView):
 
         return long_df
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
+
         if data is None or data.empty:
-            fig = go.Figure()
-            fig.update_layout(
-                title="Select at least one valid gene to show heatmap",
-                xaxis={"visible": False},
-                yaxis={"visible": False},
-            )
-            return fig
+            return self.empty_figure("No data to show")
 
         # Pivot to matrix: genes × groups
         pivot = data.pivot(index="gene", columns="group", values="log_mean_expression")

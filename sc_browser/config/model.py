@@ -5,6 +5,22 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
+@dataclass(frozen=True)
+class ObsColumns:
+    """
+    Semantic names for `.obs` columns used internally by the app.
+
+    All fields are optional so that auto-discovered datasets without explicit
+    obs_columns config still parse. Views must be defensive when fields are None.
+    """
+    cell_id: Optional[str] = None
+    cluster: Optional[str] = None
+    condition: Optional[str] = None
+    sample: Optional[str] = None
+    batch: Optional[str] = None
+    cell_type: Optional[str] = None
+
+
 @dataclass
 class DatasetConfig:
     """
@@ -21,27 +37,32 @@ class DatasetConfig:
     @property
     def path(self) -> Path:
         """
-           Return the .h5ad path for this dataset.
+        Return the .h5ad path for this dataset.
 
-           Supports both:
-           - new schema:  "path": "data/foo.h5ad"
-           - legacy:      "file": "data/foo.h5ad" or "file_path": "data/foo.h5ad"
-           """
+        Supports both:
+        - new schema:  "path": "data/foo.h5ad"
+        - legacy:      "file": "data/foo.h5ad" or "file_path": "data/foo.h5ad"
+        """
         raw_path = (
-                self.raw.get("path")
-                or self.raw.get("file")
-                or self.raw.get("file_path")
+            self.raw.get("path")
+            or self.raw.get("file")
+            or self.raw.get("file_path")
         )
         if raw_path is None:
             raise KeyError(
                 f"No 'path', 'file', or 'file_path' in dataset config: {self.raw}"
             )
-        # Keep behaviour same as old code: interpret relative paths from CWD
         return Path(raw_path)
 
     @property
     def obs_columns(self) -> ObsColumns:
-        return ObsColumns(**self.raw.get("obs_columns", {}))
+        """
+        Return semantic obs column mapping as an ObsColumns instance.
+
+        If 'obs_columns' is missing or partial, unspecified fields default to None.
+        """
+        raw_cols = self.raw.get("obs_columns", {})
+        return ObsColumns(**raw_cols)
 
     @classmethod
     def from_raw(cls, raw: Dict[str, Any], source_path: Path, index: int) -> DatasetConfig:
@@ -54,17 +75,3 @@ class GlobalConfig:
     default_group: str
     datasets: List[DatasetConfig]
     data_root: Optional[Path] = None
-
-
-@dataclass(frozen=True)
-class ObsColumns:
-    """
-    Semantic names for `.obs` columns used internally by the app.
-    """
-    cell_id: str
-    cluster: Optional[str] = None
-    condition: Optional[str] = None
-    sample: Optional[str] = None
-    batch: Optional[str] = None
-    cell_type: Optional[str] = None
-

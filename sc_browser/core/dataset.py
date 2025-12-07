@@ -1,14 +1,16 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple, Sequence, TYPE_CHECKING
+from typing import Dict, Optional, List, Tuple, Sequence, TYPE_CHECKING, Any
 
 import anndata as ad
 import numpy as np
 import pandas as pd
 
+from sc_browser.config.model import ObsColumns  # <-- new
+
 if TYPE_CHECKING:
     # Adjust path if FilterState lives somewhere else
-    from sc_browser.core.state import FilterState
+    from sc_browser.core.filter_state import FilterState
 
 
 class Dataset:
@@ -33,7 +35,7 @@ class Dataset:
         cluster_key: Optional[str],
         condition_key: Optional[str],
         embedding_key: Optional[str],
-        obs_columns: Optional[Dict[str, str]] = None,
+        obs_columns: Optional[Any] = None,
         file_path: Optional[Path] = None,
     ) -> None:
 
@@ -43,8 +45,15 @@ class Dataset:
         self.cluster_key = cluster_key
         self.condition_key = condition_key
         self.embedding_key = embedding_key
-        self.obs_columns = obs_columns or {}
         self.file_path = file_path
+
+        # ---------------------------------------------------------------------
+        # Normalise obs_columns to a dict[str, str]
+        # Accept both:
+        #   - dict-like: {"sample": "sample_col", "cell_type": "cell_type_col", ...}
+        #   - ObsColumns dataclass instance
+        # ---------------------------------------------------------------------
+        self.obs_columns: Dict[str, str] = self._normalise_obs_columns(obs_columns)
 
         # ---------------------------------------------------------------------
         # Pre-normalise all relevant .obs columns to avoid repeated astype(str)
@@ -53,12 +62,12 @@ class Dataset:
 
         self._cluster_series = (
             obs[cluster_key].astype(str).copy()
-            if cluster_key is not None else None
+            if cluster_key is not None and cluster_key in obs.columns else None
         )
 
         self._condition_series = (
             obs[condition_key].astype(str).copy()
-            if condition_key is not None else None
+            if condition_key is not None and condition_key in obs.columns else None
         )
 
         sample_key = self.obs_columns.get("sample")
@@ -84,6 +93,47 @@ class Dataset:
 
         # Cache for expression matrices (per subset, per gene set)
         self._expr_cache: Dict[Tuple[str, ...], pd.DataFrame] = {}
+
+    # -------------------------------------------------------------------------
+    # Internal: normalise obs_columns
+    # -------------------------------------------------------------------------
+    def _normalise_obs_columns(self, obs_columns: Optional[Any]) -> Dict[str, str]:
+        """
+        Accept either:
+        - dict-like: {"sample": "...", "cell_type": "...", ...}
+        - ObsColumns dataclass instance
+
+        and always return a flat dict[str, str] with only non-None entries.
+        """
+        if obs_columns is None:
+            return {}
+
+        # If already a dict-like with .get, just copy it
+        if isinstance(obs_columns, dict):
+            return {k: v for k, v in obs_columns.items() if v is not None}
+
+        # ObsColumns dataclass path
+        if isinstance(obs_columns, ObsColumns):
+            mapping: Dict[str, str] = {}
+            if obs_columns.sample is not None:
+                mapping["sample"] = obs_columns.sample
+            if obs_columns.cell_type is not None:
+                mapping["cell_type"] = obs_columns.cell_type
+            if obs_columns.batch is not None:
+                mapping["batch"] = obs_columns.batch
+            if obs_columns.cell_id is not None:
+                mapping["cell_id"] = obs_columns.cell_id
+            if obs_columns.cluster is not None:
+                mapping["cluster"] = obs_columns.cluster
+            if obs_columns.condition is not None:
+                mapping["condition"] = obs_columns.condition
+            return mapping
+
+        # Fallback: try to treat it as mapping-like (very defensive)
+        try:
+            return {k: v for k, v in dict(obs_columns).items() if v is not None}
+        except Exception:
+            return {}
 
     # -------------------------------------------------------------------------
     # Helper: build cache key for subsetting
@@ -157,7 +207,7 @@ class Dataset:
             cluster_key=self.cluster_key,
             condition_key=self.condition_key,
             embedding_key=self.embedding_key,
-            obs_columns=self.obs_columns,
+            obs_columns=self.obs_columns,  # already normalised dict
             file_path=self.file_path,
         )
 
@@ -307,4 +357,7 @@ class Dataset:
         return self.get_embedding()
 
     def get_obs_column(self, key: str) -> Optional[str]:
+        """
+        Backwards-compatible dict-style access to semantic obs columns.
+        """
         return self.obs_columns.get(key)

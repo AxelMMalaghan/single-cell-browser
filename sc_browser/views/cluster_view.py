@@ -27,7 +27,7 @@ class ClusterView(BaseView):
     # -----------------------------------------------------------
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         # Centralised filtering: let Dataset handle cluster/condition/sample/cell-type
-        ds = self.dataset.subset_for_state(state)
+        ds = self.filtered_dataset(state)
         adata = ds.adata
 
         if adata.n_obs == 0:
@@ -77,17 +77,9 @@ class ClusterView(BaseView):
     # Render entrypoint
     # -----------------------------------------------------------
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
-        if data.empty:
-            fig = go.Figure()
-            fig.add_annotation(
-                text="No cells after filtering",
-                showarrow=False,
-                xref="paper",
-                yref="paper",
-                x=0.5,
-                y=0.5,
-            )
-            return fig
+
+        if data is None or data.empty:
+            return self.empty_figure("No data to show")
 
         if state.is_3d and "z" in data.columns:
             return self._render_3d(data)
@@ -151,3 +143,4 @@ class ClusterView(BaseView):
             margin=dict(l=0, r=0, t=40, b=0),
         )
         return fig
+

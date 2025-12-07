@@ -82,3 +82,4 @@ def create_single_cell_registry() -> AdapterRegistry:
     registry = AdapterRegistry()
     registry.register(MappedAnnDataAdapter())
     return registry
+

@@ -52,8 +52,8 @@ class FilterProfile:
 
     Fields:
 
-    - genes: the gene widget
-    - clusters: the cluster widget
+    :param clusters: the cluster widget
+    :param : the condition widget
     - conditions: the condition widget
     - samples: the sample widget
     - cell_types: the cell type widget
@@ -65,3 +65,6 @@ class FilterProfile:
     cell_types: bool = True
     genes: bool = False
     embedding: bool = False
+    #x_dim: bool = False
+    #y_dim: bool = False
+    #z_dim: bool = False

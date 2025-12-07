@@ -57,6 +57,21 @@ Views automatically appear as tabs in the UI.
 ## Repository Structure
 
 
+## Data Flow
+
+The app is pointed at a config root which is a directory that contains `global.json` as well as `datasets/` which is a directory that contains the loaded datasets.
+`DatasetConfig` then decodes the path where the `.h5ad` files live & obs their respective obs columns mapping.
+`from_config` then turns DatasetConfig into the internal `Dataset` object which is responsible for storing the data, normalising the obs_columnn and also precomputes the series for faster filtering.
+It also initialises the subset cache:
+    `{ (clusters, conditions, samples, cell_types) -> Dataset }`
+And the expression cache:
+    `{ (gene tuple) -> DataFrame}`
+
+From there, the Dataset objects are then used by Dash to create the views.
+
+### Per-view Data Flow
+
+`compute_data()` creates a pandas dataframe
 
 ---
 

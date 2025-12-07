@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any
-from plotly.graph_objs import Figure
+
+import plotly.graph_objs as go
 
 from .dataset import Dataset
 from .filter_state import FilterState, FilterProfile
@@ -37,7 +38,7 @@ class BaseView(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def render_figure(self, data: Any, state: FilterState) -> Figure:
+    def render_figure(self, data: Any, state: FilterState) -> go.Figure:
         """
         Render the figure given the computed data
         :param data: the data provided by {@link compute_data()}
@@ -46,3 +47,28 @@ class BaseView(ABC):
         """
         raise NotImplementedError()
 
+
+    # ------------------------------------------------------------------
+    # Common helpers for all views
+    # ------------------------------------------------------------------
+    def filtered_dataset(self, state: FilterState) -> Dataset:
+        """
+        Return this view's Dataset filtered according to the given FilterState.
+
+        All views should call this instead of touching .subset(...) directly,
+        so if we ever need to change the filtering behaviour, we do it in one place.
+        """
+        return self.dataset.subset_for_state(state)
+
+    @staticmethod
+    def empty_figure(message: str) -> go.Figure:
+        """
+        Standardised 'no data' figure used by all views.
+        """
+        fig = go.Figure()
+        fig.update_layout(
+            title=message,
+            xaxis={"visible": False},
+            yaxis={"visible": False},
+        )
+        return fig

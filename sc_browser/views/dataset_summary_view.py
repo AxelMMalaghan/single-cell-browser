@@ -30,10 +30,9 @@ class DatasetSummary(BaseView):
     filter_profile = FilterProfile()
 
     def compute_data(self, state: FilterState) -> Dict[str, Any]:
-        base_ds: Dataset = self.dataset
 
         # Apply filters via the Dataset abstraction (hits subset cache)
-        ds = self.dataset.subset_for_state(state)
+        ds = self.filtered_dataset(state)
         adata = ds.adata
 
         if adata.n_obs == 0:
@@ -72,15 +71,9 @@ class DatasetSummary(BaseView):
         }
 
     def render_figure(self, data: Dict[str, Any], state: FilterState) -> go.Figure:
-        # data is a dict, not a DataFrame – so do NOT call data.empty
-        if not data:
-            fig = go.Figure()
-            fig.update_layout(
-                title="No cells after filtering – adjust filters",
-                xaxis={"visible": False},
-                yaxis={"visible": False},
-            )
-            return fig
+
+        if data is None:
+            return self.empty_figure("No data to show")
 
         n_cells = data["n_cells"]
         n_genes = data["n_genes"]
@@ -128,3 +121,5 @@ class DatasetSummary(BaseView):
         )
 
         return fig
+
+

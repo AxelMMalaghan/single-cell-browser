@@ -9,7 +9,6 @@ class ViewRegistry:
     Registry for view classes so the app can build tabs dynamically
 
     Purpose:
-    - Acts as the source of truth for which views exist/are available
     - Decouples UI/Dash layer from hardcoded view implementations by exposing {@link create(view_id, dataset)}
     - Enables dynamic construction of navigation (tabs, dropdowns, etc.) based on the registered views rather than hardcoded lists
 

@@ -33,7 +33,7 @@ class ExpressionView(BaseView):
         gene = state.genes[0]
 
         # Apply filters using Dataset abstraction (hits subset cache)
-        ds_sub = ds.subset_for_state(state)
+        ds_sub = self.filtered_dataset(state)
 
         adata = ds_sub.adata
         if adata.n_obs == 0:
@@ -88,16 +88,13 @@ class ExpressionView(BaseView):
 
         return df
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
-        if data is None or data.empty:
-            fig = go.Figure()
-            fig.update_layout(
-                title="Select at least one gene to show expression",
-                xaxis={"visible": False},
-                yaxis={"visible": False},
-            )
-            return fig
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
 
+        if data is None or data.empty:
+            return self.empty_figure("No data to show")
+
+
+        # Data plotting
         color_scale = getattr(state, "color_scale", "viridis")
 
         fig = px.scatter(

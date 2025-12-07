@@ -1,0 +1,23 @@
+1) Tighten UI
+    - Remove non-dependent filters per view
+    - Try & break
+    - Fix
+
+2) Polish Code
+    - Documentation where it isn't already
+    - Ensure migration to new DS loading for all methods
+
+3) Logging
+
+4) Test Suite
+    - Prioritise aspects with high user flows (unit tests)
+    - E2E smoke test
+    - Integration testing
+
+5) Performance
+    - Caching?
+    - Improve computationally taxing operations (DE), views not copies
+
+6) Finish README, reqs.txt
+
+
