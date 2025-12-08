@@ -30,7 +30,9 @@ class DotplotView(BaseView):
         samples=True,
         cell_types=True,
         genes=True,
-        embedding=False
+        embedding=False,
+        split_by_condition=True,
+        is_3d=False,
     )
 
     def _cell_identities(self, ds: Dataset, state: FilterState) -> pd.Series:

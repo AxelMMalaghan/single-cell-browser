@@ -8,8 +8,6 @@ from plotly.subplots import make_subplots
 
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.filter_state import FilterState, FilterProfile
-from sc_browser.core.dataset import Dataset
-
 
 class DatasetSummary(BaseView):
     """
@@ -33,7 +31,9 @@ class DatasetSummary(BaseView):
         samples=True,
         cell_types=True,
         genes=False,
-        embedding=False
+        embedding=False,
+        split_by_condition=False,
+        is_3d=False,
     )
 
     def compute_data(self, state: FilterState) -> Dict[str, Any]:

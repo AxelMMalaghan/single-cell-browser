@@ -25,7 +25,9 @@ class FeatureCountView(BaseView):
         samples=True,
         cell_types=True,
         genes=False,
-        embedding=False
+        embedding=False,
+        split_by_condition=True,
+        is_3d=False,
     )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:

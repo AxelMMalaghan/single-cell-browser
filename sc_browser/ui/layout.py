@@ -171,15 +171,21 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                         className="mb-3",
                     ),
 
-                    html.Hr(),
-                    dbc.Checklist(
-                        id="options-checklist",
-                        options=[{"label": " Split by condition", "value": "split_by_condition"},
-                                 {"label": "3D view", "value": "is_3d"}],
-                        value=[],
-                        switch=True,
+                    html.Div(
+                        id="options-container",
+                        children=[
+                            dbc.Checklist(
+                                id="options-checklist",
+                                options=[  # initial value; will be overridden by callback
+                                    {"label": " Split by condition", "value": "split_by_condition"},
+                                    {"label": " 3D view", "value": "is_3d"},
+                                ],
+                                value=[],
+                                switch=True,
+                            ),
+                            html.Hr(),
+                        ],
                     ),
-                    html.Hr(),
                     html.Div(
                         [
                             html.Div(

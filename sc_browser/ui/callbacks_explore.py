@@ -118,6 +118,8 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     # ---------------------------------------------------------
     # Hide/show filters based on active view
     # ---------------------------------------------------------
+    # sc_browser/ui/callbacks_explore.py
+
     @app.callback(
         Output("cluster-filter-container", "style"),
         Output("condition-filter-container", "style"),
@@ -125,7 +127,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("celltype-filter-container", "style"),
         Output("gene-filter-container", "style"),
         Output("embedding-filter-container", "style"),
-        Output("dim-filter-container", "style"),  # <-- NEW
+        Output("dim-filter-container", "style"),
+        Output("options-container", "style"),
+        Output("options-checklist", "options"),
         Input("view-tabs", "value"),
         State("dataset-select", "value"),
     )
@@ -138,10 +142,34 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             return {} if flag else {"display": "none"}
 
         if profile is None:
-            # everything visible by default
-            return (style(True),) * 7
+            # Fallback: show everything, both toggles
+            options = [
+                {"label": " Split by condition", "value": "split_by_condition"},
+                {"label": " 3D view", "value": "is_3d"},
+            ]
+            return (
+                style(True),  # clusters
+                style(True),  # conditions
+                style(True),  # samples
+                style(True),  # cell_types
+                style(True),  # genes
+                style(True),  # embedding
+                style(True),  # dims
+                style(True),  # options-container
+                options,
+            )
 
         embedding_flag = getattr(profile, "embedding", False)
+        dim_flag = embedding_flag  # dims only when embedding is active
+
+        # Build options list based on profile flags
+        options = []
+        if getattr(profile, "split_by_condition_toggle", False):
+            options.append({"label": " Split by condition", "value": "split_by_condition"})
+        if getattr(profile, "is_3d_toggle", False) and embedding_flag:
+            options.append({"label": " 3D view", "value": "is_3d"})
+
+        show_options = bool(options)
 
         return (
             style(getattr(profile, "clusters", True)),
@@ -149,10 +177,11 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             style(getattr(profile, "samples", True)),
             style(getattr(profile, "cell_types", True)),
             style(getattr(profile, "genes", False)),
-            style(embedding_flag),  # embedding dropdown
-            style(embedding_flag),  # X/Y/Z block
+            style(embedding_flag),
+            style(dim_flag),
+            style(show_options),
+            options,
         )
-
     # ---------------------------------------------------------
     # Dimension selector population
     # ---------------------------------------------------------

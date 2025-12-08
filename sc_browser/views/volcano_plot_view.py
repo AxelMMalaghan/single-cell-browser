@@ -30,7 +30,9 @@ class VolcanoPlotView(BaseView):
         samples=True,
         cell_types=True,
         genes=False,
-        embedding=False
+        embedding=False,
+        split_by_condition=False,
+        is_3d=False,
     )
 
     def _choose_groups(self, state: FilterState, ds: Dataset) -> Tuple[str, str, str | None]:

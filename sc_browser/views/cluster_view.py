@@ -16,7 +16,9 @@ class ClusterView(BaseView):
         samples=True,
         cell_types=True,
         genes=False,
-        embedding=True
+        embedding=True,
+        split_by_condition=True,
+        is_3d=True,
     )
 
     # -----------------------------------------------------------
