@@ -164,9 +164,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         # Build options list based on profile flags
         options = []
-        if getattr(profile, "split_by_condition_toggle", False):
+        if getattr(profile, "split_by_condition", False):
             options.append({"label": " Split by condition", "value": "split_by_condition"})
-        if getattr(profile, "is_3d_toggle", False) and embedding_flag:
+        if getattr(profile, "is_3d", False) and embedding_flag:
             options.append({"label": " 3D view", "value": "is_3d"})
 
         show_options = bool(options)
