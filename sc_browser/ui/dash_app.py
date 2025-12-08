@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import dash_bootstrap_components as dbc
 from dash import Dash
 
-from sc_browser.config.io import load_datasets
+from sc_browser.config.loader import load_datasets
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
 

@@ -8,7 +8,7 @@ import logging
 import dash
 from dash import Input, Output, State
 
-from sc_browser.config.io import load_datasets
+from sc_browser.config.loader import load_datasets
 from sc_browser.config.write import save_dataset_config
 from .helpers import obs_preview_table, dataset_status
 

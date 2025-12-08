@@ -7,4 +7,4 @@ Responsible for:
 """
 
 from .model import GlobalConfig, DatasetConfig  # optional re-exports
-from .io import load_global_config, load_datasets  # optional
+from .loader import load_global_config, load_datasets  # optional

@@ -1,6 +1,6 @@
 import anndata
 
-file_path = "../data/pikor20-b-cells.h5ad"
+file_path = "../data/IMM_sce.h5ad"
 
 # Load the AnnData file (not in backed mode to inspect .obs)
 adata = anndata.read_h5ad(file_path)

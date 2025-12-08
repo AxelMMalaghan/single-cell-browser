@@ -39,7 +39,7 @@ def load_global_config(root: Path) -> GlobalConfig:
     """
     logger.info(
         "Loading global config",
-        extra={"confi_root": str(root)},
+        extra={"config_root": str(root)},
     )
 
     global_path = root / "global.json"
