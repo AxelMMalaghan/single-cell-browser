@@ -17,6 +17,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _error_figure(message: str) -> go.Figure:
+    """
+    Generic fallback figure used when a view fails.
+    """
+    fig = go.Figure()
+    fig.add_annotation(
+        text=message,
+        showarrow=False,
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+    )
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
+    return fig
+
+
 def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
     # ---------------------------------------------------------
@@ -106,6 +125,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("celltype-filter-container", "style"),
         Output("gene-filter-container", "style"),
         Output("embedding-filter-container", "style"),
+        Output("dim-filter-container", "style"),  # <-- NEW
         Input("view-tabs", "value"),
         State("dataset-select", "value"),
     )
@@ -118,7 +138,10 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             return {} if flag else {"display": "none"}
 
         if profile is None:
-            return (style(True),) * 6
+            # everything visible by default
+            return (style(True),) * 7
+
+        embedding_flag = getattr(profile, "embedding", False)
 
         return (
             style(getattr(profile, "clusters", True)),
@@ -126,7 +149,8 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             style(getattr(profile, "samples", True)),
             style(getattr(profile, "cell_types", True)),
             style(getattr(profile, "genes", False)),
-            style(getattr(profile, "embedding", False)),
+            style(embedding_flag),  # embedding dropdown
+            style(embedding_flag),  # X/Y/Z block
         )
 
     # ---------------------------------------------------------
@@ -185,53 +209,65 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         dim_z: int,
         options: List[str] | None,
     ):
-        ds = ctx.dataset_by_name[dataset_name]
-
-        if genes:
-            gene_set = set(ds.genes)
-            genes = [g for g in genes if g in gene_set]
-
-        state = FilterState(
-            genes=genes or [],
-            clusters=clusters or [],
-            conditions=conditions or [],
-            samples=samples or [],
-            cell_types=cell_types or [],
-            embedding=embedding,
-            dim_x=dim_x,
-            dim_y=dim_y,
-            dim_z=dim_z,
-            split_by_condition="split_by_condition" in (options or []),
-            is_3d="is_3d" in (options or []),
-        )
-
-        view = ctx.registry.create(view_id, ds)
-
-        logger.info(
-            "update_main_graph",
-            extra={
-                "view_id": view_id,
-                "dataset": dataset_name,
-                "n_clusters": len(state.clusters or []),
-                "n_conditions": len(state.conditions or []),
-                "n_genes": len(state.genes or []),
-            },
-        )
-
         try:
+            ds = ctx.dataset_by_name[dataset_name]
+
+            # Make sure genes exist in this dataset
+            if genes:
+                gene_set = set(ds.genes)
+                genes = [g for g in genes if g in gene_set]
+
+            state = FilterState(
+                genes=genes or [],
+                clusters=clusters or [],
+                conditions=conditions or [],
+                samples=samples or [],
+                cell_types=cell_types or [],
+                embedding=embedding,
+                dim_x=dim_x,
+                dim_y=dim_y,
+                dim_z=dim_z,
+                split_by_condition="split_by_condition" in (options or []),
+                is_3d="is_3d" in (options or []),
+            )
+
+            view = ctx.registry.create(view_id, ds)
+
+            logger.info(
+                "update_main_graph",
+                extra={
+                    "view_id": view_id,
+                    "dataset": dataset_name,
+                    "n_clusters": len(state.clusters or []),
+                    "n_conditions": len(state.conditions or []),
+                    "n_genes": len(state.genes or []),
+                },
+            )
+
             data = view.timed_compute(state)
             fig = view.render_figure(data, state)
+            return fig
+
         except Exception:
+            # Log with context and return a friendly error figure
             logger.exception(
                 "Error in update_main_graph",
                 extra={
                     "view_id": view_id,
                     "dataset": dataset_name,
+                    "clusters": clusters,
+                    "conditions": conditions,
+                    "samples": samples,
+                    "cell_types": cell_types,
+                    "genes": genes,
+                    "embedding": embedding,
+                    "dim_x": dim_x,
+                    "dim_y": dim_y,
+                    "dim_z": dim_z,
+                    "options": options,
                 },
             )
-            raise
-
-        return fig
+            return _error_figure("An error occurred while rendering this view. Check logs for details.")
 
     # ---------------------------------------------------------
     # Download CSV

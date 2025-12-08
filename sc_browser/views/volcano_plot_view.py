@@ -24,11 +24,13 @@ class VolcanoPlotView(BaseView):
 
     id = "volcano"
     label = "Volcano"
-    filter_profile = FilterProfile(clusters=True,
-                                   conditions=False,
-                                   samples=True,
-                                   cell_types=True,
-                                   genes=False
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=False,
+        embedding=False
     )
 
     def _choose_groups(self, state: FilterState, ds: Dataset) -> Tuple[str, str, str | None]:

@@ -24,7 +24,14 @@ class DotplotView(BaseView):
 
     id = "dotplot"
     label = "Dot plot"
-    filter_profile = FilterProfile(genes=True)
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=True,
+        embedding=False
+    )
 
     def _cell_identities(self, ds: Dataset, state: FilterState) -> pd.Series:
         """

@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import json
 import logging
-
 from pathlib import Path
 from typing import List, Tuple
 
 from sc_browser.config.model import DatasetConfig, GlobalConfig
-from sc_browser.core.dataset_loader import from_config
+from sc_browser.core.dataset_loader import from_config, DatasetConfigError
 from sc_browser.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
+
 def load_global_config(root: Path) -> GlobalConfig:
     """
-    Load configuration from a directory using the new multi-file layout.
+    Load configuration from a directory using the multi-file layout.
 
     Expected structure:
 
@@ -31,7 +31,8 @@ def load_global_config(root: Path) -> GlobalConfig:
     - default_group: group for UI, defaults to 'Default'
     - datasets: list of DatasetConfigs
     - data_root: root directory for datasets, used for auto-discovery of .h5ad files.
-                 If 'data_root' is relative in global.json, it is resolved relative to 'root'.
+                 (Auto-discovery may be handled elsewhere; this function just
+                  parses what is explicitly configured here.)
 
     :param root: Directory containing 'global.json' and optionally 'datasets/'.
     :return: A GlobalConfig instance.
@@ -80,36 +81,70 @@ def load_global_config(root: Path) -> GlobalConfig:
         data_root=data_root,
     )
 
+
 def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
     """
     Load the global configuration and instantiate all Dataset objects.
 
     Main entrypoint used by UI/services.
 
-    1. Loads the top-level GlobalConfig from 'path' (directory or file).
-    2. Merges:
-        - All DatasetConfig instances defined explicitly in the config, and
-        - Any additional datasets discovered under GlobalConfig.data_root.
-    3. Materialises each DatasetConfig into a Dataset by calling 'dataset_loader.from_config'.
+    1. Loads the top-level GlobalConfig from 'path'.
+    2. Iterates over GlobalConfig.datasets and calls `from_config` for each.
+    3. Skips any dataset whose config is invalid, logging the error.
+    4. Returns only successfully materialised Dataset objects.
 
-    :param path: Path to config directory or legacy config file.
+    :param path: Path to config directory.
     :return: A tuple of (GlobalConfig, List[Dataset]).
+    :raises RuntimeError: if no valid datasets could be loaded.
     """
     global_config = load_global_config(path)
 
     all_cfgs: List[DatasetConfig] = global_config.datasets
 
     datasets: List[Dataset] = []
-    for ds_cfg in all_cfgs:
-        datasets.append(from_config(ds_cfg))
+    failed = 0
 
-    logger.info("Datasets loaded from config root",
-                extra={"config_root": str(path),
-                       "n_datasets": len(datasets),
-                       "dataset_names": [ds.name for ds in datasets]})
+    for ds_cfg in all_cfgs:
+        try:
+            ds = from_config(ds_cfg)
+        except DatasetConfigError as e:
+            failed += 1
+            logger.error(
+                "Skipping dataset due to config error",
+                extra={
+                    "dataset": ds_cfg.name,
+                    "path": str(getattr(ds_cfg, "path", "")),
+                    "error": str(e),
+                },
+            )
+            continue
+        except Exception as e:  # hard guard against unexpected issues
+            failed += 1
+            logger.exception(
+                "Unexpected error while loading dataset; skipping",
+                extra={
+                    "dataset": ds_cfg.name,
+                    "path": str(getattr(ds_cfg, "path", "")),
+                },
+            )
+            continue
+
+        datasets.append(ds)
+
+    logger.info(
+        "Datasets loaded from config root",
+        extra={
+            "config_root": str(path),
+            "n_datasets": len(datasets),
+            "n_failed": failed,
+            "dataset_names": [ds.name for ds in datasets],
+        },
+    )
+
+    if not datasets:
+        # At this point, the app would be useless anyway, so fail fast with a clear error.
+        raise RuntimeError(
+            f"No valid datasets could be loaded from config root: {path}"
+        )
 
     return global_config, datasets
-
-
-
-

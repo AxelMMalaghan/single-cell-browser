@@ -19,7 +19,14 @@ class FeatureCountView(BaseView):
 
     id = "feature_count"
     label = "Feature v. Count"
-    filter_profile = FilterProfile()
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=False,
+        embedding=False
+    )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         # Apply filters using Dataset abstraction (hits subset cache)

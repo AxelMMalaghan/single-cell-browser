@@ -126,5 +126,4 @@ def test_dataset_summary_render_figure_empty():
     fig = view.render_figure(empty_data, state)
 
     assert isinstance(fig, go.Figure)
-    # All views use BaseView.empty_figure("No data to show")
     assert (fig.layout.title.text or "") == "No data to show"

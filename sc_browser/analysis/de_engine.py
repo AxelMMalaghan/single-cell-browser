@@ -4,7 +4,7 @@ from typing import Optional, Sequence
 
 import scanpy as sc
 
-from sc_browser.analysis.differential_expression.de_model import DEConfig, DEResult
+from sc_browser.analysis.de_model import DEConfig, DEResult
 
 
 def _validate_config(config: DEConfig) -> None:

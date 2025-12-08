@@ -10,7 +10,14 @@ from sc_browser.core.filter_state import FilterState, FilterProfile
 class ClusterView(BaseView):
     id = "cluster"
     label = "Clusters"
-    filter_profile = FilterProfile(embedding=True)
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=False,
+        embedding=True
+    )
 
     # -----------------------------------------------------------
     # Derive human-readable axis names from embedding key

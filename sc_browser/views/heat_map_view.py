@@ -20,7 +20,14 @@ class HeatmapView(BaseView):
 
     id = "heatmap"
     label = "Heatmap"
-    filter_profile = FilterProfile(genes=True)
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=True,
+        embedding=False
+    )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         base_ds: Dataset = self.dataset

@@ -59,10 +59,10 @@ class FilterProfile:
     - cell_types: the cell type widget
     - embedding: the embedding widget (for embedding type - projections plots)
     """
-    clusters: bool = True
-    conditions: bool = True
-    samples: bool = True
-    cell_types: bool = True
+    clusters: bool = False
+    conditions: bool = False
+    samples: bool = False
+    cell_types: bool = False
     genes: bool = False
     embedding: bool = False
     #x_dim: bool = False

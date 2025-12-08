@@ -16,7 +16,6 @@ class DEConfig:
     Keeps DE concerns separate from UI / Dash and from raw AnnData.
     Designed to be hashable / cache-friendly.
     """
-
     dataset: Dataset
     groupby: str
     group1: str
@@ -54,8 +53,8 @@ class DEResult:
     Columns:
     - gene              gene identifier
     - log2FC            log2 fold change
-    - pvalue            raw p-value
-    - adj_pvalue        multiple testing corrected p-value
+    - p-value            raw p-value
+    - adj_p-value        multiple testing corrected p-value
     - comparison        human-readable label for comparison
     """
 

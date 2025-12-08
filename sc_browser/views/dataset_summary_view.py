@@ -27,7 +27,14 @@ class DatasetSummary(BaseView):
 
     id = "dataset_summary"
     label = "Dataset Summary"
-    filter_profile = FilterProfile()
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=False,
+        embedding=False
+    )
 
     def compute_data(self, state: FilterState) -> Dict[str, Any]:
 
@@ -71,8 +78,8 @@ class DatasetSummary(BaseView):
         }
 
     def render_figure(self, data: Dict[str, Any], state: FilterState) -> go.Figure:
-
-        if data is None:
+        # Treat both None and {} as "no data"
+        if not data:
             return self.empty_figure("No data to show")
 
         n_cells = data["n_cells"]
@@ -80,14 +87,12 @@ class DatasetSummary(BaseView):
         cluster_counts: pd.DataFrame = data["cluster_counts"]
         condition_counts: pd.DataFrame = data["condition_counts"]
 
-        # Build a 1x2 subplot: clusters (left), conditions (right)
         fig = make_subplots(
             rows=1,
             cols=2,
             subplot_titles=("Cluster sizes", "Condition sizes"),
         )
 
-        # Cluster bar chart
         if not cluster_counts.empty:
             fig.add_bar(
                 x=cluster_counts["cluster"],
@@ -97,7 +102,6 @@ class DatasetSummary(BaseView):
                 name="Clusters",
             )
 
-        # Condition bar chart (only if there is a condition field)
         if not condition_counts.empty:
             fig.add_bar(
                 x=condition_counts["condition"],
@@ -121,5 +125,4 @@ class DatasetSummary(BaseView):
         )
 
         return fig
-
 

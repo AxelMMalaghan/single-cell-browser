@@ -20,7 +20,14 @@ class ExpressionView(BaseView):
 
     id = "expression"
     label = "Expression"
-    filter_profile = FilterProfile(genes=True)
+    filter_profile = FilterProfile(
+        clusters=True,
+        conditions=True,
+        samples=True,
+        cell_types=True,
+        genes=True,
+        embedding=False
+    )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
         ds: Dataset = self.dataset
