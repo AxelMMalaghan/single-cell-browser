@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+import logging
+
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -8,6 +11,7 @@ import plotly.graph_objs as go
 from .dataset import Dataset
 from .filter_state import FilterState, FilterProfile
 
+logger = logging.getLogger(__name__)
 
 class BaseView(ABC):
     """
@@ -72,3 +76,23 @@ class BaseView(ABC):
             yaxis={"visible": False},
         )
         return fig
+
+
+    def timed_compute(self, state: FilterState) -> Any:
+        """
+        Wrapper around compute_data that logs timing + basic context
+        """
+        start = time.perf_counter()
+        try:
+            return self.compute_data(state)
+        finally:
+            duration_ms = (time.perf_counter() - start) * 1000
+            dataset = getattr(self, "dataset", None)
+            logger.info(
+                "compute_data is finished",
+                extra={
+                    "view": getattr(self, "id", self.__class__.__name__),
+                    "dataset": getattr(dataset, "name", None),
+                    "duration_ms": round(duration_ms, 2),
+                },
+            )

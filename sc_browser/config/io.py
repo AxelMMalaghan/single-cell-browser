@@ -1,70 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
+
 from pathlib import Path
-from typing import List, Tuple, Set
+from typing import List, Tuple
 
 from sc_browser.config.model import DatasetConfig, GlobalConfig
 from sc_browser.core.dataset_loader import from_config
 from sc_browser.core.dataset import Dataset
 
+logger = logging.getLogger(__name__)
 
-def load_global_config(path: Path) -> GlobalConfig:
-    """
-    Load the top-level application configuration from a JSON file or directory.
-
-    Supports two layouts:
-
-    1. Directory layout (preferred):
-        root/
-            global.json
-            datasets/
-                dataset_1.json
-                dataset_2.json
-                ...
-
-    2. Legacy single-file layout (for demo / backwards compatibility):
-        config.json
-        {
-          "ui_title": "...",
-          "default_group": "...",
-          "datasets": [ {...}, {...} ]
-        }
-
-    :param path: Directory containing global.json + datasets/ OR a single legacy JSON file.
-    :return: Parsed GlobalConfig instance describing app setup.
-    :raises FileNotFoundError: if path or file does not exist.
-    """
-    return _load_global_from_dir(path)
-
-
-def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
-    """
-    Load the global configuration and instantiate all Dataset objects.
-
-    Main entrypoint used by UI/services.
-
-    1. Loads the top-level GlobalConfig from 'path' (directory or file).
-    2. Merges:
-        - All DatasetConfig instances defined explicitly in the config, and
-        - Any additional datasets discovered under GlobalConfig.data_root.
-    3. Materialises each DatasetConfig into a Dataset by calling 'dataset_loader.from_config'.
-
-    :param path: Path to config directory or legacy config file.
-    :return: A tuple of (GlobalConfig, List[Dataset]).
-    """
-    global_config = load_global_config(path)
-
-    all_cfgs: List[DatasetConfig] = global_config.datasets
-
-    datasets: List[Dataset] = []
-    for ds_cfg in all_cfgs:
-        datasets.append(from_config(ds_cfg))
-
-    return global_config, datasets
-
-
-def _load_global_from_dir(root: Path) -> GlobalConfig:
+def load_global_config(root: Path) -> GlobalConfig:
     """
     Load configuration from a directory using the new multi-file layout.
 
@@ -89,6 +37,11 @@ def _load_global_from_dir(root: Path) -> GlobalConfig:
     :return: A GlobalConfig instance.
     :raises FileNotFoundError: if global.json does not exist.
     """
+    logger.info(
+        "Loading global config",
+        extra={"confi_root": str(root)},
+    )
+
     global_path = root / "global.json"
     if not global_path.is_file():
         raise FileNotFoundError(f"File not found at {global_path}")
@@ -126,5 +79,37 @@ def _load_global_from_dir(root: Path) -> GlobalConfig:
         datasets=datasets,
         data_root=data_root,
     )
+
+def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
+    """
+    Load the global configuration and instantiate all Dataset objects.
+
+    Main entrypoint used by UI/services.
+
+    1. Loads the top-level GlobalConfig from 'path' (directory or file).
+    2. Merges:
+        - All DatasetConfig instances defined explicitly in the config, and
+        - Any additional datasets discovered under GlobalConfig.data_root.
+    3. Materialises each DatasetConfig into a Dataset by calling 'dataset_loader.from_config'.
+
+    :param path: Path to config directory or legacy config file.
+    :return: A tuple of (GlobalConfig, List[Dataset]).
+    """
+    global_config = load_global_config(path)
+
+    all_cfgs: List[DatasetConfig] = global_config.datasets
+
+    datasets: List[Dataset] = []
+    for ds_cfg in all_cfgs:
+        datasets.append(from_config(ds_cfg))
+
+    logger.info("Datasets loaded from config root",
+                extra={"config_root": str(path),
+                       "n_datasets": len(datasets),
+                       "dataset_names": [ds.name for ds in datasets]})
+
+    return global_config, datasets
+
+
 
 

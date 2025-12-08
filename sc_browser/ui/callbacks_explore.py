@@ -207,14 +207,31 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         view = ctx.registry.create(view_id, ds)
 
-        try:
-            data = view.compute_data(state)
-            fig = view.render_figure(data, state)
-            return fig
+        logger.info(
+            "update_main_graph",
+            extra={
+                "view_id": view_id,
+                "dataset": dataset_name,
+                "n_clusters": len(state.clusters or []),
+                "n_conditions": len(state.conditions or []),
+                "n_genes": len(state.genes or []),
+            },
+        )
 
-        except Exception as e:
-            print("DEBUG ERROR:", repr(e))
+        try:
+            data = view.timed_compute(state)
+            fig = view.render_figure(data, state)
+        except Exception:
+            logger.exception(
+                "Error in update_main_graph",
+                extra={
+                    "view_id": view_id,
+                    "dataset": dataset_name,
+                },
+            )
             raise
+
+        return fig
 
     # ---------------------------------------------------------
     # Download CSV
@@ -268,7 +285,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         )
 
         view = ctx.registry.create(view_id, ds)
-        data = view.compute_data(state)
+        data = view.timed_compute(state)
         if not isinstance(data, pd.DataFrame) or data.empty:
             return None
 
