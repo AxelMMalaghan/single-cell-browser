@@ -11,6 +11,16 @@ from dash import Input, Output, State
 from sc_browser.core.filter_state import FilterState
 from .helpers import get_filter_dropdown_options
 
+from sc_browser.export.model import (
+    FigureMetadata,
+    new_session_metadata,
+    session_from_dict,
+    session_to_dict,
+    generate_session_id,
+    generate_figure_id,
+    _now_iso,
+)
+
 if TYPE_CHECKING:
     from .context import AppContext   # type-only import
 
@@ -356,3 +366,108 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         filename = f"{view_id}_{dataset_name.replace(' ', '_')}.csv"
         return dash_dcc.send_data_frame(data.to_csv, filename, index=False)
+
+
+
+    # ---------------------------------------------------------
+    # Save current figure -> metadata + PNG
+    # ---------------------------------------------------------
+    @app.callback(
+        Output("session-metadata", "data"),
+        Output("active-session-id", "data"),
+        Output("save-figure-status", "children"),
+        Input("save-figure-btn", "n_clicks"),
+        State("view-tabs", "value"),
+        State("dataset-select", "value"),
+        State("cluster-select", "value"),
+        State("condition-select", "value"),
+        State("sample-select", "value"),
+        State("celltype-select", "value"),
+        State("gene-select", "value"),
+        State("embedding-select", "value"),
+        State("dim-x-select", "value"),
+        State("dim-y-select", "value"),
+        State("dim-z-select", "value"),
+        State("options-checklist", "value"),
+        State("session-metadata", "data"),
+        State("active-session-id", "data"),
+        prevent_initial_call=True,
+    )
+    def save_current_figure(
+        n_clicks,
+        view_id: str,
+        dataset_name: str,
+        clusters,
+        conditions,
+        samples,
+        cell_types,
+        genes,
+        embedding,
+        dim_x,
+        dim_y,
+        dim_z,
+        options,
+        session_data,
+        active_session_id,
+    ):
+        if not n_clicks:
+            raise dash.exceptions.PreventUpdate
+
+        # --- ensure we have a session id + session object ---
+        if active_session_id is None:
+            active_session_id = generate_session_id()
+
+        session = session_from_dict(session_data)
+        if session is None:
+            # You can swap app_version / config_hash to anything real you have
+            session = new_session_metadata(
+                session_id=active_session_id,
+                app_version="0.0.0-dev",
+                datasets_config_hash="unknown",
+            )
+
+        # --- rebuild FilterState in exactly the same way as update_main_graph ---
+        ds = ctx.dataset_by_name[dataset_name]
+
+        if genes:
+            gene_set = set(ds.genes)
+            genes = [g for g in genes if g in gene_set]
+
+        state = FilterState(
+            genes=genes or [],
+            clusters=clusters or [],
+            conditions=conditions or [],
+            samples=samples or [],
+            cell_types=cell_types or [],
+            embedding=embedding,
+            dim_x=dim_x,
+            dim_y=dim_y,
+            dim_z=dim_z,
+            split_by_condition="split_by_condition" in (options or []),
+            is_3d="is_3d" in (options or []),
+        )
+
+        # dataset_key: for now use Dataset.name; later you can add a stable key field
+        ds_key = getattr(ds, "key", ds.name)
+        figure_id = generate_figure_id(session)
+
+        meta = FigureMetadata.from_runtime(
+            figure_id=figure_id,
+            dataset_key=ds_key,
+            view_id=view_id,
+            state=state,
+            view_params={},   # you can pass embedding/color_by here later if needed
+            label=None,
+            file_stem=None,
+        )
+
+        # --- render & write the image via export_service ---
+        out_path = ctx.export_service.export_single(meta, session_id=session.session_id)
+        meta.file_stem = out_path.stem
+
+        # --- append to session + bump updated_at ---
+        session.figures.append(meta)
+        session.updated_at = _now_iso()
+
+        status = f"Saved {meta.id} ({view_id}, {dataset_name})"
+        return session_to_dict(session), active_session_id, status

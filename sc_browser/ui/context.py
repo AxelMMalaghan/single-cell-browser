@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from sc_browser.config.model import GlobalConfig
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.view_registry import ViewRegistry
+from sc_browser.export.export_service import ExportService
 
 
 @dataclass
@@ -20,5 +21,7 @@ class AppContext:
     global_config: GlobalConfig
     datasets: List[Dataset]
     dataset_by_name: Dict[str, Dataset]
+    dataset_by_key: Dict[str, Dataset]
     default_dataset: Optional[Dataset]
     registry: ViewRegistry
+    export_service: ExportService

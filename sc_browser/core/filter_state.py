@@ -65,8 +65,5 @@ class FilterProfile:
     cell_types: bool = False
     genes: bool = False
     embedding: bool = False
-    #x_dim: bool = False
-    #y_dim: bool = False
-    #z_dim: bool = False
     split_by_condition: bool = False
     is_3d: bool = False

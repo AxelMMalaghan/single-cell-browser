@@ -4,3 +4,4 @@ anndata
 plotly
 dash
 pytest
+kaleido<1.0.0

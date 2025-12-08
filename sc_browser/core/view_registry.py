@@ -70,3 +70,4 @@ class ViewRegistry:
         :return list: a list of view id's in the registry
         """
         return list(self._views.values())
+

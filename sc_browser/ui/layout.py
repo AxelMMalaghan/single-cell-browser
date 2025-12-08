@@ -240,16 +240,30 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
                     ),
                     html.Div(
                         [
+                            # NEW: save figure button + status
+                            dbc.Button(
+                                "Save figure",
+                                id="save-figure-btn",
+                                color="primary",
+                                size="sm",
+                                className="mt-2 me-2",
+                            ),
+                            html.Span(
+                                id="save-figure-status",
+                                className="mt-2 me-auto small text-muted",
+                            ),
+
+                            # Existing: download CSV
                             dbc.Button(
                                 "Download data (CSV)",
                                 id="download-data-btn",
                                 color="secondary",
                                 size="sm",
-                                className="mt-2 me-2",
+                                className="mt-2 ms-auto me-2",
                             ),
                             dcc.Download(id="download-data"),
                         ],
-                        className="d-flex justify-content-end",
+                        className="d-flex justify-content-end align-items-center",
                     ),
                 ],
                 className="scb-main-body",
@@ -385,12 +399,20 @@ def build_layout(ctx: "AppContext"):
 
     plot_panel = _build_plot_panel(ctx.registry)
     dataset_manager = _build_dataset_manager_panel()
+    reports_panel = _build_reports_panel()  # NEW
 
     return dbc.Container(
         fluid=True,
         className="scb-root",
         children=[
             navbar,
+
+            # NEW: app-level stores for reports / metadata
+            dcc.Store(id="session-metadata", storage_type="session"),
+            dcc.Store(id="active-session-id", storage_type="session"),
+            dcc.Store(id="active-figure-id", storage_type="session"),
+            dcc.Store(id="imported-figure-count", storage_type="session"),
+
             dcc.Tabs(
                 id="page-tabs",
                 value="explore",
@@ -413,11 +435,99 @@ def build_layout(ctx: "AppContext"):
                         value="datasets",
                         children=[dataset_manager],
                     ),
+                    dcc.Tab(
+                        label="Reports",          # NEW TAB
+                        value="reports",
+                        children=[reports_panel],
+                    ),
                 ],
                 className="mt-2",
             ),
         ],
     )
+
+def _build_reports_panel() -> dbc.Container:
+    """
+    Reports page:
+
+    - Shows how many figures are in the current session
+    - Lists all figures (populated via callbacks in reports-figure-list)
+    - Allows export of session metadata (+ images)
+    - Allows import of a metadata JSON
+    """
+    header = dbc.Row(
+        [
+            dbc.Col(
+                html.Div(
+                    [
+                        html.H4("Reports"),
+                        html.Div(
+                            id="reports-summary-text",
+                            className="text-muted small",
+                        ),
+                    ]
+                ),
+                md=6,
+            ),
+            dbc.Col(
+                html.Div(
+                    [
+                        dbc.Button(
+                            "Export session",
+                            id="reports-export-btn",
+                            color="primary",
+                            size="sm",
+                            className="me-2",
+                        ),
+                        dcc.Download(id="reports-download-session"),
+
+                        dcc.Upload(
+                            id="reports-upload",
+                            children=html.Div(
+                                ["Import metadata JSON (drag & drop or ", html.A("select file"), ")"]
+                            ),
+                            multiple=False,
+                            className="scb-upload border rounded p-2 text-center d-inline-block",
+                        ),
+                    ],
+                    className="d-flex justify-content-end align-items-center",
+                ),
+                md=6,
+            ),
+        ],
+        className="mt-3 mb-2",
+    )
+
+    banner = html.Div(
+        id="reports-import-banner",
+        className="small text-muted mb-2",
+    )
+
+    table_header = dbc.Row(
+        [
+            dbc.Col(html.Strong("Saved figures"), md=12),
+        ],
+        className="mt-3 mb-1",
+    )
+
+    # This div will be populated with a table/list of figures via callbacks
+    figure_list = html.Div(
+        id="reports-figure-list",
+        className="scb-reports-figure-list",
+    )
+
+    return dbc.Container(
+        fluid=True,
+        children=[
+            header,
+            banner,
+            html.Hr(),
+            table_header,
+            figure_list,
+        ],
+        className="scb-reports-view",
+    )
+
 
 
 def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[Dataset]:
