@@ -22,7 +22,7 @@ from sc_browser.export.model import (
 )
 
 if TYPE_CHECKING:
-    from .context import AppContext   # type-only import
+    from .context import AppContext
 
 logger = logging.getLogger(__name__)
 
