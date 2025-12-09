@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 from sc_browser.core.filter_state import FilterState
 
-
 def generate_session_id() -> str:
     return f"session-{uuid.uuid4().hex[:8]}"
 
@@ -49,6 +48,8 @@ class FigureMetadata:
     file_stem: Optional[str] = None
     created_at: str = field(default_factory=_now_iso)
 
+    # x, y, z axis & title/name
+
     @classmethod
     def from_runtime(
         cls,
@@ -82,7 +83,7 @@ class FigureMetadata:
 @dataclass
 class SessionMetadata:
     """
-    Describes a reporting/export session.
+    Describes a reporting/metadata_io session.
 
     - session_id: stable identifier (can be random UUID or timestamp-based)
     - schema_version: version of this metadata schema (start at 1)
@@ -102,6 +103,8 @@ class SessionMetadata:
     updated_at: str = field(default_factory=_now_iso)
 
     figures: List[FigureMetadata] = field(default_factory=list)
+
+
 
 
 # -------------------------------------------------------------------------

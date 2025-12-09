@@ -10,8 +10,9 @@ from dash import Input, Output, State
 
 from sc_browser.core.filter_state import FilterState
 from .helpers import get_filter_dropdown_options
+from dash import dcc as dash_dcc
 
-from sc_browser.export.model import (
+from sc_browser.metadata_io.model import (
     FigureMetadata,
     new_session_metadata,
     session_from_dict,
@@ -128,10 +129,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     # ---------------------------------------------------------
     # Hide/show filters based on active view
     # ---------------------------------------------------------
-    # sc_browser/ui/callbacks_explore.py
 
     @app.callback(
-        Output("cluster-filter-container", "style"),
+ Output("cluster-filter-container", "style"),
         Output("condition-filter-container", "style"),
         Output("sample-filter-container", "style"),
         Output("celltype-filter-container", "style"),
@@ -140,9 +140,10 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("dim-filter-container", "style"),
         Output("options-container", "style"),
         Output("options-checklist", "options"),
-        Input("view-tabs", "value"),
+        Input("view-select", "value"),
         State("dataset-select", "value"),
     )
+
     def update_filter_visibility(view_id: str, dataset_name: str):
         ds = ctx.dataset_by_name[dataset_name]
         view = ctx.registry.create(view_id, ds)
@@ -219,9 +220,10 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     # ---------------------------------------------------------
     # Main figure
     # ---------------------------------------------------------
+
     @app.callback(
         Output("main-graph", "figure"),
-        Input("view-tabs", "value"),
+        Input("view-select", "value"),
         Input("dataset-select", "value"),
         Input("cluster-select", "value"),
         Input("condition-select", "value"),
@@ -312,9 +314,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     # Download CSV
     # ---------------------------------------------------------
     @app.callback(
-        Output("download-data", "data"),
+ Output("download-data", "data"),
         Input("download-data-btn", "n_clicks"),
-        State("view-tabs", "value"),
+        State("view-select", "value"),
         State("dataset-select", "value"),
         State("cluster-select", "value"),
         State("condition-select", "value"),
@@ -329,21 +331,20 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         prevent_initial_call=True,
     )
     def download_current_data(
-        n_clicks,
-        view_id: str,
-        dataset_name: str,
-        clusters,
-        conditions,
-        samples,
-        cell_types,
-        genes,
-        embedding,
-        dim_x,
-        dim_y,
-        dim_z,
-        options,
-    ):
-        from dash import dcc as dash_dcc
+            n_clicks,
+            view_id: str,
+            dataset_name: str,
+            clusters,
+            conditions,
+            samples,
+            cell_types,
+            genes,
+            embedding,
+            dim_x,
+            dim_y,
+            dim_z,
+            options,
+        ):
 
         ds = ctx.dataset_by_name[dataset_name]
         state = FilterState(
@@ -377,7 +378,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("active-session-id", "data"),
         Output("save-figure-status", "children"),
         Input("save-figure-btn", "n_clicks"),
-        State("view-tabs", "value"),
+        State("view-select", "value"),
         State("dataset-select", "value"),
         State("cluster-select", "value"),
         State("condition-select", "value"),
@@ -389,6 +390,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         State("dim-y-select", "value"),
         State("dim-z-select", "value"),
         State("options-checklist", "value"),
+        State("figure-label-input", "value"),
         State("session-metadata", "data"),
         State("active-session-id", "data"),
         prevent_initial_call=True,
@@ -407,6 +409,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         dim_y,
         dim_z,
         options,
+        figure_label,
         session_data,
         active_session_id,
     ):
@@ -419,14 +422,13 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         session = session_from_dict(session_data)
         if session is None:
-            # You can swap app_version / config_hash to anything real you have
             session = new_session_metadata(
                 session_id=active_session_id,
                 app_version="0.0.0-dev",
                 datasets_config_hash="unknown",
             )
 
-        # --- rebuild FilterState in exactly the same way as update_main_graph ---
+        # --- rebuild FilterState like update_main_graph ---
         ds = ctx.dataset_by_name[dataset_name]
 
         if genes:
@@ -447,9 +449,16 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             is_3d="is_3d" in (options or []),
         )
 
-        # dataset_key: for now use Dataset.name; later you can add a stable key field
         ds_key = getattr(ds, "key", ds.name)
         figure_id = generate_figure_id(session)
+
+        # clean / normalise label
+        label_clean: Optional[str]
+        if figure_label is None:
+            label_clean = None
+        else:
+            stripped = figure_label.strip()
+            label_clean = stripped or None
 
         meta = FigureMetadata.from_runtime(
             figure_id=figure_id,
@@ -457,17 +466,20 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             view_id=view_id,
             state=state,
             view_params={},   # you can pass embedding/color_by here later if needed
-            label=None,
+            label=label_clean,
             file_stem=None,
         )
 
-        # --- render & write the image via export_service ---
         out_path = ctx.export_service.export_single(meta, session_id=session.session_id)
         meta.file_stem = out_path.stem
 
-        # --- append to session + bump updated_at ---
         session.figures.append(meta)
         session.updated_at = _now_iso()
 
-        status = f"Saved {meta.id} ({view_id}, {dataset_name})"
+        if label_clean:
+            status = f"Saved {meta.id} ({label_clean})"
+        else:
+            status = f"Saved {meta.id} ({view_id}, {dataset_name})"
+
         return session_to_dict(session), active_session_id, status
+

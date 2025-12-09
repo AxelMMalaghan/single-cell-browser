@@ -1,5 +1,3 @@
-# sc_browser/ui/layout.py
-
 from __future__ import annotations
 
 from typing import List, TYPE_CHECKING, Optional
@@ -56,6 +54,78 @@ def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Datas
         dark=False,
         className="shadow-sm scb-navbar",
     )
+
+def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
+    view_classes = registry.all_classes()
+    view_options = [
+        {"label": cls.label, "value": cls.id}
+        for cls in view_classes
+    ]
+    default_view_id: str | None = view_classes[0].id if view_classes else None
+
+    return dbc.Card(
+        [
+            dbc.CardHeader("View & label", className="fw-semibold"),
+            dbc.CardBody(
+                [
+                    # 1) View selector
+                    html.Div(
+                        [
+                            html.Label("View", className="form-label"),
+                            dcc.Dropdown(
+                                id="view-select",
+                                options=view_options,
+                                value=default_view_id,
+                                clearable=False,
+                                placeholder="Select view",
+                                className="mb-3",
+                            ),
+                        ]
+                    ),
+                    # 2) Label input
+                    html.Div(
+                        [
+                            html.Label("Figure label (optional)", className="form-label"),
+                            dcc.Input(
+                                id="figure-label-input",
+                                type="text",
+                                debounce=True,
+                                placeholder="e.g. GC B cells – UMAP by genotype",
+                                style={"width": "100%"},
+                                className="mb-1",
+                            ),
+                            html.Small(
+                                "Used as the figure title / export label.",
+                                className="text-muted",
+                            ),
+                        ]
+                    ),
+                    # 3) Saved figure chooser
+                    html.Div(
+                        [
+                            html.Label("Saved figure", className="form-label mt-3"),
+                            dcc.Dropdown(
+                                id="saved-figure-select",
+                                options=[],
+                                value=None,
+                                placeholder="Select saved figure…",
+                                clearable=True,
+                                className="mb-1",
+                            ),
+                            html.Small(
+                                "Choose a previously saved view to restore its filters.",
+                                className="text-muted",
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+
+        ],
+        className="scb-viewlabel-card",
+    )
+
+
 
 def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
     (
@@ -213,19 +283,21 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
     )
 
 
-def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
+def _build_plot_panel() -> dbc.Card:
     return dbc.Card(
         [
             dbc.CardHeader(
-                dcc.Tabs(
-                    id="view-tabs",
-                    value="cluster",  # will be overridden by first registered view id in callbacks if needed
-                    children=[
-                        dcc.Tab(label=cls.label, value=cls.id) for cls in registry.all_classes()
+                html.Div(
+                    [
+                        html.Strong("Plot"),
+                        html.Span(
+                            id="plot-subtitle",
+                            className="text-muted small ms-2",
+                        ),
                     ],
-                    className="scb-tabs",
+                    className="d-flex align-items-center",
                 ),
-                className="p-0",
+                className="p-2",
             ),
             dbc.CardBody(
                 [
@@ -240,7 +312,6 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
                     ),
                     html.Div(
                         [
-                            # NEW: save figure button + status
                             dbc.Button(
                                 "Save figure",
                                 id="save-figure-btn",
@@ -252,8 +323,6 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
                                 id="save-figure-status",
                                 className="mt-2 me-auto small text-muted",
                             ),
-
-                            # Existing: download CSV
                             dbc.Button(
                                 "Download data (CSV)",
                                 id="download-data-btn",
@@ -271,6 +340,7 @@ def _build_plot_panel(registry: ViewRegistry) -> dbc.Card:
         ],
         className="scb-maincard",
     )
+
 
 
 def _build_dataset_manager_panel() -> dbc.Container:
@@ -381,6 +451,83 @@ def _build_dataset_manager_panel() -> dbc.Container:
         className="scb-datasets-view",
     )
 
+def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
+    """
+    Panel above the filters that lets the user:
+    - choose the active view
+    - optionally type a figure label (used in FigureMetadata)
+    - select a previously saved figure
+    """
+    view_classes = registry.all_classes()
+    view_options = [
+        {"label": cls.label, "value": cls.id}
+        for cls in view_classes
+    ]
+    default_view_id: str | None = view_classes[0].id if view_classes else None
+
+    return dbc.Card(
+        [
+            dbc.CardHeader("View & label", className="fw-semibold"),
+            dbc.CardBody(
+                [
+                    # View selector
+                    html.Div(
+                        [
+                            html.Label("View", className="form-label"),
+                            dcc.Dropdown(
+                                id="view-select",
+                                options=view_options,
+                                value=default_view_id,
+                                clearable=False,
+                                placeholder="Select view",
+                                className="mb-3",
+                            ),
+                        ]
+                    ),
+                    # Label input
+                    html.Div(
+                        [
+                            html.Label("Figure label (optional)", className="form-label"),
+                            dcc.Input(
+                                id="figure-label-input",
+                                type="text",
+                                debounce=True,
+                                placeholder="e.g. GC B cells – UMAP by genotype",
+                                style={"width": "100%"},
+                                className="mb-1",
+                            ),
+                            html.Small(
+                                "Used as the figure title / export label.",
+                                className="text-muted",
+                            ),
+                        ]
+                    ),
+                    # 🔹 Saved figure dropdown – this MUST exist
+                    html.Div(
+                        [
+                            html.Label("Saved figure", className="form-label mt-3"),
+                            dcc.Dropdown(
+                                id="saved-figure-select",
+                                options=[],      # populated by callbacks_reports
+                                value=None,
+                                placeholder="Select saved figure…",
+                                clearable=True,
+                                className="mb-1",
+                            ),
+                            html.Small(
+                                "Choose a previously saved view to restore its filters.",
+                                className="text-muted",
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+        ],
+        className="scb-viewlabel-card",
+    )
+
+
+
 
 def build_layout(ctx: "AppContext"):
     # Decide which dataset is the default for the whole UI
@@ -394,10 +541,15 @@ def build_layout(ctx: "AppContext"):
             dbc.CardBody("No datasets configured. Please add a dataset in the Datasets tab."),
             className="scb-sidebar",
         )
+        view_panel = dbc.Card(
+            dbc.CardBody("No views available without a dataset."),
+            className="scb-viewlabel-card",
+        )
     else:
         filter_panel = _build_filter_panel(default_dataset)
+        view_panel = _build_view_and_label_panel(ctx.registry)
 
-    plot_panel = _build_plot_panel(ctx.registry)
+    plot_panel = _build_plot_panel()
     dataset_manager = _build_dataset_manager_panel()
     reports_panel = _build_reports_panel()  # NEW
 
@@ -423,7 +575,14 @@ def build_layout(ctx: "AppContext"):
                         children=[
                             dbc.Row(
                                 [
-                                    dbc.Col(filter_panel, md=3, className="mt-3"),
+                                    dbc.Col(
+                                        [
+                                            view_panel,
+                                            filter_panel,
+                                        ],
+                                        md=3,
+                                        className="mt-3 d-flex flex-column gap-3",
+                                    ),
                                     dbc.Col(plot_panel, md=9, className="mt-3"),
                                 ],
                                 className="gx-3",
@@ -452,7 +611,7 @@ def _build_reports_panel() -> dbc.Container:
 
     - Shows how many figures are in the current session
     - Lists all figures (populated via callbacks in reports-figure-list)
-    - Allows export of session metadata (+ images)
+    - Allows metadata_io of session metadata (+ images)
     - Allows import of a metadata JSON
     """
     header = dbc.Row(
@@ -474,7 +633,7 @@ def _build_reports_panel() -> dbc.Container:
                     [
                         dbc.Button(
                             "Export session",
-                            id="reports-export-btn",
+                            id="reports-metadata_io-btn",
                             color="primary",
                             size="sm",
                             className="me-2",

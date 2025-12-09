@@ -1,23 +1,20 @@
 1) Tighten UI
-    - Remove non-dependent filters per view
-    - Try & break
-    - Fix
+    - Try & break, then fix
 
 2) Polish Code
-    - Documentation where it isn't already
-    - Ensure migration to new DS loading for all methods
+    - Documentation where it isn't already, make it consistently formatted
 
 3) Logging
+    - Add for metadata io
 
 4) Test Suite
-    - Prioritise aspects with high user flows (unit tests)
-    - E2E smoke test
-    - Integration testing
+    - Tests for metadata io
 
 5) Performance
     - Caching?
-    - Improve computationally taxing operations (DE), views not copies
+    - Improve computationally taxing operations (DE), (views not copies, etc..)
 
-6) Finish README, reqs.txt
+6) Finish README, requirements.txt
 
+7) Pin dependencies (kaleido)
 

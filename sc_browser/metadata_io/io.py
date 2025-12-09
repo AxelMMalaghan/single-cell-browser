@@ -13,7 +13,6 @@ def load_session_metadata_from_file(path: Path) -> SessionMetadata:
     :param path: the file path
     :return: the session metadata
     """
-
     with path.open() as f:
         raw: Dict[str, Any] = json.load(f)
 

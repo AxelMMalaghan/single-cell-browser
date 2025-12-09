@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Any, Tuple
 from sc_browser.core.filter_state import FilterState
-from sc_browser.export.model import FigureMetadata
+from sc_browser.metadata_io.model import FigureMetadata
 
 def figure_to_runtime(metadata: FigureMetadata) -> Tuple[str, str, Dict[str, Any], Dict[str, Any]]:
     """
@@ -21,7 +21,7 @@ def figure_to_runtime(metadata: FigureMetadata) -> Tuple[str, str, Dict[str, Any
 
 def figure_to_filter_state(metadata: FigureMetadata) -> FilterState:
     """
-    Converts FigureMetadata back into FilterState object
+    Converts FigureMetadata back into FilterState object to be parsed into a view
     :param metadata: the figure metadata
     :return: the filter state (user filter toggles)
     """

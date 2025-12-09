@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict
 
@@ -7,7 +8,7 @@ import plotly.graph_objs as go
 from sc_browser.core import Dataset
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
-from sc_browser.export.model import FigureMetadata
+from sc_browser.metadata_io.model import FigureMetadata
 
 
 class ExportService:

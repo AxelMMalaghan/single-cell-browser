@@ -9,7 +9,7 @@ from dash import Dash
 from sc_browser.config.loader import load_datasets
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
-from sc_browser.export.export_service import ExportService
+from sc_browser.metadata_io.export_service import ExportService
 
 from .context import AppContext
 from .layout import build_layout
