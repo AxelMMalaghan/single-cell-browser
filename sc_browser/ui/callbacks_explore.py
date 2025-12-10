@@ -24,7 +24,7 @@ from sc_browser.metadata_io.model import (
 )
 
 if TYPE_CHECKING:
-    from .config import AppContext
+    from .config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def _error_figure(details: str) -> go.Figure:
     )
 
 
-def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # ---------------------------------------------------------
     # Sidebar metadata
     # ---------------------------------------------------------
@@ -101,13 +101,14 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     @app.callback(
         Output("gene-select", "options"),
         Input("gene-select", "search_value"),
-        State("dataset-select", "value"),
+        Input("dataset-select", "value"),
         State("gene-select", "value"),
     )
     def update_gene_options(search_value, dataset_name, selected_genes):
         ds = ctx.dataset_by_name.get(dataset_name)
         if ds is None:
-            raise exceptions.PreventUpdate
+            # No dataset -> no genes
+            return []
 
         # dataset API: prefer ds.genes, fall back to ds.gene_names or var_names
         all_genes = (
@@ -117,18 +118,22 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         )
         gene_set = set(all_genes)
 
+        # Keep only valid genes for this dataset
         selected_genes = [g for g in (selected_genes or []) if g in gene_set]
 
-        if not search_value or not search_value.strip():
-            # Only show selected when there's no query
+        # If there's no search query, just show the selected genes
+        if not search_value or not str(search_value).strip():
             return [{"label": g, "value": g} for g in selected_genes]
 
-        query = search_value.upper()
+        # With a query, show selected + top matches
+        query = str(search_value).upper()
         matches = [g for g in all_genes if g.upper().startswith(query)]
         suggestions = matches[:50]
 
+        # Preserve order: selected first, then suggestions
         union = list(dict.fromkeys(selected_genes + suggestions))
         return [{"label": g, "value": g} for g in union]
+
 
     # ---------------------------------------------------------
     # Hide/show filters based on active view
@@ -661,7 +666,33 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         split_by_condition = "split_by_condition" in opts
         is_3d = "is_3d" in opts
 
-        # Let dims be None until explicitly chosen, so the main-graph guard works
+        # -------------------------------
+        # Default embedding dimensions
+        # -------------------------------
+        labels = []
+        if embedding:
+            try:
+                labels = ds.get_embedding_labels(embedding)
+            except KeyError:
+                logger.warning(
+                    "Embedding key %r not found for dataset %r while setting default dims",
+                    embedding,
+                    dataset_name,
+                )
+
+        if embedding and labels:
+            # Only fill defaults if the UI hasn't explicitly chosen dims yet
+            if dim_x is None and len(labels) >= 1:
+                dim_x = 0
+            if dim_y is None and len(labels) >= 2:
+                dim_y = 1
+            # Only set Z when 3D is enabled and we actually have a 3rd dim
+            if is_3d and dim_z is None and len(labels) >= 3:
+                dim_z = 2
+            # If 3D isn't enabled, make sure we don't carry stale dim_z around
+            if not is_3d:
+                dim_z = None
+
         state = FilterState(
             dataset_name=dataset_name,
             view_id=view_id,
@@ -679,7 +710,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         )
 
         return state.to_dict()
-
 
 
     # ---------------------------------------------------------
@@ -754,6 +784,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             pass
         return view_id
 
+
     @app.callback(
         Output("dataset-select", "value", allow_duplicate=True),
         Output("view-select", "value", allow_duplicate=True),
@@ -763,6 +794,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("celltype-select", "value", allow_duplicate=True),
         Output("gene-select", "value", allow_duplicate=True),
         Output("embedding-select", "value", allow_duplicate=True),
+        Output("dim-x-select", "value", allow_duplicate=True),
+        Output("dim-y-select", "value", allow_duplicate=True),
+        Output("dim-z-select", "value", allow_duplicate=True),
         Input("filter-state", "data"),
         prevent_initial_call=True,
     )
@@ -773,7 +807,10 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         try:
             state = FilterState.from_dict(fs_data)
         except Exception:
-            logger.exception("Invalid filter-state in sync_ui_from_filter_state: %r", fs_data)
+            logger.exception(
+                "Invalid filter-state in sync_ui_from_filter_state: %r",
+                fs_data,
+            )
             raise exceptions.PreventUpdate
 
         return (
@@ -785,7 +822,11 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             state.cell_types,
             state.genes,
             state.embedding,
+            state.dim_x,
+            state.dim_y,
+            state.dim_z,
         )
+
 
 
     @app.callback(
@@ -807,8 +848,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         if state.dataset_name not in ctx.dataset_by_name:
             return True
 
-        # For now, assume all views *may* return tabular data.
-        # If you later add a flag like view.supports_table_export, check it here.
         return False
 
 

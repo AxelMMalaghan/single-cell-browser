@@ -600,12 +600,12 @@ def build_layout(ctx: "AppContext"):
                 value="explore",
                 children=[
                     dcc.Tab(
-                        label="Datasets",
+                        label="Dataset Importer",
                         value="datasets",
                         children=[dataset_import_panel],
                     ),
                     dcc.Tab(
-                        label="Dataset preview",
+                        label="Dataset Preview",
                         value="dataset-preview",
                         children=[dataset_preview_panel],
                     ),
