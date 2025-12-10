@@ -44,7 +44,7 @@ class FigureMetadata:
     id: str
     dataset_key: str
     view_id: str
-    filter_state: Dict[str, Any]
+    filter_state: FilterState
     view_params: Dict[str, Any] = field(default_factory=dict)
 
     label: Optional[str] = None
@@ -72,7 +72,7 @@ class FigureMetadata:
             id=figure_id,
             dataset_key=dataset_key,
             view_id=view_id,
-            filter_state=asdict(state),
+            filter_state=state,
             view_params=view_params or {},
             label=label,
             file_stem=file_stem,
