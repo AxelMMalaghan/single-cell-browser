@@ -7,9 +7,12 @@ from datetime import datetime, timezone
 
 from sc_browser.core.filter_state import FilterState
 
+# -------------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------------
+
 def generate_session_id() -> str:
     return f"session-{uuid.uuid4().hex[:8]}"
-
 
 def generate_figure_id(session: SessionMetadata) -> str:
     # cheap sequential id per session
@@ -48,7 +51,7 @@ class FigureMetadata:
     file_stem: Optional[str] = None
     created_at: str = field(default_factory=now_iso)
 
-    # x, y, z axis & title/name
+    # TODO:  x, y, z axis & title/name?
 
     @classmethod
     def from_runtime(

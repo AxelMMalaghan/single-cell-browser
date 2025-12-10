@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import dash
+
 from dash import Input, Output
+from typing import TYPE_CHECKING
 
 from .helpers import obs_preview_table
 
 if TYPE_CHECKING:
-    from .config import AppContext
+    from .config import AppConfig
 
 
-def register_dataset_preview_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+def register_dataset_preview_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     @app.callback(
         Output("dm-obs-preview", "children"),
         Input("dataset-select", "value"),

@@ -102,21 +102,43 @@ def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                     ),
                     html.Div(
                         [
-                            html.Label("Figure label", className="form-label"),
+                            # Existing label input
                             dcc.Input(
                                 id="figure-label-input",
                                 type="text",
-                                debounce=True,
-                                placeholder="e.g. GC B cells – UMAP by genotype",
-                                style={"width": "100%"},
-                                className="mb-1",
+                                placeholder="Figure label (optional)",
+                                style={"width": "40%"},
                             ),
-                            html.Small(
-                                "Used as the figure title / export label and in the Reports table.",
-                                className="text-muted",
+
+                            # New: saved figure selector
+                            dcc.Dropdown(
+                                id="saved-figure-select",
+                                placeholder="Select saved figure…",
+                                options=[],  # populated dynamically
+                                style={"width": "35%", "marginLeft": "0.5rem"},
+                                clearable=True,
                             ),
-                        ]
+
+                            # New: load button
+                            html.Button(
+                                "Load",
+                                id="load-figure-btn",
+                                n_clicks=0,
+                                style={"marginLeft": "0.5rem"},
+                            ),
+
+                            # Existing: save button
+                            html.Button(
+                                "Save",
+                                id="save-figure-btn",
+                                n_clicks=0,
+                                style={"marginLeft": "0.5rem"},
+                            ),
+                        ],
+                        style={"display": "flex", "alignItems": "center", "gap": "0.25rem"},
                     ),
+                    html.Div(id="save-figure-status"),
+
                 ]
             ),
         ],
@@ -594,6 +616,7 @@ def build_layout(ctx: "AppContext"):
             dcc.Store(id="active-figure-id", storage_type="session"),
             dcc.Store(id="filter-state", storage_type="session"),
             dcc.Store(id="user-state", storage_type="local"),
+            dcc.Store(id="active-figure-id"),
 
             dcc.Tabs(
                 id="page-tabs",

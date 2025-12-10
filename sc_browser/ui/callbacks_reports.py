@@ -3,26 +3,26 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from typing import TYPE_CHECKING
-
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, html, ALL, no_update
 
+from dash import Input, Output, State, html, ALL, no_update
 from sc_browser.metadata_io.model import session_from_dict, touch_session, session_to_dict
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .config import AppContext
+    from .config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 MAX_IMPORTED_FIGURES = 100
 
-def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+
+def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     """
     Callbacks for the Reports tab: render summary, list of saved figures,
     and handle Load/Delete actions, plus integration with the Explore
-    "Saved figure" dropdown.
+    saved-figure dropdown via shared session metadata.
     """
 
     # ---------------------------------------------------------
@@ -70,28 +70,27 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             )
         )
 
-        body_rows = []
-        for fig in session.figures:
-            body_rows.append(
-                html.Tr(
-                    [
-                        html.Td(fig.id),
-                        html.Td(fig.label or html.Span("No label", className="text-muted")),
-                        html.Td(fig.dataset_key),
-                        html.Td(fig.view_id),
-                        html.Td(fig.created_at or ""),
-                        html.Td(
-                            dbc.Button(
-                                "Delete",
-                                id={"type": "reports-delete-figure", "index": fig.id},
-                                color="danger",
-                                outline=True,
-                                size="sm",
-                            )
-                        ),
-                    ]
-                )
+        body_rows = [
+            html.Tr(
+                [
+                    html.Td(fig.id),
+                    html.Td(fig.label or html.Span("No label", className="text-muted")),
+                    html.Td(fig.dataset_key),
+                    html.Td(fig.view_id),
+                    html.Td(fig.created_at or ""),
+                    html.Td(
+                        dbc.Button(
+                            "Delete",
+                            id={"type": "reports-delete-figure", "index": fig.id},
+                            color="danger",
+                            outline=True,
+                            size="sm",
+                        )
+                    ),
+                ]
             )
+            for fig in session.figures
+        ]
 
         table = dbc.Table(
             [header, html.Tbody(body_rows)],
@@ -123,7 +122,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         # Figure out which button fired
         prop_id = ctx_trigger.triggered[0]["prop_id"].split(".")[0]
-        trigger_id = json.loads(prop_id)  # id={"type": "...", "index": "<figure_id>"}
+        trigger_id = json.loads(prop_id)  # {"type": "...", "index": "<figure_id>"}
         figure_id = trigger_id["index"]
 
         session = session_from_dict(session_data)
@@ -157,15 +156,11 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         session = session_from_dict(session_data)
         if session is None or not session.figures:
-            # No figures -> no download. Button will appear to do nothing,
-            # but we avoid sending an empty/broken file.
+            # No figures -> no download.
             raise dash.exceptions.PreventUpdate
 
-        # Use the real session_id from metadata; fall back to active_session_id if needed
         session_id = session.session_id or active_session_id or "session"
 
-        # Root where images were written by GraphExportService
-        # We set this as ctx.export_service._output_root in the service __init__
         export_root = getattr(ctx.export_service, "output_root", None)
         if export_root is None:
             export_root = getattr(ctx.export_service, "_output_root", None)
@@ -179,7 +174,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         session_dir = export_root / session_id
 
-        # Build ZIP in memory
         def _write_zip(buf: io.BytesIO):
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
                 # 1) metadata.json
@@ -187,10 +181,9 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 meta_bytes = json.dumps(meta_dict, indent=2).encode("utf-8")
                 zf.writestr("metadata.json", meta_bytes)
 
-                # 2) all PNG images for this session, if the directory exists
+                # 2) PNG images
                 if session_dir.exists():
                     for png_path in session_dir.glob("*.png"):
-                        # store under `figures/<filename>`
                         arcname = f"figures/{png_path.name}"
                         zf.write(png_path, arcname=arcname)
 
@@ -215,9 +208,8 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         if contents is None:
             raise dash.exceptions.PreventUpdate
 
-        # contents is "data:application/json;base64,XXXXX"
         try:
-            header, b64data = contents.split(",", 1)
+            _header, b64data = contents.split(",", 1)
         except ValueError:
             return (
                 no_update,
@@ -236,7 +228,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 "If you exported a ZIP, unzip it first and upload the metadata.json file inside.",
             )
 
-        # Rebuild SessionMetadata from uploaded JSON
         imported_session = session_from_dict(imported_dict)
         if imported_session is None:
             return (
@@ -245,7 +236,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 "Make sure you are uploading the metadata.json file created by the export button.",
             )
 
-        # Basic sanity: cap how many figures we accept from a single file
+        # Hard cap on figures
         n_total = len(imported_session.figures)
         if n_total > MAX_IMPORTED_FIGURES:
             logger.warning(
@@ -255,51 +246,26 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             )
             imported_session.figures = imported_session.figures[:MAX_IMPORTED_FIGURES]
 
-        # Merge into existing session if present; otherwise use imported as-is
         existing_session = session_from_dict(session_data)
 
-        if existing_session is None:
-            # We still might want to dedupe inside the imported session itself
+        def _dedupe_figures(figures):
             seen_ids = set()
-            unique_figures = []
-            for fig in imported_session.figures:
+            unique = []
+            for fig in figures:
                 fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
-                if fig_id is None:
-                    continue
-                if fig_id in seen_ids:
+                if fig_id is None or fig_id in seen_ids:
                     continue
                 seen_ids.add(fig_id)
-                unique_figures.append(fig)
-            imported_session.figures = unique_figures
+                unique.append(fig)
+            return unique
+
+        if existing_session is None:
+            imported_session.figures = _dedupe_figures(imported_session.figures)
             merged = imported_session
             merged_from_existing = False
         else:
-            # Merge with dedupe on id / figure_id
-            seen_ids = set()
-            unique_figures = []
-
-            # start with existing
-            for fig in existing_session.figures:
-                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
-                if fig_id is None:
-                    continue
-                if fig_id in seen_ids:
-                    continue
-                seen_ids.add(fig_id)
-                unique_figures.append(fig)
-
-            # add imported
-            for fig in imported_session.figures:
-                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
-                if fig_id is None:
-                    continue
-                if fig_id in seen_ids:
-                    continue
-                seen_ids.add(fig_id)
-                unique_figures.append(fig)
-
-            existing_session.figures = unique_figures
             merged = existing_session
+            merged.figures = _dedupe_figures(existing_session.figures + imported_session.figures)
             merged_from_existing = True
 
         touch_session(merged)
@@ -314,9 +280,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         else:
             truncated_note = ""
             if n_total > MAX_IMPORTED_FIGURES:
-                truncated_note = (
-                    f" (truncated to {MAX_IMPORTED_FIGURES} to keep the session manageable)"
-                )
+                truncated_note = f" (truncated to {MAX_IMPORTED_FIGURES} to keep the session manageable)"
 
             if merged_from_existing:
                 banner = (
@@ -334,135 +298,3 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 )
 
         return session_to_dict(merged), banner
-
-
-    # ---------------------------------------------------------
-    # Populate "Select View" dropdown in the Explore view panel
-    # ---------------------------------------------------------
-    @app.callback(
-        Output("saved-figure-select", "options"),
-        Output("saved-figure-select", "value"),
-        Input("session-metadata", "data"),
-        State("saved-figure-select", "value"),
-    )
-    def update_saved_figure_dropdown(session_data, current_value):
-        session = session_from_dict(session_data)
-
-        # Base option: "New view"
-        options = [
-            {"label": "New view (start from current filters)", "value": "__new__"},
-        ]
-
-        if session is None or not session.figures:
-            # No figures: only "New view"
-            return options, "__new__"
-
-        # Add each saved figure
-        for fig in session.figures:
-            base_label = fig.label or fig.id
-            pretty = f"{base_label}  –  {fig.view_id} · {fig.dataset_key}"
-            options.append({"label": pretty, "value": fig.id})
-
-        valid_values = {opt["value"] for opt in options}
-
-        # Keep current selection if still valid, else default to "New view"
-        if current_value in valid_values:
-            value = current_value
-        else:
-            value = "__new__"
-
-        return options, value
-
-    # ---------------------------------------------------------
-    # Load a saved figure directly from the "Select View" dropdown
-    # ---------------------------------------------------------
-    @app.callback(
-        Output("dataset-select", "value", allow_duplicate=True),
-        Output("active-figure-id", "data", allow_duplicate=True),
-        Output("view-select", "value", allow_duplicate=True),
-        Output("figure-label-input", "value", allow_duplicate=True),
-        Output("cluster-select", "value", allow_duplicate=True),
-        Output("condition-select", "value", allow_duplicate=True),
-        Output("sample-select", "value", allow_duplicate=True),
-        Output("celltype-select", "value", allow_duplicate=True),
-        Output("gene-select", "value", allow_duplicate=True),
-        Output("embedding-select", "value", allow_duplicate=True),
-        Output("dim-x-select", "value", allow_duplicate=True),
-        Output("dim-y-select", "value", allow_duplicate=True),
-        Output("dim-z-select", "value", allow_duplicate=True),
-        Output("options-checklist", "value", allow_duplicate=True),
-        Input("saved-figure-select", "value"),
-        State("session-metadata", "data"),
-        prevent_initial_call=True,
-    )
-    def load_figure_from_dropdown(
-        figure_id,
-        session_data,
-    ):
-        # "New view" sentinel or nothing selected -> don't change anything
-        if not figure_id or figure_id == "__new__":
-            raise dash.exceptions.PreventUpdate
-
-        session = session_from_dict(session_data)
-        if session is None:
-            raise dash.exceptions.PreventUpdate
-
-        # Find the matching saved figure
-        meta = next((f for f in session.figures if f.id == figure_id), None)
-        if meta is None:
-            raise dash.exceptions.PreventUpdate
-
-        # Get the dataset this figure belongs to
-        ds = ctx.dataset_by_key.get(meta.dataset_key)
-        if ds is None:
-            # Dataset not available in current app state
-            raise dash.exceptions.PreventUpdate
-
-        fs = meta.filter_state or {}
-
-        clusters = fs.get("clusters", [])
-        conditions = fs.get("conditions", [])
-        samples = fs.get("samples", [])
-        cell_types = fs.get("cell_types", [])
-        genes = fs.get("genes", [])
-
-        # ---- NORMALISE EMBEDDING KEY ----
-        embedding = fs.get("embedding", None)
-        if not embedding or embedding not in ds.adata.obsm:
-            default_emb = getattr(ds, "embedding_key", None)
-            if default_emb and default_emb in ds.adata.obsm:
-                embedding = default_emb
-            else:
-                embedding = None
-
-        dim_x = fs.get("dim_x", 0)
-        dim_y = fs.get("dim_y", 1)
-        dim_z = fs.get("dim_z", 2)
-        split_by_condition = fs.get("split_by_condition", False)
-        is_3d = fs.get("is_3d", False)
-
-        options = []
-        if split_by_condition:
-            options.append("split_by_condition")
-        if is_3d:
-            options.append("is_3d")
-
-        # Force dataset-select to match the figure's dataset
-        dataset_name = ds.name
-
-        return (
-            dataset_name,       # dataset-select.value
-            figure_id,          # active-figure-id
-            meta.view_id,       # view-select (View type)
-            meta.label or "",   # Figure label
-            clusters,
-            conditions,
-            samples,
-            cell_types,
-            genes,
-            embedding,
-            dim_x,
-            dim_y,
-            dim_z,
-            options,
-        )

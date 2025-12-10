@@ -4,9 +4,10 @@ from typing import Optional, TYPE_CHECKING
 
 import base64
 import logging
-
 import dash
+
 from dash import Input, Output, State
+from pathlib import Path
 
 from sc_browser.config.loader import load_datasets
 from sc_browser.config.new_config_writer import save_dataset_config
@@ -15,12 +16,7 @@ from .helpers import dataset_status
 if TYPE_CHECKING:
     from .config import AppContext
 
-
-from pathlib import Path
-
-MAX_UPLOAD_BYTES = 1_000_000_000  # ~1 GB cap for .h5ad uploads; adjust as needed
-
-
+MAX_UPLOAD_BYTES = 1_000_000_000
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +39,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         Input("dataset-select", "value"),
     )
     def update_dataset_mapping_and_status(dataset_name: str):
-        # No dataset selected or not found – keep the UI stable and explain
         if not dataset_name or dataset_name not in ctx.dataset_by_name:
             empty_obs_options = []
             empty_emb_options = []
@@ -108,7 +103,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             current_label,
         )
 
-
     @app.callback(
         Output("dm-save-status", "children"),
         Input("dm-save-btn", "n_clicks"),
@@ -137,7 +131,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
 
         ds = ctx.dataset_by_name[dataset_name]
 
-        # Track what we’re actually changing for a clearer message
         changed_fields = []
 
         if cluster_key and cluster_key != ds.cluster_key:
@@ -159,12 +152,10 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             obs_cols["cell_type"] = celltype_key
             changed_fields.append(f"cell_type → {celltype_key}")
 
-        # Always keep these in sync with the dedicated keys
         obs_cols["cluster"] = ds.cluster_key
         obs_cols["condition"] = ds.condition_key
         ds.obs_columns = obs_cols
 
-        # If literally nothing changed, don’t pretend we saved magic
         if not changed_fields:
             return f"No changes to save for dataset '{ds.name}'."
 
@@ -190,7 +181,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         if not contents or not filename:
             raise dash.exceptions.PreventUpdate
 
-        # Base options in case we need to fall back
         def _current_options_and_value():
             opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
             current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
@@ -206,7 +196,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             )
 
         try:
-            content_type, content_string = contents.split(",", 1)
+            _content_type, content_string = contents.split(",", 1)
             decoded = base64.b64decode(content_string)
         except Exception as e:
             logger.exception("Failed to decode uploaded file")
@@ -218,7 +208,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 current,
             )
 
-        # ---- SIZE GUARD ----
         if len(decoded) > MAX_UPLOAD_BYTES:
             logger.warning(
                 "Rejecting uploaded file %r: size %d bytes exceeds MAX_UPLOAD_BYTES=%d",
@@ -237,8 +226,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         data_dir = ctx.config_root.parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        # ---- FILENAME SANITISATION ----
-        # Strip any path components to avoid path traversal.
         safe_name = Path(filename).name
         if not safe_name.endswith(".h5ad"):
             safe_name = safe_name + ".h5ad"
@@ -271,7 +258,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 current,
             )
 
-        # Successful reload
         ctx.datasets = new_datasets
         ctx.dataset_by_name = {ds.name: ds for ds in ctx.datasets}
 
@@ -282,7 +268,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 imported_ds_name = ds.name
                 break
 
-        # Fallback: if we can’t match by filename, guess “last dataset”
         if imported_ds_name is None and ctx.datasets:
             imported_ds_name = ctx.datasets[-1].name
 
@@ -302,5 +287,3 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             )
 
         return status_msg, opts, selected
-
-

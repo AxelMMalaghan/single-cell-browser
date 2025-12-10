@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, TYPE_CHECKING
 
 import dash
 import pandas as pd
 import plotly.graph_objs as go
+
 from dash import Input, Output, State, exceptions, dcc as dash_dcc, html
+from typing import Optional, TYPE_CHECKING
+
 
 from .helpers import get_filter_dropdown_options
-
 from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.model import (
     FigureMetadata,
@@ -28,12 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 def _message_figure(title: str, details: Optional[str] = None) -> go.Figure:
-    """
-    Generic figure used to show user-facing status / error messages.
-    """
     fig = go.Figure()
     text = title if details is None else f"{title}\n\n{details}"
-
     fig.add_annotation(
         text=text,
         showarrow=False,
@@ -49,9 +46,6 @@ def _message_figure(title: str, details: Optional[str] = None) -> go.Figure:
 
 
 def _error_figure(details: str) -> go.Figure:
-    """
-    Convenience wrapper for error situations.
-    """
     return _message_figure(
         "Something went wrong while rendering this view.",
         details,
@@ -89,8 +83,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         if ds is None:
             empty = []
             return empty, empty, empty, empty, empty
-
-        # Use the same helper as layout/_build_filter_panel
         return get_filter_dropdown_options(ds)
 
     # ---------------------------------------------------------
@@ -105,10 +97,8 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     def update_gene_options(search_value, dataset_name, selected_genes):
         ds = ctx.dataset_by_name.get(dataset_name)
         if ds is None:
-            # No dataset -> no genes
             return []
 
-        # dataset API: prefer ds.genes, fall back to ds.gene_names or var_names
         all_genes = (
             list(getattr(ds, "genes", []))
             or list(getattr(ds, "gene_names", []))
@@ -116,22 +106,17 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         )
         gene_set = set(all_genes)
 
-        # Keep only valid genes for this dataset
         selected_genes = [g for g in (selected_genes or []) if g in gene_set]
 
-        # If there's no search query, just show the selected genes
         if not search_value or not str(search_value).strip():
             return [{"label": g, "value": g} for g in selected_genes]
 
-        # With a query, show selected + top matches
         query = str(search_value).upper()
         matches = [g for g in all_genes if g.upper().startswith(query)]
         suggestions = matches[:50]
 
-        # Preserve order: selected first, then suggestions
         union = list(dict.fromkeys(selected_genes + suggestions))
         return [{"label": g, "value": g} for g in union]
-
 
     # ---------------------------------------------------------
     # Hide/show filters based on active view
@@ -152,8 +137,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     def update_filter_visibility(view_id: str, dataset_name: str):
         ds = ctx.dataset_by_name.get(dataset_name)
         if ds is None:
-            # no dataset → just show everything
-            style = lambda _: {}
+            def style(_): return {}
             opts = [
                 {"label": " Split by condition", "value": "split_by_condition"},
                 {"label": " 3D view", "value": "is_3d"},
@@ -177,25 +161,24 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             return {} if flag else {"display": "none"}
 
         if profile is None:
-            # Fallback: show everything, both toggles
             options = [
                 {"label": " Split by condition", "value": "split_by_condition"},
                 {"label": " 3D view", "value": "is_3d"},
             ]
             return (
-                style(True),  # clusters
-                style(True),  # conditions
-                style(True),  # samples
-                style(True),  # cell_types
-                style(True),  # genes
-                style(True),  # embedding
-                style(True),  # dims
-                style(True),  # options-container
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
                 options,
             )
 
         embedding_flag = getattr(profile, "embedding", False)
-        dim_flag = embedding_flag  # dims only when embedding is active
+        dim_flag = embedding_flag
 
         options = []
         if getattr(profile, "split_by_condition", False):
@@ -229,22 +212,19 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         State("dataset-select", "value"),
     )
     def update_dim_selectors(emb_key, dataset_name):
+        empty = []
+        hide_z = {"display": "none"}
+
         if not emb_key:
-            empty = []
-            hide_z = {"display": "none"}
             return empty, empty, empty, hide_z
 
         ds = ctx.dataset_by_name.get(dataset_name)
         if ds is None:
-            empty = []
-            hide_z = {"display": "none"}
             return empty, empty, empty, hide_z
 
         try:
             labels = ds.get_embedding_labels(emb_key)
         except KeyError:
-            empty = []
-            hide_z = {"display": "none"}
             logger.warning(
                 "Embedding key %r not found for dataset %r in update_dim_selectors",
                 emb_key,
@@ -253,12 +233,8 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             return empty, empty, empty, hide_z
 
         options = [{"label": labels[i], "value": i} for i in range(len(labels))]
-        show_z = {} if len(labels) >= 3 else {"display": "none"}
+        show_z = {} if len(labels) >= 3 else hide_z
         return options, options, options, show_z
-
-    # ---------------------------------------------------------
-    # Main figure
-    # ---------------------------------------------------------
 
     # ---------------------------------------------------------
     # Main figure: FilterState -> figure
@@ -288,7 +264,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             )
 
         if fs_data.get("genes") and not state.genes:
-            # User had gene selections, but none are valid in this dataset
             return _message_figure(
                 "Selected genes not found in this dataset.",
                 "Try a different gene symbol or clear the gene filter.",
@@ -332,8 +307,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                     "does not support the current settings.",
                 )
 
-            fig = view.render_figure(data, state)
-            return fig
+            return view.render_figure(data, state)
 
         except Exception:
             logger.exception(
@@ -348,7 +322,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # ---------------------------------------------------------
     # Download CSV of current view data
     # ---------------------------------------------------------
-
     @app.callback(
         Output("download-data", "data"),
         Input("download-data-btn", "n_clicks"),
@@ -373,25 +346,25 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         data = view.timed_compute(state)
 
         if not isinstance(data, pd.DataFrame) or data.empty:
-            # Nothing sensible to download
             raise exceptions.PreventUpdate
 
         filename = f"{state.view_id}_{state.dataset_name.replace(' ', '_')}.csv"
         return dash_dcc.send_data_frame(data.to_csv, filename, index=False)
 
     # ---------------------------------------------------------
-    # Save current figure -> metadata + PNG
+    # Save current figure -> metadata
     # ---------------------------------------------------------
-
     @app.callback(
         Output("session-metadata", "data"),
         Output("active-session-id", "data"),
         Output("save-figure-status", "children"),
+        Output("active-figure-id", "data"),
         Input("save-figure-btn", "n_clicks"),
         State("filter-state", "data"),
         State("figure-label-input", "value"),
         State("session-metadata", "data"),
         State("active-session-id", "data"),
+        State("active-figure-id", "data"),
         prevent_initial_call=True,
     )
     def save_current_figure(
@@ -400,22 +373,23 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         figure_label,
         session_data,
         active_session_id,
+        active_figure_id,
     ):
         if not n_clicks:
             raise exceptions.PreventUpdate
 
         if not fs_data:
-            return session_data, active_session_id, "Failed to save: no current state."
+            return session_data, active_session_id, "Failed to save: no current state.", active_figure_id
 
         try:
             state = FilterState.from_dict(fs_data)
         except Exception:
             logger.exception("Invalid filter-state in save_current_figure: %r", fs_data)
-            return session_data, active_session_id, "Failed to save: invalid state."
+            return session_data, active_session_id, "Failed to save: invalid state.", active_figure_id
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
         if ds is None:
-            return session_data, active_session_id, "Failed to save: dataset not found."
+            return session_data, active_session_id, "Failed to save: dataset not found.", active_figure_id
 
         if active_session_id is None:
             active_session_id = generate_session_id()
@@ -428,7 +402,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 datasets_config_hash="unknown",
             )
 
-        # clean / normalise label
         if figure_label is None:
             label_clean = None
         else:
@@ -436,49 +409,67 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             label_clean = stripped or None
 
         ds_key = getattr(ds, "key", ds.name)
-        figure_id = generate_figure_id(session)
 
-        # IMPORTANT: write filter_state as a dict, consistent with reports code
+        existing_fig = None
+        if active_figure_id:
+            existing_fig = next((f for f in session.figures if f.id == active_figure_id), None)
+
+        same_label_as_existing = (
+            existing_fig is not None
+            and (label_clean or "") == (existing_fig.label or "")
+        )
+
+        if existing_fig is not None and same_label_as_existing:
+            figure_id = existing_fig.id
+            is_overwrite = True
+        else:
+            figure_id = generate_figure_id(session)
+            is_overwrite = False
+            active_figure_id = figure_id
+
         meta = FigureMetadata.from_runtime(
             figure_id=figure_id,
             dataset_key=ds_key,
             view_id=state.view_id,
-            state=state,
+            filter_state=fs_data,
             view_params={},
             label=label_clean,
             file_stem=None,
         )
 
-        out_path = ctx.export_service.export_single(meta, session_id=session.session_id)
-        meta.file_stem = out_path.stem
+        if is_overwrite and existing_fig is not None:
+            for idx, f in enumerate(session.figures):
+                if f.id == existing_fig.id:
+                    session.figures[idx] = meta
+                    break
+        else:
+            session.figures.append(meta)
 
-        session.figures.append(meta)
         session.updated_at = now_iso()
 
         view_label = _view_label(state.view_id)
 
-        if label_clean:
-            status = f"Saved “{label_clean}” ({view_label}, {ds.name})."
+        if is_overwrite:
+            if label_clean:
+                status = f"Updated “{label_clean}” ({view_label}, {ds.name})."
+            else:
+                status = f"Updated {view_label} for {ds.name}."
         else:
-            status = f"Saved {view_label} for {ds.name}."
+            if label_clean:
+                status = f"Saved “{label_clean}” ({view_label}, {ds.name})."
+            else:
+                status = f"Saved {view_label} for {ds.name}."
 
-        return session_to_dict(session), active_session_id, status
+        return session_to_dict(session), active_session_id, status, active_figure_id
 
     # ---------------------------------------------------------
     # Status bar
     # ---------------------------------------------------------
-
     @app.callback(
         Output("status-bar", "children"),
         Input("filter-state", "data"),
     )
     def update_status_bar(fs_data):
-        """
-        Status bar derived from the canonical FilterState.
-
-        This ensures the embedding / genes we show actually match the
-        normalised state (after validation, dataset switching, etc).
-        """
         if not fs_data:
             return html.Span(
                 [
@@ -518,9 +509,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
         dataset_label = ds.name if ds is not None else f"{state.dataset_name} (missing)"
-
         view_label = _view_label(state.view_id) if state.view_id else "No view"
-
         emb_label = state.embedding or "Default embedding"
 
         genes = state.genes or []
@@ -547,12 +536,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             ]
         )
 
-
-
     # ---------------------------------------------------------
     # UI -> FilterState (canonical)
     # ---------------------------------------------------------
-
     @app.callback(
         Output("filter-state", "data"),
         Input("dataset-select", "value"),
@@ -582,20 +568,13 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         dim_z,
         options,
     ):
-        """
-        Build the canonical FilterState from current UI selections.
-
-        This is the ONLY place that writes filter-state.data.
-        """
         if not dataset_name or not view_id:
-            # No meaningful state yet
             return None
 
         ds = ctx.dataset_by_name.get(dataset_name)
         if ds is None:
             return None
 
-        # ---- validate + normalise selections against dataset ----
         valid_clusters = set(ds.clusters.astype(str).unique())
         valid_conditions = (
             set(ds.conditions.astype(str).unique())
@@ -618,7 +597,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             or set(ds.adata.var_names)
         )
 
-        # Keep originals for logging
         orig_clusters = list(clusters or [])
         orig_conditions = list(conditions or [])
         orig_samples = list(samples or [])
@@ -631,7 +609,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         cell_types = [str(ct) for ct in (cell_types or []) if str(ct) in valid_celltypes]
         genes = [g for g in (genes or []) if g in valid_genes]
 
-        # Log if we dropped anything
         if (
             len(clusters) < len(orig_clusters)
             or len(conditions) < len(orig_conditions)
@@ -656,7 +633,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 genes,
             )
 
-        # Embedding sanity: if invalid, prefer dataset default or None
         if embedding and embedding not in ds.adata.obsm:
             embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
 
@@ -664,9 +640,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         split_by_condition = "split_by_condition" in opts
         is_3d = "is_3d" in opts
 
-        # -------------------------------
-        # Default embedding dimensions
-        # -------------------------------
         labels = []
         if embedding:
             try:
@@ -679,15 +652,12 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 )
 
         if embedding and labels:
-            # Only fill defaults if the UI hasn't explicitly chosen dims yet
             if dim_x is None and len(labels) >= 1:
                 dim_x = 0
             if dim_y is None and len(labels) >= 2:
                 dim_y = 1
-            # Only set Z when 3D is enabled and we actually have a 3rd dim
             if is_3d and dim_z is None and len(labels) >= 3:
                 dim_z = 2
-            # If 3D isn't enabled, make sure we don't carry stale dim_z around
             if not is_3d:
                 dim_z = None
 
@@ -709,23 +679,15 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         return state.to_dict()
 
-
     # ---------------------------------------------------------
-    # Autosave user state (FilterState-based)
+    # Autosave / restore user state
     # ---------------------------------------------------------
     @app.callback(
         Output("user-state", "data"),
         Input("filter-state", "data"),
     )
     def autosave_user_state(fs_data):
-        """
-        Persist the last known FilterState for restoration.
-        """
         return fs_data or {}
-
-    # ---------------------------------------------------------
-    # Restore user state on reload -> FilterState
-    # ---------------------------------------------------------
 
     @app.callback(
         Output("filter-state", "data", allow_duplicate=True),
@@ -734,12 +696,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         prevent_initial_call=True,
     )
     def restore_user_state(_ts, state):
-        """
-        Restore the previous FilterState when the app reloads.
-
-        We validate it against current datasets/views to avoid resurrecting
-        completely invalid state after config changes.
-        """
         if not state:
             raise exceptions.PreventUpdate
 
@@ -749,7 +705,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             logger.exception("Failed to restore user-state (invalid filter-state): %r", state)
             raise exceptions.PreventUpdate
 
-        # dataset must still exist
         if restored.dataset_name not in ctx.dataset_by_name:
             logger.info(
                 "Skipping restore of user-state: dataset %r no longer available",
@@ -757,7 +712,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             )
             raise exceptions.PreventUpdate
 
-        # view_id must still be registered
         valid_view_ids = {cls.id for cls in ctx.registry.all_classes()}
         if restored.view_id not in valid_view_ids:
             logger.info(
@@ -768,12 +722,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         return restored.to_dict()
 
-
     def _view_label(view_id: str) -> str:
-        """
-        Resolve a human-readable view label from the registry.
-        Falls back to the raw id if not found.
-        """
         try:
             for cls in ctx.registry.all_classes():
                 if getattr(cls, "id", None) == view_id:
@@ -782,7 +731,9 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             pass
         return view_id
 
-
+    # ---------------------------------------------------------
+    # FilterState -> UI
+    # ---------------------------------------------------------
     @app.callback(
         Output("dataset-select", "value", allow_duplicate=True),
         Output("view-select", "value", allow_duplicate=True),
@@ -825,16 +776,14 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             state.dim_z,
         )
 
-
-
+    # ---------------------------------------------------------
+    # Toggle Download button
+    # ---------------------------------------------------------
     @app.callback(
         Output("download-data-btn", "disabled"),
         Input("filter-state", "data"),
     )
     def toggle_download_button(fs_data):
-        """
-        Disable the Download CSV button when there is no valid filter state.
-        """
         if not fs_data:
             return True
 
@@ -848,6 +797,123 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         return False
 
+    # ---------------------------------------------------------
+    # Saved figure dropdown (single authoritative callback)
+    # ---------------------------------------------------------
+    @app.callback(
+        Output("saved-figure-select", "options"),
+        Output("saved-figure-select", "value"),
+        Input("session-metadata", "data"),
+        State("saved-figure-select", "value"),
+        State("active-figure-id", "data"),
+    )
+    def update_saved_figure_dropdown(session_data, current_value, active_figure_id):
+        """
+        Keep the saved-figure dropdown in sync with session metadata.
 
+        - Rebuild options from session.figures
+        - Try to keep the current selection if it's still valid
+        - Otherwise, fall back to active_figure_id
+        """
+        session = session_from_dict(session_data)
+        if session is None or not session.figures:
+            return [], None
 
+        opts = []
+        ids = []
+        for fig in session.figures:
+            display = fig.label or fig.view_id
+            display = f"{display} ({fig.dataset_key})"
+            opts.append({"label": display, "value": fig.id})
+            ids.append(fig.id)
 
+        value = current_value if current_value in ids else None
+        if value is None and active_figure_id in ids:
+            value = active_figure_id
+
+        return opts, value
+
+    # ---------------------------------------------------------
+    # Load a saved figure from the dropdown
+    # ---------------------------------------------------------
+    @app.callback(
+        Output("dataset-select", "value", allow_duplicate=True),
+        Output("active-figure-id", "data", allow_duplicate=True),
+        Output("view-select", "value", allow_duplicate=True),
+        Output("figure-label-input", "value", allow_duplicate=True),
+        Output("cluster-select", "value", allow_duplicate=True),
+        Output("condition-select", "value", allow_duplicate=True),
+        Output("sample-select", "value", allow_duplicate=True),
+        Output("celltype-select", "value", allow_duplicate=True),
+        Output("gene-select", "value", allow_duplicate=True),
+        Output("embedding-select", "value", allow_duplicate=True),
+        Output("dim-x-select", "value", allow_duplicate=True),
+        Output("dim-y-select", "value", allow_duplicate=True),
+        Output("dim-z-select", "value", allow_duplicate=True),
+        Output("options-checklist", "value", allow_duplicate=True),
+        Input("saved-figure-select", "value"),
+        State("session-metadata", "data"),
+        prevent_initial_call=True,
+    )
+    def load_figure_from_dropdown(figure_id, session_data):
+        if not figure_id or figure_id == "__new__":
+            raise dash.exceptions.PreventUpdate
+
+        session = session_from_dict(session_data)
+        if session is None:
+            raise dash.exceptions.PreventUpdate
+
+        meta = next((f for f in session.figures if f.id == figure_id), None)
+        if meta is None:
+            raise dash.exceptions.PreventUpdate
+
+        ds = ctx.dataset_by_key.get(meta.dataset_key)
+        if ds is None:
+            raise dash.exceptions.PreventUpdate
+
+        fs = meta.filter_state or {}
+
+        clusters = fs.get("clusters", [])
+        conditions = fs.get("conditions", [])
+        samples = fs.get("samples", [])
+        cell_types = fs.get("cell_types", [])
+        genes = fs.get("genes", [])
+
+        embedding = fs.get("embedding", None)
+        if not embedding or embedding not in ds.adata.obsm:
+            default_emb = getattr(ds, "embedding_key", None)
+            if default_emb and default_emb in ds.adata.obsm:
+                embedding = default_emb
+            else:
+                embedding = None
+
+        dim_x = fs.get("dim_x", 0)
+        dim_y = fs.get("dim_y", 1)
+        dim_z = fs.get("dim_z", 2)
+        split_by_condition = fs.get("split_by_condition", False)
+        is_3d = fs.get("is_3d", False)
+
+        options = []
+        if split_by_condition:
+            options.append("split_by_condition")
+        if is_3d:
+            options.append("is_3d")
+
+        dataset_name = ds.name
+
+        return (
+            dataset_name,
+            figure_id,
+            meta.view_id,
+            meta.label or "",
+            clusters,
+            conditions,
+            samples,
+            cell_types,
+            genes,
+            embedding,
+            dim_x,
+            dim_y,
+            dim_z,
+            options,
+        )
