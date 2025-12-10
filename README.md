@@ -31,8 +31,7 @@ The backend is built using:
   - Clusters  
   - Conditions  
   - Samples  
-  - Genes  
-- Fully in-memory performance for responsive exploration  
+  - Genes
 
 ### Visualisation Views
 Each view is a self-contained analysis/plotting module:
@@ -47,15 +46,15 @@ Each view is a self-contained analysis/plotting module:
 Views automatically appear as tabs in the UI.
 
 ### Architecture
-- Zero hard-coded UI logic  
+
 - All views register themselves with the `ViewRegistry`  
 - Dash callbacks delegate work to views via a unified interface  
 - Easily extensible — add new views without touching UI code  
-
----
-
+- ....
+- 
 ## Repository Structure
 
+tba
 
 ## Data Flow
 
@@ -71,8 +70,7 @@ From there, the Dataset objects are then used by Dash to create the views.
 
 ### Per-view Data Flow
 
-`compute_data()` creates a pandas dataframe
-
+`compute_data()` creates a pandas dataframe....
 ---
 
 ## Installation
