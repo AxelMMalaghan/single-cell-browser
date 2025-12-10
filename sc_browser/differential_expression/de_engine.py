@@ -4,7 +4,7 @@ from typing import Optional, Sequence
 
 import scanpy as sc
 
-from sc_browser.analysis.de_model import DEConfig, DEResult
+from sc_browser.differential_expression.de_model import DEConfig, DEResult
 
 
 def _validate_config(config: DEConfig) -> None:
@@ -59,7 +59,7 @@ def _maybe_subset_genes(adata, config: DEConfig):
 
 def run_de(config: DEConfig) -> DEResult:
     """
-    Run a differential expression analysis using scanpy.rank_genes_groups.
+    Run a differential expression differential_expression using scanpy.rank_genes_groups.
 
     Notes:
     - If config.group1 is not None and config.group2 is None: group1 v. rest

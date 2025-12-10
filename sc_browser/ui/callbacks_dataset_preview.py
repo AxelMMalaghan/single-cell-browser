@@ -8,7 +8,7 @@ from dash import Input, Output
 from .helpers import obs_preview_table
 
 if TYPE_CHECKING:
-    from .context import AppContext
+    from .config import AppContext
 
 
 def register_dataset_preview_callbacks(app: dash.Dash, ctx: "AppContext") -> None:

@@ -22,7 +22,7 @@ from sc_browser.metadata_io.model import (
 )
 
 if TYPE_CHECKING:
-    from .context import AppContext
+    from .config import AppContext
 
 logger = logging.getLogger(__name__)
 

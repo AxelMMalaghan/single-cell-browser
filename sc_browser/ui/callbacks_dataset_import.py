@@ -13,7 +13,7 @@ from sc_browser.config.write import save_dataset_config
 from .helpers import dataset_status
 
 if TYPE_CHECKING:
-    from .context import AppContext
+    from .config import AppContext
 
 logger = logging.getLogger(__name__)
 

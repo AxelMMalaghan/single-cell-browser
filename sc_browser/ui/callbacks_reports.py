@@ -11,7 +11,7 @@ from dash import Input, Output, State, html, ALL, no_update
 from sc_browser.metadata_io.model import session_from_dict, touch_session, session_to_dict
 
 if TYPE_CHECKING:
-    from .context import AppContext
+    from .config import AppContext
 
 
 def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:

@@ -11,7 +11,7 @@ from sc_browser.metadata_io.export_service import ExportService
 
 
 @dataclass
-class AppContext:
+class AppConfig:
     """
     Holds shared state for the Dash app: config root, loaded datasets and
     the view registry. This is passed into layout + callback registration

@@ -58,10 +58,10 @@ def dataset_status(ds: Dataset) -> str:
     has_condition = ds.condition_key in obs.columns if ds.condition_key is not None else False
 
     if not has_emb:
-        return f"❌ Missing embedding (obsm['{ds.embedding_key}'] not found)"
+        return f" Missing embedding (obsm['{ds.embedding_key}'] not found)"
     if not has_cluster or not has_condition:
-        return "⚠️ Missing or invalid cluster/condition mapping"
-    return "✅ Ready"
+        return " Missing or invalid cluster/condition mapping"
+    return "Ready"
 
 
 def obs_preview_table(ds: Dataset, max_rows: int = 5) -> html.Table:
