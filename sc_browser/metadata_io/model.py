@@ -108,7 +108,7 @@ class SessionMetadata:
 
 
 # -------------------------------------------------------------------------
-# Small helpers (optional but convenient)
+# Helpers
 # -------------------------------------------------------------------------
 
 def new_session_metadata(
