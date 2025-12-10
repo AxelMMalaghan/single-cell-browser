@@ -92,6 +92,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         # Use the same helper as layout/_build_filter_panel
         return get_filter_dropdown_options(ds)
+
     # ---------------------------------------------------------
     # Live gene search (prefix, keep selected)
     # ---------------------------------------------------------
