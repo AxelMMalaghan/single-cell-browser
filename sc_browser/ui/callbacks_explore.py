@@ -637,59 +637,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         }
 
     # ---------------------------------------------------------
-    # Reconcile filters when dataset changes
-    # ---------------------------------------------------------
-    @app.callback(
-        Output("cluster-select", "value"),
-        Output("condition-select", "value"),
-        Output("sample-select", "value"),
-        Output("celltype-select", "value"),
-        Output("gene-select", "value"),
-        Output("embedding-select", "value"),
-        Input("dataset-select", "value"),
-        State("filter-state", "data"),
-    )
-    def reconcile_filters_on_dataset_change(dataset_name, filter_data):
-        if dataset_name is None or not filter_data:
-            return [], [], [], [], [], None
-
-        ds = ctx.dataset_by_name.get(dataset_name)
-        if ds is None:
-            return [], [], [], [], [], None
-
-        valid_clusters = set(ds.clusters.astype(str).unique())
-        valid_conditions = (
-            set(ds.conditions.astype(str).unique())
-            if ds.conditions is not None
-            else set()
-        )
-        valid_samples = (
-            set(ds.samples.astype(str).unique())
-            if getattr(ds, "samples", None) is not None
-            else set()
-        )
-        valid_celltypes = (
-            set(ds.cell_types.astype(str).unique())
-            if getattr(ds, "cell_types", None) is not None
-            else set()
-        )
-        valid_genes = set(
-            getattr(ds, "genes", [])) or set(
-            getattr(ds, "gene_names", [])) or set(ds.adata.var_names)
-
-        clusters = [c for c in filter_data.get("clusters", []) if str(c) in valid_clusters]
-        conditions = [c for c in filter_data.get("conditions", []) if str(c) in valid_conditions]
-        samples = [s for s in filter_data.get("samples", []) if str(s) in valid_samples]
-        celltypes = [ct for ct in filter_data.get("cell_types", []) if str(ct) in valid_celltypes]
-        genes = [g for g in filter_data.get("genes", []) if g in valid_genes]
-
-        emb_key = filter_data.get("embedding_key")
-        if emb_key not in ds.adata.obsm:
-            emb_key = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
-
-        return clusters, conditions, samples, celltypes, genes, emb_key
-
-    # ---------------------------------------------------------
     # Autosave user state
     # ---------------------------------------------------------
     @app.callback(
