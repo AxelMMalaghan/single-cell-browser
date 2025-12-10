@@ -11,7 +11,7 @@ from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
 from sc_browser.metadata_io.export_service import ExportService
 
-from .config import AppContext
+from .config import AppConfig
 from .layout import build_layout
 from .callbacks_explore import register_explore_callbacks
 from .callbacks_dataset_import import register_dataset_import_callbacks
@@ -87,7 +87,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         output_root=export_root,
     )
 
-    ctx = AppContext(
+    ctx = AppConfig(
         config_root=config_root,
         global_config=global_config,
         datasets=datasets,
