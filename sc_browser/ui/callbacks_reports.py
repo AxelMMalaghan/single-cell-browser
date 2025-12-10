@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import TYPE_CHECKING
 
 import dash
@@ -13,6 +14,9 @@ from sc_browser.metadata_io.model import session_from_dict, touch_session, sessi
 if TYPE_CHECKING:
     from .config import AppContext
 
+logger = logging.getLogger(__name__)
+
+MAX_IMPORTED_FIGURES = 100
 
 def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     """
@@ -162,7 +166,17 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         # Root where images were written by GraphExportService
         # We set this as ctx.export_service._output_root in the service __init__
-        export_root: Path = ctx.export_service._output_root  # yes, accessing "private" field
+        export_root = getattr(ctx.export_service, "output_root", None)
+        if export_root is None:
+            export_root = getattr(ctx.export_service, "_output_root", None)
+
+        if export_root is None:
+            logger.error("ExportService has no output_root/_output_root; aborting export_session")
+            raise dash.exceptions.PreventUpdate
+
+        if not isinstance(export_root, Path):
+            export_root = Path(export_root)
+
         session_dir = export_root / session_id
 
         # Build ZIP in memory
@@ -196,8 +210,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     def import_session_metadata(contents, session_data):
         """
         Accepts a single JSON file from the Reports upload component.
-        The file should be the metadata.json we exported earlier
-        (i.e. output of session_to_dict).
+        The file should be the metadata.json we exported earlier.
         """
         if contents is None:
             raise dash.exceptions.PreventUpdate
@@ -232,42 +245,96 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 "Make sure you are uploading the metadata.json file created by the export button.",
             )
 
-        n_imported = len(imported_session.figures)
+        # Basic sanity: cap how many figures we accept from a single file
+        n_total = len(imported_session.figures)
+        if n_total > MAX_IMPORTED_FIGURES:
+            logger.warning(
+                "Truncating imported session figures: %d > MAX_IMPORTED_FIGURES=%d",
+                n_total,
+                MAX_IMPORTED_FIGURES,
+            )
+            imported_session.figures = imported_session.figures[:MAX_IMPORTED_FIGURES]
 
         # Merge into existing session if present; otherwise use imported as-is
         existing_session = session_from_dict(session_data)
 
         if existing_session is None:
+            # We still might want to dedupe inside the imported session itself
+            seen_ids = set()
+            unique_figures = []
+            for fig in imported_session.figures:
+                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
+                if fig_id is None:
+                    continue
+                if fig_id in seen_ids:
+                    continue
+                seen_ids.add(fig_id)
+                unique_figures.append(fig)
+            imported_session.figures = unique_figures
             merged = imported_session
             merged_from_existing = False
         else:
-            # simple append; you can dedupe by id if you want
-            existing_session.figures.extend(imported_session.figures)
+            # Merge with dedupe on id / figure_id
+            seen_ids = set()
+            unique_figures = []
+
+            # start with existing
+            for fig in existing_session.figures:
+                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
+                if fig_id is None:
+                    continue
+                if fig_id in seen_ids:
+                    continue
+                seen_ids.add(fig_id)
+                unique_figures.append(fig)
+
+            # add imported
+            for fig in imported_session.figures:
+                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
+                if fig_id is None:
+                    continue
+                if fig_id in seen_ids:
+                    continue
+                seen_ids.add(fig_id)
+                unique_figures.append(fig)
+
+            existing_session.figures = unique_figures
             merged = existing_session
             merged_from_existing = True
 
         touch_session(merged)
 
-        if n_imported == 0:
+        n_imported_effective = len(imported_session.figures)
+
+        if n_imported_effective == 0:
             banner = (
                 "Imported metadata.json, but it did not contain any saved figures. "
                 "Check that you selected the correct file."
             )
         else:
+            truncated_note = ""
+            if n_total > MAX_IMPORTED_FIGURES:
+                truncated_note = (
+                    f" (truncated to {MAX_IMPORTED_FIGURES} to keep the session manageable)"
+                )
+
             if merged_from_existing:
                 banner = (
-                    f"Imported {n_imported} figure{'s' if n_imported != 1 else ''} "
-                    "and merged them into the current session. "
+                    f"Imported {n_imported_effective} figure"
+                    f"{'s' if n_imported_effective != 1 else ''}"
+                    f"{truncated_note} and merged them into the current session. "
                     "They are now available in the Reports table and the Saved figure dropdown."
                 )
             else:
                 banner = (
-                    f"Imported {n_imported} figure{'s' if n_imported != 1 else ''} "
-                    "into a new session. "
+                    f"Imported {n_imported_effective} figure"
+                    f"{'s' if n_imported_effective != 1 else ''}"
+                    f"{truncated_note} into a new session. "
                     "You can now load them from the Reports tab or the Saved figure dropdown."
                 )
 
         return session_to_dict(merged), banner
+
 
     # ---------------------------------------------------------
     # Populate "Select View" dropdown in the Explore view panel

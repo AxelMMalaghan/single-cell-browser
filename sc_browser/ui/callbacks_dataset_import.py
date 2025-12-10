@@ -9,16 +9,23 @@ import dash
 from dash import Input, Output, State
 
 from sc_browser.config.loader import load_datasets
-from sc_browser.config.write import save_dataset_config
+from sc_browser.config.new_config_writer import save_dataset_config
 from .helpers import dataset_status
 
 if TYPE_CHECKING:
     from .config import AppContext
 
+
+from pathlib import Path
+
+MAX_UPLOAD_BYTES = 1_000_000_000  # ~1 GB cap for .h5ad uploads; adjust as needed
+
+
 logger = logging.getLogger(__name__)
 
 
 def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+
     @app.callback(
         Output("dm-status-text", "children"),
         Output("dm-summary-text", "children"),
@@ -64,14 +71,24 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         obs_cols = list(ds.adata.obs.columns)
         obs_options = [{"label": c, "value": c} for c in obs_cols]
 
-        cluster_val = ds.cluster_key if ds.cluster_key in ds.adata.obs.columns else None
-        condition_val = ds.condition_key if ds.condition_key in ds.adata.obs.columns else None
+        cluster_val = ds.cluster_key if ds.cluster_key in obs_cols else None
+        condition_val = ds.condition_key if ds.condition_key in obs_cols else None
+
         sample_val = ds.obs_columns.get("sample")
+        if sample_val not in obs_cols:
+            sample_val = None
+
         celltype_val = ds.obs_columns.get("cell_type")
+        if celltype_val not in obs_cols:
+            celltype_val = None
 
         emb_keys = list(ds.adata.obsm.keys())
         emb_options = [{"label": k, "value": k} for k in emb_keys]
-        emb_val = ds.embedding_key if ds.embedding_key in ds.adata.obsm else (emb_keys[0] if emb_keys else None)
+        emb_val = (
+            ds.embedding_key
+            if ds.embedding_key in ds.adata.obsm
+            else (emb_keys[0] if emb_keys else None)
+        )
 
         current_label = f"Current dataset: {ds.name}"
 
@@ -90,6 +107,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             emb_val,
             current_label,
         )
+
 
     @app.callback(
         Output("dm-save-status", "children"),
@@ -200,9 +218,32 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 current,
             )
 
+        # ---- SIZE GUARD ----
+        if len(decoded) > MAX_UPLOAD_BYTES:
+            logger.warning(
+                "Rejecting uploaded file %r: size %d bytes exceeds MAX_UPLOAD_BYTES=%d",
+                filename,
+                len(decoded),
+                MAX_UPLOAD_BYTES,
+            )
+            opts, current = _current_options_and_value()
+            return (
+                f"Upload too large for '{filename}' "
+                f"({len(decoded) / (1024**2):.1f} MB; limit is {MAX_UPLOAD_BYTES / (1024**2):.0f} MB).",
+                opts,
+                current,
+            )
+
         data_dir = ctx.config_root.parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
-        out_path = data_dir / filename
+
+        # ---- FILENAME SANITISATION ----
+        # Strip any path components to avoid path traversal.
+        safe_name = Path(filename).name
+        if not safe_name.endswith(".h5ad"):
+            safe_name = safe_name + ".h5ad"
+
+        out_path = data_dir / safe_name
 
         try:
             with out_path.open("wb") as f:
@@ -223,7 +264,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             logger.exception("Reloading datasets after import failed")
             opts, current = _current_options_and_value()
             return (
-                f"File '{filename}' was saved to {out_path}, "
+                f"File '{safe_name}' was saved to {out_path}, "
                 f"but reloading datasets failed: {e}. "
                 "Fix the config or datasets and restart the app.",
                 opts,
@@ -237,7 +278,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         imported_ds_name = None
         for ds in ctx.datasets:
             fp = getattr(ds, "file_path", None)
-            if fp is not None and fp.name == filename:
+            if fp is not None and fp.name == safe_name:
                 imported_ds_name = ds.name
                 break
 
@@ -250,15 +291,16 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
 
         if imported_ds_name:
             status_msg = (
-                f"Imported '{filename}' as dataset '{imported_ds_name}'. "
+                f"Imported '{safe_name}' as dataset '{imported_ds_name}'. "
                 "It is now selected and can be configured in the Datasets → Import & mapping tab."
             )
         else:
             status_msg = (
-                f"Imported '{filename}' and reloaded the dataset list, "
+                f"Imported '{safe_name}' and reloaded the dataset list, "
                 "but could not confidently match it to a specific dataset entry. "
                 "Check your config and dataset names."
             )
 
         return status_msg, opts, selected
+
 
