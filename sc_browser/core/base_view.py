@@ -9,7 +9,8 @@ from typing import Any
 import plotly.graph_objs as go
 
 from .dataset import Dataset
-from .filter_state import FilterState, FilterProfile
+from .filter_state import FilterState
+from .filter_profile import FilterProfile
 
 logger = logging.getLogger(__name__)
 

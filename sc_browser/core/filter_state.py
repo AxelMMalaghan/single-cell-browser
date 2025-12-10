@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
 
@@ -49,9 +49,30 @@ class FilterState:
 
     color_scale: str = "viridis"
 
-    @classmethod
+
+    # To and from dictionary methods
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        """
+        Explicit dict representation instead of dataclasses.asdict to
+        avoid surprises if this class is wrapped / monkey-patched.
+        """
+        return {
+            "dataset_name": self.dataset_name,
+            "view_id": self.view_id,
+            "genes": list(self.genes),
+            "clusters": list(self.clusters),
+            "conditions": list(self.conditions),
+            "samples": list(self.samples),
+            "cell_types": list(self.cell_types),
+            "embedding": self.embedding,
+            "merge_genes": self.merge_genes,
+            "split_by_condition": self.split_by_condition,
+            "is_3d": self.is_3d,
+            "dim_x": self.dim_x,
+            "dim_y": self.dim_y,
+            "dim_z": self.dim_z,
+            "color_scale": self.color_scale,
+        }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> FilterState:
