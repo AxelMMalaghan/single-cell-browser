@@ -1,4 +1,5 @@
-# Single-Cell Browser  
+# sc-B++
+
 *A modular, extensible Dash application for exploring single-cell RNA-seq datasets.*
 
 ---
