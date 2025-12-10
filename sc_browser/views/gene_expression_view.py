@@ -30,6 +30,7 @@ class ExpressionView(BaseView):
         embedding=False,
         split_by_condition=True,
         is_3d=False,
+        colour_scale=True,
     )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:

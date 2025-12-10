@@ -131,6 +131,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         Output("dim-filter-container", "style"),
         Output("options-container", "style"),
         Output("options-checklist", "options"),
+        Output("colour-scale-select", "style"),
         Input("view-select", "value"),
         State("dataset-select", "value"),
     )
@@ -179,6 +180,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         embedding_flag = getattr(profile, "embedding", False)
         dim_flag = embedding_flag
+        colour_scale_flag = getattr(profile, "colour_scale", False)
 
         options = []
         if getattr(profile, "split_by_condition", False):
@@ -198,6 +200,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             style(dim_flag),
             style(show_options),
             options,
+            style(colour_scale_flag),
         )
 
     # ---------------------------------------------------------
@@ -553,6 +556,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         Input("dim-y-select", "value"),
         Input("dim-z-select", "value"),
         Input("options-checklist", "value"),
+        Input("colour-scale-select", "value"),
     )
     def sync_filter_state_from_ui(
         dataset_name,
@@ -567,6 +571,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         dim_y,
         dim_z,
         options,
+        colour_scale,
     ):
         if not dataset_name or not view_id:
             return None
@@ -675,6 +680,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             dim_x=dim_x,
             dim_y=dim_y,
             dim_z=dim_z,
+            color_scale=colour_scale
         )
 
         return state.to_dict()
@@ -746,6 +752,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         Output("dim-x-select", "value", allow_duplicate=True),
         Output("dim-y-select", "value", allow_duplicate=True),
         Output("dim-z-select", "value", allow_duplicate=True),
+        Output("colour-scale-select", "value", allow_duplicate=True),
         Input("filter-state", "data"),
         prevent_initial_call=True,
     )
@@ -774,6 +781,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             state.dim_x,
             state.dim_y,
             state.dim_z,
+            state.color_scale,
         )
 
     # ---------------------------------------------------------

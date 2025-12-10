@@ -15,6 +15,7 @@ class FilterProfile:
     :param: embedding: the embedding widget (for embedding type - projections plots)
     :param: split_by_condition:
     :param: is_3d: is 3d
+    :param: colour_scale: the colour scale placed on the data - primarily for heat/dot plot views
     """
     clusters: bool = False
     conditions: bool = False
@@ -24,3 +25,4 @@ class FilterProfile:
     embedding: bool = False
     split_by_condition: bool = False
     is_3d: bool = False
+    colour_scale: bool = False

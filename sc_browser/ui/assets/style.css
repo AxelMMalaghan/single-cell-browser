@@ -33,16 +33,17 @@ body {
 
 .scb-navbar {
     margin: 0 -1.5rem 0;
-    padding: 0.75rem 1.5rem;
+    /* old: padding: 0.75rem 1.5rem; */
+    padding: 1.25rem 1.5rem;           /* more vertical padding */
     border-radius: 0;
-    background: #1B1D21;  /* darker neutral grey */
-    color: #f9fafb;
+    color: #F9FAFB;
     box-shadow:
-        0 8px 24px rgba(15, 23, 42, 0.45),
-        0 0 0 1px rgba(0, 0, 0, 0.55);
+        0 8px 24px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(0, 0, 0, 0.7);
     position: sticky;
     top: 0;
     z-index: 100;
+    min-height: 100px;
 }
 
 /* Title + subtitle */

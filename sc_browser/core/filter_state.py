@@ -47,7 +47,7 @@ class FilterState:
     dim_y: int = 1
     dim_z: int = 2
 
-    color_scale: str = "viridis"
+    color_scale: Optional[str] = "viridis"
 
 
     # To and from dictionary methods

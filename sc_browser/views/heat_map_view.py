@@ -30,6 +30,7 @@ class HeatmapView(BaseView):
         embedding=False,
         split_by_condition=True,
         is_3d=False,
+        colour_scale=True,
     )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
@@ -112,7 +113,7 @@ class HeatmapView(BaseView):
         # Pivot to matrix: genes × groups
         pivot = data.pivot(index="gene", columns="group", values="log_mean_expression")
 
-        color_scale = getattr(state, "color_scale", "viridis")
+        color_scale = state.color_scale
 
         fig = px.imshow(
             pivot,

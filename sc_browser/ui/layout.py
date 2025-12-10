@@ -50,7 +50,6 @@ def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Datas
                 ),
             ],
         ),
-        color="light",
         dark=False,
         className="shadow-sm scb-navbar",
     )
@@ -264,6 +263,26 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                                 className="mb-3",
                             ),
                         ],
+                    ),
+                    html.Div(
+                        id="colour-scale-container",
+                        children=[
+                            html.Label("Colour scale", className="form-label"),
+                            dcc.Dropdown(
+                                id="colour-scale-select",
+                                options=[
+                                    {"label": "Viridis", "value": "viridis"},
+                                    {"label": "Plasma", "value": "plasma"},
+                                    {"label": "Reds", "value": "reds"},
+                                    {"label": "Greys", "value": "Greys"},
+                                    {"label": "Turbo", "value": "turbo"},
+                                ],
+                                value="viridis",
+                                clearable=False,
+                                className="mb-3",
+                            ),
+                        ],
+                        className="mb-2",
                     ),
                     html.Div(
                         id="dim-filter-container",
