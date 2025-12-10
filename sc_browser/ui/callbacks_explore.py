@@ -6,7 +6,7 @@ import dash
 import pandas as pd
 import plotly.graph_objs as go
 
-from dash import Input, Output, State, exceptions, dcc as dash_dcc, html
+from dash import Input, Output, State, exceptions, dcc as dash_dcc, html, no_update
 from typing import Optional, TYPE_CHECKING
 
 
@@ -431,7 +431,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             figure_id=figure_id,
             dataset_key=ds_key,
             view_id=state.view_id,
-            filter_state=fs_data,
+            state=fs_data,
             view_params={},
             label=label_clean,
             file_stem=None,
@@ -811,27 +811,38 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         """
         Keep the saved-figure dropdown in sync with session metadata.
 
+        - Always include a 'New view' sentinel (__new__)
         - Rebuild options from session.figures
         - Try to keep the current selection if it's still valid
-        - Otherwise, fall back to active_figure_id
+        - Otherwise, fall back to active_figure_id or __new__
         """
+        # Always start with the sentinel
+        options = [
+            {"label": "New view (current filters)", "value": "__new__"},
+        ]
+
         session = session_from_dict(session_data)
         if session is None or not session.figures:
-            return [], None
+            # No saved figures yet
+            return options, "__new__"
 
-        opts = []
         ids = []
         for fig in session.figures:
             display = fig.label or fig.view_id
             display = f"{display} ({fig.dataset_key})"
-            opts.append({"label": display, "value": fig.id})
+            options.append({"label": display, "value": fig.id})
             ids.append(fig.id)
 
-        value = current_value if current_value in ids else None
-        if value is None and active_figure_id in ids:
+        # Prefer: current value (if valid) → active_figure_id → __new__
+        if current_value in ids or current_value == "__new__":
+            value = current_value
+        elif active_figure_id in ids:
             value = active_figure_id
+        else:
+            value = "__new__"
 
-        return opts, value
+        return options, value
+
 
     # ---------------------------------------------------------
     # Load a saved figure from the dropdown
@@ -851,14 +862,32 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         Output("dim-y-select", "value", allow_duplicate=True),
         Output("dim-z-select", "value", allow_duplicate=True),
         Output("options-checklist", "value", allow_duplicate=True),
-        Input("saved-figure-select", "value"),
+        Input("saved-figure-load-btn", "n_clicks"),
+        State("saved-figure-select", "value"),
         State("session-metadata", "data"),
         prevent_initial_call=True,
-    )
-    def load_figure_from_dropdown(figure_id, session_data):
+        )
+    def load_figure_from_dropdown(n_clicks, figure_id, session_data):
+        # "New view": clear active figure + label; do NOT touch filters/view/dataset
         if not figure_id or figure_id == "__new__":
-            raise dash.exceptions.PreventUpdate
+            return (
+                no_update,  # dataset-select
+                None,       # active-figure-id
+                no_update,  # view-select
+                "",         # figure-label-input
+                no_update,  # cluster-select
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,  # options-checklist
+            )
 
+        # Existing behaviour below stays the same
         session = session_from_dict(session_data)
         if session is None:
             raise dash.exceptions.PreventUpdate
@@ -916,4 +945,5 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             dim_y,
             dim_z,
             options,
+
         )

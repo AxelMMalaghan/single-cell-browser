@@ -11,12 +11,12 @@ from sc_browser.core.view_registry import ViewRegistry
 from .helpers import get_filter_dropdown_options
 
 if TYPE_CHECKING:
-    from .dash_app import AppContext
+    from .dash_app import AppConfig
 
 
 
 def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Dataset | None) -> dbc.Navbar:
-    title = getattr(global_config, "ui_title", "scB++")
+    title = getattr(global_config, "ui_title", "sc-B++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
     if default_dataset is not None:
@@ -69,81 +69,103 @@ def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
             dbc.CardHeader("View & label", className="fw-semibold"),
             dbc.CardBody(
                 [
+                    # ------------------------------
+                    # 1) Saved / New view selector
+                    # ------------------------------
                     html.Div(
                         [
-                            html.Label("Select view", className="form-label"),
+                            html.Label("Saved view", className="form-label"),
                             dcc.Dropdown(
                                 id="saved-figure-select",
-                                options=[],
-                                value="__new__",
-                                placeholder="New view",
-                                clearable=True,
-                                className="mb-3",
+                                options=[],  # populated from session-metadata
+                                value="__new__",  # "New view" sentinel
+                                placeholder="New view (start from current filters)",
+                                clearable=False,
+                                className="mb-1",
                             ),
                             html.Small(
-                                "Choose a previously saved view to restore its filters, "
-                                "or leave as 'New view' to configure from scratch.",
+                                "Pick 'New view' to work from your current filters, or choose a saved view "
+                                "and click Load to restore it.",
                                 className="text-muted",
                             ),
-                        ]
+                        ],
+                        className="mb-3",
                     ),
+
+                    # ------------------------------
+                    # 2) View type selector
+                    # ------------------------------
                     html.Div(
                         [
-                            html.Label("View type", className="form-label mt-3"),
+                            html.Label("View type", className="form-label"),
                             dcc.Dropdown(
                                 id="view-select",
                                 options=view_options,
                                 value=default_view_id,
                                 clearable=False,
                                 placeholder="Select view type",
-                                className="mb-3",
+                                className="mb-1",
                             ),
-                        ]
+                            html.Small(
+                                "Choose the kind of plot (clusters, expression, dotplot, etc.).",
+                                className="text-muted",
+                            ),
+                        ],
+                        className="mb-3",
                     ),
+
+                    # ------------------------------
+                    # 3) Figure label input
+                    # ------------------------------
                     html.Div(
                         [
-                            # Existing label input
+                            html.Label("Figure label", className="form-label"),
                             dcc.Input(
                                 id="figure-label-input",
                                 type="text",
                                 placeholder="Figure label (optional)",
-                                style={"width": "40%"},
+                                className="form-control",
                             ),
+                        ],
+                        className="mb-3",
+                    ),
 
-                            # New: saved figure selector
-                            dcc.Dropdown(
-                                id="saved-figure-select",
-                                placeholder="Select saved figure…",
-                                options=[],  # populated dynamically
-                                style={"width": "35%", "marginLeft": "0.5rem"},
-                                clearable=True,
-                            ),
-
-                            # New: load button
-                            html.Button(
+                    # ------------------------------
+                    # 4) Load / Save buttons
+                    # ------------------------------
+                    html.Div(
+                        [
+                            dbc.Button(
                                 "Load",
-                                id="load-figure-btn",
+                                id="saved-figure-load-btn",
                                 n_clicks=0,
-                                style={"marginLeft": "0.5rem"},
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                                className="me-2",
                             ),
-
-                            # Existing: save button
-                            html.Button(
+                            dbc.Button(
                                 "Save",
                                 id="save-figure-btn",
                                 n_clicks=0,
-                                style={"marginLeft": "0.5rem"},
+                                color="primary",
+                                size="sm",
                             ),
                         ],
-                        style={"display": "flex", "alignItems": "center", "gap": "0.25rem"},
+                        className="mb-2",
                     ),
-                    html.Div(id="save-figure-status"),
 
+                    # ------------------------------
+                    # 5) Status text for save operations
+                    # ------------------------------
+                    html.Div(id="save-figure-status", className="text-muted"),
                 ]
             ),
         ],
         className="scb-viewlabel-card",
     )
+
+
 
 
 def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
@@ -298,11 +320,6 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
 
 
 def _build_plot_panel() -> dbc.Card:
-    """
-    Main plot card. Leaned out:
-    - No unused subtitle span.
-    - No 'Send to report' button (we use session-metadata instead).
-    """
     return dbc.Card(
         [
             dbc.CardHeader(
@@ -327,17 +344,7 @@ def _build_plot_panel() -> dbc.Card:
                     ),
                     html.Div(
                         [
-                            dbc.Button(
-                                "Save figure",
-                                id="save-figure-btn",
-                                color="primary",
-                                size="sm",
-                                className="mt-2 me-2",
-                            ),
-                            html.Span(
-                                id="save-figure-status",
-                                className="mt-2 me-auto small text-muted",
-                            ),
+
                             dbc.Button(
                                 "Download data (CSV)",
                                 id="download-data-btn",
@@ -616,7 +623,7 @@ def build_layout(ctx: "AppContext"):
             dcc.Store(id="active-figure-id", storage_type="session"),
             dcc.Store(id="filter-state", storage_type="session"),
             dcc.Store(id="user-state", storage_type="local"),
-            dcc.Store(id="active-figure-id"),
+
 
             dcc.Tabs(
                 id="page-tabs",
