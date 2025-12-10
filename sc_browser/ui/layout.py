@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from .dash_app import AppContext
 
 
+
 def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Dataset | None) -> dbc.Navbar:
     title = getattr(global_config, "ui_title", "scB++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
-    # Decide which dataset is initially selected in the dropdown
     if default_dataset is not None:
         default_name = default_dataset.name
     else:
@@ -55,6 +55,7 @@ def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Datas
         className="shadow-sm scb-navbar",
     )
 
+
 def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
     view_classes = registry.all_classes()
     view_options = [
@@ -68,24 +69,40 @@ def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
             dbc.CardHeader("View & label", className="fw-semibold"),
             dbc.CardBody(
                 [
-                    # 1) View selector
                     html.Div(
                         [
-                            html.Label("View", className="form-label"),
+                            html.Label("Select view", className="form-label"),
+                            dcc.Dropdown(
+                                id="saved-figure-select",
+                                options=[],
+                                value="__new__",
+                                placeholder="New view",
+                                clearable=True,
+                                className="mb-3",
+                            ),
+                            html.Small(
+                                "Choose a previously saved view to restore its filters, "
+                                "or leave as 'New view' to configure from scratch.",
+                                className="text-muted",
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Label("View type", className="form-label mt-3"),
                             dcc.Dropdown(
                                 id="view-select",
                                 options=view_options,
                                 value=default_view_id,
                                 clearable=False,
-                                placeholder="Select view",
+                                placeholder="Select view type",
                                 className="mb-3",
                             ),
                         ]
                     ),
-                    # 2) Label input
                     html.Div(
                         [
-                            html.Label("Figure label (optional)", className="form-label"),
+                            html.Label("Figure label", className="form-label"),
                             dcc.Input(
                                 id="figure-label-input",
                                 type="text",
@@ -95,36 +112,16 @@ def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                                 className="mb-1",
                             ),
                             html.Small(
-                                "Used as the figure title / export label.",
-                                className="text-muted",
-                            ),
-                        ]
-                    ),
-                    # 3) Saved figure chooser
-                    html.Div(
-                        [
-                            html.Label("Saved figure", className="form-label mt-3"),
-                            dcc.Dropdown(
-                                id="saved-figure-select",
-                                options=[],
-                                value=None,
-                                placeholder="Select saved figure…",
-                                clearable=True,
-                                className="mb-1",
-                            ),
-                            html.Small(
-                                "Choose a previously saved view to restore its filters.",
+                                "Used as the figure title / export label and in the Reports table.",
                                 className="text-muted",
                             ),
                         ]
                     ),
                 ]
             ),
-
         ],
         className="scb-viewlabel-card",
     )
-
 
 
 def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
@@ -141,7 +138,6 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
             dbc.CardHeader("Filters", className="fw-semibold"),
             dbc.CardBody(
                 [
-                    # Cluster filter
                     html.Div(
                         id="cluster-filter-container",
                         children=[
@@ -155,7 +151,6 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                         ],
                     ),
-                    # Condition filter
                     html.Div(
                         id="condition-filter-container",
                         children=[
@@ -169,7 +164,6 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                         ],
                     ),
-                    # Sample filter
                     html.Div(
                         id="sample-filter-container",
                         children=[
@@ -183,7 +177,6 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                         ],
                     ),
-                    # Cell type filter
                     html.Div(
                         id="celltype-filter-container",
                         children=[
@@ -197,21 +190,19 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                         ],
                     ),
-                    # Gene selector
                     html.Div(
                         id="gene-filter-container",
                         children=[
                             html.Label("Gene(s)", className="form-label"),
                             dcc.Dropdown(
                                 id="gene-select",
-                                options=[],  # populated via server-side search callback
+                                options=[],
                                 multi=True,
                                 placeholder="Type to search genes",
                                 className="mb-3",
                             ),
                         ],
                     ),
-                    # Embedding selector (e.g. PCA / TSNE / UMAP)
                     html.Div(
                         id="embedding-filter-container",
                         children=[
@@ -219,9 +210,11 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             dcc.Dropdown(
                                 id="embedding-select",
                                 options=emb_options,
-                                value=default_dataset.embedding_key
-                                if default_dataset.embedding_key in default_dataset.adata.obsm
-                                else None,
+                                value=(
+                                    default_dataset.embedding_key
+                                    if default_dataset.embedding_key in default_dataset.adata.obsm
+                                    else None
+                                ),
                                 clearable=False,
                                 placeholder="Select embedding",
                                 className="mb-3",
@@ -240,13 +233,12 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                         ],
                         className="mb-3",
                     ),
-
                     html.Div(
                         id="options-container",
                         children=[
                             dbc.Checklist(
                                 id="options-checklist",
-                                options=[  # initial value; will be overridden by callback
+                                options=[
                                     {"label": " Split by condition", "value": "split_by_condition"},
                                     {"label": " 3D view", "value": "is_3d"},
                                 ],
@@ -284,16 +276,17 @@ def _build_filter_panel(default_dataset: Dataset) -> dbc.Card:
 
 
 def _build_plot_panel() -> dbc.Card:
+    """
+    Main plot card. Leaned out:
+    - No unused subtitle span.
+    - No 'Send to report' button (we use session-metadata instead).
+    """
     return dbc.Card(
         [
             dbc.CardHeader(
                 html.Div(
                     [
                         html.Strong("Plot"),
-                        html.Span(
-                            id="plot-subtitle",
-                            className="text-muted small ms-2",
-                        ),
                     ],
                     className="d-flex align-items-center",
                 ),
@@ -341,9 +334,14 @@ def _build_plot_panel() -> dbc.Card:
         className="scb-maincard",
     )
 
+def _build_dataset_import_panel() -> dbc.Container:
+    """
+    Datasets → Import & mapping page.
 
-
-def _build_dataset_manager_panel() -> dbc.Container:
+    - Upload/import .h5ad
+    - Show current dataset status + summary
+    - Map obs columns / embedding
+    """
     status_card = dbc.Card(
         [
             dbc.CardHeader("Current dataset"),
@@ -428,6 +426,27 @@ def _build_dataset_manager_panel() -> dbc.Container:
         className="h-100",
     )
 
+    return dbc.Container(
+        fluid=True,
+        children=[
+            dbc.Row(
+                [
+                    dbc.Col(status_card, md=4, className="mt-3"),
+                    dbc.Col(mapping_card, md=8, className="mt-3"),
+                ],
+                className="gx-3",
+            ),
+        ],
+        className="scb-datasets-view",
+    )
+
+
+def _build_dataset_preview_panel() -> dbc.Container:
+    """
+    Dataset preview page:
+
+    - Shows .obs preview (and later any other QC / summary)
+    """
     obs_card = dbc.Card(
         [
             dbc.CardHeader("Obs preview"),
@@ -441,169 +460,14 @@ def _build_dataset_manager_panel() -> dbc.Container:
         children=[
             dbc.Row(
                 [
-                    dbc.Col(status_card, md=4, className="mt-3"),
-                    dbc.Col(mapping_card, md=8, className="mt-3"),
+                    dbc.Col(obs_card, md=12, className="mt-3"),
                 ],
                 className="gx-3",
             ),
-            dbc.Row([dbc.Col(obs_card, md=12)], className="gx-3"),
         ],
         className="scb-datasets-view",
     )
 
-def _build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
-    """
-    Panel above the filters that lets the user:
-    - choose the active view
-    - optionally type a figure label (used in FigureMetadata)
-    - select a previously saved figure
-    """
-    view_classes = registry.all_classes()
-    view_options = [
-        {"label": cls.label, "value": cls.id}
-        for cls in view_classes
-    ]
-    default_view_id: str | None = view_classes[0].id if view_classes else None
-
-    return dbc.Card(
-        [
-            dbc.CardHeader("View & label", className="fw-semibold"),
-            dbc.CardBody(
-                [
-                    # View selector
-                    html.Div(
-                        [
-                            html.Label("View", className="form-label"),
-                            dcc.Dropdown(
-                                id="view-select",
-                                options=view_options,
-                                value=default_view_id,
-                                clearable=False,
-                                placeholder="Select view",
-                                className="mb-3",
-                            ),
-                        ]
-                    ),
-                    # Label input
-                    html.Div(
-                        [
-                            html.Label("Figure label (optional)", className="form-label"),
-                            dcc.Input(
-                                id="figure-label-input",
-                                type="text",
-                                debounce=True,
-                                placeholder="e.g. GC B cells – UMAP by genotype",
-                                style={"width": "100%"},
-                                className="mb-1",
-                            ),
-                            html.Small(
-                                "Used as the figure title / export label.",
-                                className="text-muted",
-                            ),
-                        ]
-                    ),
-                    # 🔹 Saved figure dropdown – this MUST exist
-                    html.Div(
-                        [
-                            html.Label("Saved figure", className="form-label mt-3"),
-                            dcc.Dropdown(
-                                id="saved-figure-select",
-                                options=[],      # populated by callbacks_reports
-                                value=None,
-                                placeholder="Select saved figure…",
-                                clearable=True,
-                                className="mb-1",
-                            ),
-                            html.Small(
-                                "Choose a previously saved view to restore its filters.",
-                                className="text-muted",
-                            ),
-                        ]
-                    ),
-                ]
-            ),
-        ],
-        className="scb-viewlabel-card",
-    )
-
-
-
-
-def build_layout(ctx: "AppContext"):
-    # Decide which dataset is the default for the whole UI
-    default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
-
-    navbar = _build_navbar(ctx.datasets, ctx.global_config, default_dataset)
-
-    if default_dataset is None:
-        # Graceful empty state if no datasets are configured
-        filter_panel = dbc.Card(
-            dbc.CardBody("No datasets configured. Please add a dataset in the Datasets tab."),
-            className="scb-sidebar",
-        )
-        view_panel = dbc.Card(
-            dbc.CardBody("No views available without a dataset."),
-            className="scb-viewlabel-card",
-        )
-    else:
-        filter_panel = _build_filter_panel(default_dataset)
-        view_panel = _build_view_and_label_panel(ctx.registry)
-
-    plot_panel = _build_plot_panel()
-    dataset_manager = _build_dataset_manager_panel()
-    reports_panel = _build_reports_panel()  # NEW
-
-    return dbc.Container(
-        fluid=True,
-        className="scb-root",
-        children=[
-            navbar,
-
-            # NEW: app-level stores for reports / metadata
-            dcc.Store(id="session-metadata", storage_type="session"),
-            dcc.Store(id="active-session-id", storage_type="session"),
-            dcc.Store(id="active-figure-id", storage_type="session"),
-            dcc.Store(id="imported-figure-count", storage_type="session"),
-
-            dcc.Tabs(
-                id="page-tabs",
-                value="explore",
-                children=[
-                    dcc.Tab(
-                        label="Explore",
-                        value="explore",
-                        children=[
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            view_panel,
-                                            filter_panel,
-                                        ],
-                                        md=3,
-                                        className="mt-3 d-flex flex-column gap-3",
-                                    ),
-                                    dbc.Col(plot_panel, md=9, className="mt-3"),
-                                ],
-                                className="gx-3",
-                            ),
-                        ],
-                    ),
-                    dcc.Tab(
-                        label="Datasets",
-                        value="datasets",
-                        children=[dataset_manager],
-                    ),
-                    dcc.Tab(
-                        label="Reports",          # NEW TAB
-                        value="reports",
-                        children=[reports_panel],
-                    ),
-                ],
-                className="mt-2",
-            ),
-        ],
-    )
 
 def _build_reports_panel() -> dbc.Container:
     """
@@ -688,23 +552,107 @@ def _build_reports_panel() -> dbc.Container:
     )
 
 
+def build_layout(ctx: "AppContext"):
+    default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
+
+    navbar = _build_navbar(ctx.datasets, ctx.global_config, default_dataset)
+
+    status_bar = dbc.Alert(
+        id="status-bar",
+        color="light",
+        className="my-2 py-2 scb-status-bar",
+    )
+
+    if default_dataset is None:
+        filter_panel = dbc.Card(
+            dbc.CardBody("No datasets configured. Please add a dataset in the Datasets tab."),
+            className="scb-sidebar",
+        )
+        view_panel = dbc.Card(
+            dbc.CardBody("No views available without a dataset."),
+            className="scb-viewlabel-card",
+        )
+    else:
+        filter_panel = _build_filter_panel(default_dataset)
+        view_panel = _build_view_and_label_panel(ctx.registry)
+
+    plot_panel = _build_plot_panel()
+    dataset_import_panel = _build_dataset_import_panel()
+    dataset_preview_panel = _build_dataset_preview_panel()
+    reports_panel = _build_reports_panel()
+
+    return dbc.Container(
+        fluid=True,
+        className="scb-root",
+        children=[
+            navbar,
+            status_bar,
+
+            # App-level stores
+            dcc.Store(id="session-metadata", storage_type="session"),
+            dcc.Store(id="active-session-id", storage_type="session"),
+            dcc.Store(id="active-figure-id", storage_type="session"),
+            dcc.Store(id="filter-state", storage_type="session"),
+            dcc.Store(id="user-state", storage_type="local"),
+
+            dcc.Tabs(
+                id="page-tabs",
+                value="explore",
+                children=[
+                    dcc.Tab(
+                        label="Datasets",
+                        value="datasets",
+                        children=[dataset_import_panel],
+                    ),
+                    dcc.Tab(
+                        label="Dataset preview",
+                        value="dataset-preview",
+                        children=[dataset_preview_panel],
+                    ),
+                    dcc.Tab(
+                        label="Explore",
+                        value="explore",
+                        children=[
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            view_panel,
+                                            filter_panel,
+                                        ],
+                                        md=3,
+                                        className="mt-3",
+                                    ),
+                                    dbc.Col(
+                                        plot_panel,
+                                        md=9,
+                                        className="mt-3",
+                                    ),
+                                ],
+                                className="gx-3",
+                            ),
+                        ],
+                    ),
+                    dcc.Tab(
+                        label="Reports",
+                        value="reports",
+                        children=[reports_panel],
+                    ),
+                ],
+                className="mt-2",
+            ),
+        ],
+    )
+
 
 def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[Dataset]:
-    """
-    Pick the default dataset based on global_config.default_group if possible,
-    otherwise fall back to the first dataset.
-
-    If no datasets are available, returns None.
-    """
     if not datasets:
         return None
 
     default_group = getattr(global_config, "default_group", None)
     if default_group:
         for ds in datasets:
-            # Dataset should expose 'group' via config; be defensive if missing
             if getattr(ds, "group", None) == default_group:
                 return ds
 
-    # Fallback: just use the first dataset
     return datasets[0]

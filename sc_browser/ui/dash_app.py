@@ -14,9 +14,9 @@ from sc_browser.metadata_io.export_service import ExportService
 from .context import AppContext
 from .layout import build_layout
 from .callbacks_explore import register_explore_callbacks
-from .callbacks_datasets import register_dataset_callbacks
+from .callbacks_dataset_import import register_dataset_import_callbacks
 from .callbacks_reports import register_reports_callbacks
-
+from .callbacks_dataset_preview import register_dataset_preview_callbacks
 
 def _build_view_registry() -> ViewRegistry:
     from sc_browser.views import (
@@ -103,7 +103,8 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
 
     app.layout = build_layout(ctx)
     register_explore_callbacks(app, ctx)
-    register_dataset_callbacks(app, ctx)
+    register_dataset_import_callbacks(app, ctx)
     register_reports_callbacks(app, ctx)
+    register_dataset_preview_callbacks(app, ctx)
 
     return app

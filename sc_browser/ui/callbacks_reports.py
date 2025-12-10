@@ -34,10 +34,19 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         # No session or no figures yet
         if session is None or not session.figures:
-            summary = "No figures saved in this session yet."
+            summary = "No saved figures in this session yet."
             empty = html.Div(
-                "No figures saved yet. Go to the Explore tab and click 'Save figure'.",
-                className="text-muted small mt-2",
+                [
+                    html.Div(
+                        "You haven’t saved any figures yet.",
+                        className="fw-semibold",
+                    ),
+                    html.Div(
+                        "Go to the Explore tab, configure a plot, and click “Save figure” to start building a report.",
+                        className="text-muted small mt-1",
+                    ),
+                ],
+                className="mt-2",
             )
             return summary, empty
 
@@ -52,6 +61,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                     html.Th("Dataset"),
                     html.Th("View"),
                     html.Th("Created at"),
+                    html.Th("Actions"),
                 ]
             )
         )
@@ -62,20 +72,18 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 html.Tr(
                     [
                         html.Td(fig.id),
-                        html.Td(fig.label or ""),
+                        html.Td(fig.label or html.Span("No label", className="text-muted")),
                         html.Td(fig.dataset_key),
                         html.Td(fig.view_id),
-                        html.Td(fig.created_at),
+                        html.Td(fig.created_at or ""),
                         html.Td(
-                            [
-                                dbc.Button(
-                                    "Delete",
-                                    id={"type": "reports-delete-figure", "index": fig.id},
-                                    color="danger",
-                                    outline=True,
-                                    size="sm",
-                                ),
-                            ]
+                            dbc.Button(
+                                "Delete",
+                                id={"type": "reports-delete-figure", "index": fig.id},
+                                color="danger",
+                                outline=True,
+                                size="sm",
+                            )
                         ),
                     ]
                 )
@@ -145,7 +153,8 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         session = session_from_dict(session_data)
         if session is None or not session.figures:
-            # nothing to export
+            # No figures -> no download. Button will appear to do nothing,
+            # but we avoid sending an empty/broken file.
             raise dash.exceptions.PreventUpdate
 
         # Use the real session_id from metadata; fall back to active_session_id if needed
@@ -197,19 +206,31 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         try:
             header, b64data = contents.split(",", 1)
         except ValueError:
-            return no_update, "Import failed: could not parse upload payload."
+            return (
+                no_update,
+                "Import failed: could not read the uploaded file. "
+                "Please select the metadata.json file that was exported from this app.",
+            )
 
         try:
             raw_bytes = base64.b64decode(b64data)
             raw_text = raw_bytes.decode("utf-8")
             imported_dict = json.loads(raw_text)
         except Exception as e:
-            return no_update, f"Import failed: invalid JSON ({e})."
+            return (
+                no_update,
+                f"Import failed: the file is not valid JSON ({e}). "
+                "If you exported a ZIP, unzip it first and upload the metadata.json file inside.",
+            )
 
         # Rebuild SessionMetadata from uploaded JSON
         imported_session = session_from_dict(imported_dict)
         if imported_session is None:
-            return no_update, "Import failed: JSON did not look like SessionMetadata."
+            return (
+                no_update,
+                "Import failed: JSON did not look like session metadata. "
+                "Make sure you are uploading the metadata.json file created by the export button.",
+            )
 
         n_imported = len(imported_session.figures)
 
@@ -218,18 +239,38 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
 
         if existing_session is None:
             merged = imported_session
+            merged_from_existing = False
         else:
             # simple append; you can dedupe by id if you want
             existing_session.figures.extend(imported_session.figures)
             merged = existing_session
+            merged_from_existing = True
 
         touch_session(merged)
-        banner = f"Imported {n_imported} figure{'s' if n_imported != 1 else ''} from metadata.json."
+
+        if n_imported == 0:
+            banner = (
+                "Imported metadata.json, but it did not contain any saved figures. "
+                "Check that you selected the correct file."
+            )
+        else:
+            if merged_from_existing:
+                banner = (
+                    f"Imported {n_imported} figure{'s' if n_imported != 1 else ''} "
+                    "and merged them into the current session. "
+                    "They are now available in the Reports table and the Saved figure dropdown."
+                )
+            else:
+                banner = (
+                    f"Imported {n_imported} figure{'s' if n_imported != 1 else ''} "
+                    "into a new session. "
+                    "You can now load them from the Reports tab or the Saved figure dropdown."
+                )
 
         return session_to_dict(merged), banner
 
     # ---------------------------------------------------------
-    # Populate "Saved figure" dropdown in the Explore view panel
+    # Populate "Select View" dropdown in the Explore view panel
     # ---------------------------------------------------------
     @app.callback(
         Output("saved-figure-select", "options"),
@@ -239,32 +280,39 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     )
     def update_saved_figure_dropdown(session_data, current_value):
         session = session_from_dict(session_data)
-        if session is None or not session.figures:
-            # No figures: clear options & value
-            return [], None
 
-        options = []
+        # Base option: "New view"
+        options = [
+            {"label": "New view (start from current filters)", "value": "__new__"},
+        ]
+
+        if session is None or not session.figures:
+            # No figures: only "New view"
+            return options, "__new__"
+
+        # Add each saved figure
         for fig in session.figures:
-            # Label priority: user label, else id
             base_label = fig.label or fig.id
-            # Add view & dataset context
-            pretty = f"{base_label} [{fig.view_id} · {fig.dataset_key}]"
+            pretty = f"{base_label}  –  {fig.view_id} · {fig.dataset_key}"
             options.append({"label": pretty, "value": fig.id})
 
-        # Keep current selection if it still exists
         valid_values = {opt["value"] for opt in options}
-        if current_value in valid_values:
-            return options, current_value
 
-        return options, None
+        # Keep current selection if still valid, else default to "New view"
+        if current_value in valid_values:
+            value = current_value
+        else:
+            value = "__new__"
+
+        return options, value
 
     # ---------------------------------------------------------
-    # Load a saved figure directly from the Explore dropdown
+    # Load a saved figure directly from the "Select View" dropdown
     # ---------------------------------------------------------
     @app.callback(
+        Output("dataset-select", "value", allow_duplicate=True),
         Output("active-figure-id", "data", allow_duplicate=True),
         Output("view-select", "value", allow_duplicate=True),
-        Output("dataset-select", "value", allow_duplicate=True),
         Output("figure-label-input", "value", allow_duplicate=True),
         Output("cluster-select", "value", allow_duplicate=True),
         Output("condition-select", "value", allow_duplicate=True),
@@ -284,24 +332,24 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         figure_id,
         session_data,
     ):
-        if not figure_id:
+        # "New view" sentinel or nothing selected -> don't change anything
+        if not figure_id or figure_id == "__new__":
             raise dash.exceptions.PreventUpdate
 
         session = session_from_dict(session_data)
         if session is None:
             raise dash.exceptions.PreventUpdate
 
+        # Find the matching saved figure
         meta = next((f for f in session.figures if f.id == figure_id), None)
         if meta is None:
             raise dash.exceptions.PreventUpdate
 
+        # Get the dataset this figure belongs to
         ds = ctx.dataset_by_key.get(meta.dataset_key)
         if ds is None:
-            # metadata points at a dataset that no longer exists
+            # Dataset not available in current app state
             raise dash.exceptions.PreventUpdate
-
-        # This is what the dataset dropdown should be set to
-        dataset_value = ds.name  # or ds.key, depending on how you built the dropdown
 
         fs = meta.filter_state or {}
 
@@ -310,7 +358,16 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         samples = fs.get("samples", [])
         cell_types = fs.get("cell_types", [])
         genes = fs.get("genes", [])
+
+        # ---- NORMALISE EMBEDDING KEY ----
         embedding = fs.get("embedding", None)
+        if not embedding or embedding not in ds.adata.obsm:
+            default_emb = getattr(ds, "embedding_key", None)
+            if default_emb and default_emb in ds.adata.obsm:
+                embedding = default_emb
+            else:
+                embedding = None
+
         dim_x = fs.get("dim_x", 0)
         dim_y = fs.get("dim_y", 1)
         dim_z = fs.get("dim_z", 2)
@@ -323,11 +380,14 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         if is_3d:
             options.append("is_3d")
 
+        # Force dataset-select to match the figure's dataset
+        dataset_name = ds.name
+
         return (
-            figure_id,
-            meta.view_id,
-            dataset_value,
-            meta.label or "",
+            dataset_name,       # dataset-select.value
+            figure_id,          # active-figure-id
+            meta.view_id,       # view-select (View type)
+            meta.label or "",   # Figure label
             clusters,
             conditions,
             samples,
@@ -339,4 +399,3 @@ def register_reports_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             dim_z,
             options,
         )
-

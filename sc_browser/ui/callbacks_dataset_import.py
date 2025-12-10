@@ -10,16 +10,15 @@ from dash import Input, Output, State
 
 from sc_browser.config.loader import load_datasets
 from sc_browser.config.write import save_dataset_config
-from .helpers import obs_preview_table, dataset_status
+from .helpers import dataset_status
 
 if TYPE_CHECKING:
-    from .context import AppContext   # type-only import
-
+    from .context import AppContext
 
 logger = logging.getLogger(__name__)
 
 
-def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
     @app.callback(
         Output("dm-status-text", "children"),
         Output("dm-summary-text", "children"),
@@ -33,11 +32,30 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         Output("dm-celltype-key", "value"),
         Output("dm-embedding-key", "options"),
         Output("dm-embedding-key", "value"),
-        Output("dm-obs-preview", "children"),
         Output("dm-current-dataset", "children"),
         Input("dataset-select", "value"),
     )
-    def update_dataset_manager(dataset_name: str):
+    def update_dataset_mapping_and_status(dataset_name: str):
+        # No dataset selected or not found – keep the UI stable and explain
+        if not dataset_name or dataset_name not in ctx.dataset_by_name:
+            empty_obs_options = []
+            empty_emb_options = []
+            return (
+                "No dataset selected.",
+                "",
+                empty_obs_options,
+                None,
+                empty_obs_options,
+                None,
+                empty_obs_options,
+                None,
+                empty_obs_options,
+                None,
+                empty_emb_options,
+                None,
+                "Current dataset: none",
+            )
+
         ds = ctx.dataset_by_name[dataset_name]
 
         status = dataset_status(ds)
@@ -55,7 +73,6 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         emb_options = [{"label": k, "value": k} for k in emb_keys]
         emb_val = ds.embedding_key if ds.embedding_key in ds.adata.obsm else (emb_keys[0] if emb_keys else None)
 
-        obs_preview = obs_preview_table(ds)
         current_label = f"Current dataset: {ds.name}"
 
         return (
@@ -71,7 +88,6 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             celltype_val,
             emb_options,
             emb_val,
-            obs_preview,
             current_label,
         )
 
@@ -98,26 +114,50 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
 
+        if not dataset_name or dataset_name not in ctx.dataset_by_name:
+            return "Cannot save mapping: no dataset selected."
+
         ds = ctx.dataset_by_name[dataset_name]
 
-        if cluster_key:
+        # Track what we’re actually changing for a clearer message
+        changed_fields = []
+
+        if cluster_key and cluster_key != ds.cluster_key:
             ds.cluster_key = cluster_key
-        if condition_key:
+            changed_fields.append(f"cluster → {cluster_key}")
+        if condition_key and condition_key != ds.condition_key:
             ds.condition_key = condition_key
-        if embedding_key:
+            changed_fields.append(f"condition → {condition_key}")
+        if embedding_key and embedding_key != ds.embedding_key:
             ds.embedding_key = embedding_key
+            changed_fields.append(f"embedding → {embedding_key}")
 
         obs_cols = dict(ds.obs_columns)
-        if sample_key:
+
+        if sample_key and obs_cols.get("sample") != sample_key:
             obs_cols["sample"] = sample_key
-        if celltype_key:
+            changed_fields.append(f"sample → {sample_key}")
+        if celltype_key and obs_cols.get("cell_type") != celltype_key:
             obs_cols["cell_type"] = celltype_key
+            changed_fields.append(f"cell_type → {celltype_key}")
+
+        # Always keep these in sync with the dedicated keys
         obs_cols["cluster"] = ds.cluster_key
         obs_cols["condition"] = ds.condition_key
         ds.obs_columns = obs_cols
 
+        # If literally nothing changed, don’t pretend we saved magic
+        if not changed_fields:
+            return f"No changes to save for dataset '{ds.name}'."
+
         path = save_dataset_config(ds, ctx.config_root)
-        return f"Saved mapping to {path.relative_to(ctx.config_root.parent)}"
+        rel_path = path.relative_to(ctx.config_root.parent)
+
+        changed_str = ", ".join(changed_fields)
+        return (
+            f"Updated mapping for '{ds.name}' "
+            f"({changed_str}). Saved to {rel_path}."
+        )
 
     @app.callback(
         Output("dm-import-status", "children"),
@@ -132,11 +172,17 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
         if not contents or not filename:
             raise dash.exceptions.PreventUpdate
 
-        if not filename.endswith(".h5ad"):
+        # Base options in case we need to fall back
+        def _current_options_and_value():
             opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
             current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
+            return opts, current
+
+        if not filename.endswith(".h5ad"):
+            opts, current = _current_options_and_value()
             return (
-                f"Unsupported file type for '{filename}'. Please upload a .h5ad file.",
+                f"Unsupported file type for '{filename}'. "
+                "Please upload a single-cell dataset in .h5ad format.",
                 opts,
                 current,
             )
@@ -146,9 +192,13 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
             decoded = base64.b64decode(content_string)
         except Exception as e:
             logger.exception("Failed to decode uploaded file")
-            opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
-            current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
-            return (f"Failed to decode uploaded file: {e}", opts, current)
+            opts, current = _current_options_and_value()
+            return (
+                f"Failed to read uploaded file '{filename}': {e}. "
+                "Try re-uploading the .h5ad file.",
+                opts,
+                current,
+            )
 
         data_dir = ctx.config_root.parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -159,22 +209,28 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 f.write(decoded)
         except Exception as e:
             logger.exception("Failed to write uploaded file to disk")
-            opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
-            current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
-            return (f"Failed to save file to {out_path}: {e}", opts, current)
+            opts, current = _current_options_and_value()
+            return (
+                f"Failed to save file to {out_path}: {e}. "
+                "Check that the server has write permissions to the data directory.",
+                opts,
+                current,
+            )
 
         try:
             ctx.global_config, new_datasets = load_datasets(ctx.config_root)
         except Exception as e:
             logger.exception("Reloading datasets after import failed")
-            opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
-            current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
+            opts, current = _current_options_and_value()
             return (
-                f"File saved to {out_path}, but reloading datasets failed: {e}",
+                f"File '{filename}' was saved to {out_path}, "
+                f"but reloading datasets failed: {e}. "
+                "Fix the config or datasets and restart the app.",
                 opts,
                 current,
             )
 
+        # Successful reload
         ctx.datasets = new_datasets
         ctx.dataset_by_name = {ds.name: ds for ds in ctx.datasets}
 
@@ -185,16 +241,24 @@ def register_dataset_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
                 imported_ds_name = ds.name
                 break
 
+        # Fallback: if we can’t match by filename, guess “last dataset”
         if imported_ds_name is None and ctx.datasets:
             imported_ds_name = ctx.datasets[-1].name
 
         opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
         selected = imported_ds_name or (ctx.datasets[0].name if ctx.datasets else None)
 
-        status_msg = f"Imported '{filename}'"
         if imported_ds_name:
-            status_msg += f" as dataset '{imported_ds_name}'."
+            status_msg = (
+                f"Imported '{filename}' as dataset '{imported_ds_name}'. "
+                "It is now selected and can be configured in the Datasets → Import & mapping tab."
+            )
         else:
-            status_msg += " (could not match to a specific dataset; using existing list.)"
+            status_msg = (
+                f"Imported '{filename}' and reloaded the dataset list, "
+                "but could not confidently match it to a specific dataset entry. "
+                "Check your config and dataset names."
+            )
 
         return status_msg, opts, selected
+
