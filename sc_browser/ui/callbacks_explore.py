@@ -10,8 +10,6 @@ from dash import Input, Output, State, exceptions, dcc as dash_dcc, html
 
 from .helpers import get_filter_dropdown_options
 
-
-
 from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.model import (
     FigureMetadata,
@@ -20,7 +18,7 @@ from sc_browser.metadata_io.model import (
     session_to_dict,
     generate_session_id,
     generate_figure_id,
-    _now_iso,
+    now_iso,
 )
 
 if TYPE_CHECKING:
@@ -445,7 +443,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             figure_id=figure_id,
             dataset_key=ds_key,
             view_id=state.view_id,
-            filter_state=state.to_dict(),
+            state=state,
             view_params={},
             label=label_clean,
             file_stem=None,
@@ -455,7 +453,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         meta.file_stem = out_path.stem
 
         session.figures.append(meta)
-        session.updated_at = _now_iso()
+        session.updated_at = now_iso()
 
         view_label = _view_label(state.view_id)
 

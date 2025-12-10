@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-from .model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, _now_iso
+from .model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
 
 
 def load_session_metadata_from_file(path: Path) -> SessionMetadata:
@@ -61,7 +61,7 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
         ]
 
     session = new_session_metadata(
-        session_id=f"import-{_now_iso()}",
+        session_id=f"import-{now_iso()}",
         app_version="import-unknown",
         datasets_config_hash="import-unknown",
     )

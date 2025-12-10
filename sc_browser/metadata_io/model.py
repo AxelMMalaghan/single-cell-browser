@@ -15,7 +15,7 @@ def generate_figure_id(session: SessionMetadata) -> str:
     # cheap sequential id per session
     return f"fig-{len(session.figures)+1:04d}"
 
-def _now_iso() -> str:
+def now_iso() -> str:
     """Return a current UTC timestamp in ISO-8601 format."""
     return datetime.now(timezone.utc).isoformat()
 
@@ -46,7 +46,7 @@ class FigureMetadata:
 
     label: Optional[str] = None
     file_stem: Optional[str] = None
-    created_at: str = field(default_factory=_now_iso)
+    created_at: str = field(default_factory=now_iso)
 
     # x, y, z axis & title/name
 
@@ -99,8 +99,8 @@ class SessionMetadata:
     app_version: str
     datasets_config_hash: str
 
-    created_at: str = field(default_factory=_now_iso)
-    updated_at: str = field(default_factory=_now_iso)
+    created_at: str = field(default_factory=now_iso)
+    updated_at: str = field(default_factory=now_iso)
 
     figures: List[FigureMetadata] = field(default_factory=list)
 
@@ -121,7 +121,7 @@ def new_session_metadata(
     """
     Create a fresh SessionMetadata with no figures.
     """
-    now = _now_iso()
+    now = now_iso()
     return SessionMetadata(
         session_id=session_id,
         schema_version=schema_version,
@@ -137,7 +137,7 @@ def touch_session(session: SessionMetadata) -> None:
     """
     Update the 'updated_at' timestamp after mutating the session.
     """
-    session.updated_at = _now_iso()
+    session.updated_at = now_iso()
 
 
 def session_to_dict(session: SessionMetadata) -> Dict[str, Any]:
@@ -167,7 +167,7 @@ def session_from_dict(
             view_params=f.get("view_params", {}),
             label=f.get("label"),
             file_stem=f.get("file_stem"),
-            created_at=f.get("created_at", _now_iso()),
+            created_at=f.get("created_at", now_iso()),
         )
         for f in data.get("figures", [])
     ]
@@ -177,8 +177,8 @@ def session_from_dict(
         schema_version=data["schema_version"],
         app_version=data["app_version"],
         datasets_config_hash=data["datasets_config_hash"],
-        created_at=data.get("created_at", _now_iso()),
-        updated_at=data.get("updated_at", _now_iso()),
+        created_at=data.get("created_at", now_iso()),
+        updated_at=data.get("updated_at", now_iso()),
         figures=figures,
     )
 
