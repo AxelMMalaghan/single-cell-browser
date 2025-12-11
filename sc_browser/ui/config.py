@@ -25,3 +25,4 @@ class AppConfig:
     default_dataset: Optional[Dataset]
     registry: ViewRegistry
     export_service: ExportService
+    enable_dataset_management: bool = False  # default safe for prod

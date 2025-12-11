@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 
 def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Dataset | None) -> dbc.Navbar:
+    navbar_image_src = getattr(global_config, "navbar_image_src", "/assets/hgtc_logo.png")
+
     title = getattr(global_config, "ui_title", "sc-B++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
@@ -28,6 +30,18 @@ def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Datas
         dbc.Container(
             fluid=True,
             children=[
+                html.Div(
+                    [
+                        html.Img(
+                            src=navbar_image_src,
+                            alt="HGTC logo",
+                            className="hgtc-logo",
+                            style={"height": "60px"},
+                        ),
+                    ],
+                    className="d-flex align-items-center me-3",
+                ),
+
                 html.Div(
                     [
                         html.H2(title, className="mb-0"),

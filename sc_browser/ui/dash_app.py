@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -96,6 +97,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         default_dataset=default_dataset,
         registry=registry,
         export_service=export_service,
+        enable_dataset_management=bool(os.getenv("ENABLE_DATASET_MANAGEMENT", "0") == "1"),
     )
 
     app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])

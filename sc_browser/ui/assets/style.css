@@ -41,9 +41,10 @@ body {
         0 8px 24px rgba(0, 0, 0, 0.4),
         0 0 0 1px rgba(0, 0, 0, 0.7);
     position: sticky;
+    background-color: #020617 !important;
     top: 0;
     z-index: 100;
-    min-height: 100px;
+    min-height: 130px;
 }
 
 /* Title + subtitle */
@@ -57,7 +58,7 @@ body {
 
 #navbar-subtitle {
     font-size: 0.85rem;
-    opacity: 0.85;
+    opacity: 0.9;
 }
 
 /* Dataset dropdown in navbar */
