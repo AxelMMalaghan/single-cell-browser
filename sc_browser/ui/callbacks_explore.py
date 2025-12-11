@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional, TYPE_CHECKING
 
 import dash
 import pandas as pd
 import plotly.graph_objs as go
-
 from dash import Input, Output, State, exceptions, dcc as dash_dcc, html, no_update
-from typing import Optional, TYPE_CHECKING
-
 
 from .helpers import get_filter_dropdown_options
 from sc_browser.core.filter_state import FilterState
@@ -153,6 +151,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 style(True),
                 style(True),
                 opts,
+                style(False),
             )
 
         view = ctx.registry.create(view_id, ds)
@@ -176,6 +175,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 style(True),
                 style(True),
                 options,
+                style(False),
             )
 
         embedding_flag = getattr(profile, "embedding", False)
@@ -680,7 +680,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             dim_x=dim_x,
             dim_y=dim_y,
             dim_z=dim_z,
-            color_scale=colour_scale
+            color_scale=colour_scale,
         )
 
         return state.to_dict()
@@ -738,53 +738,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         return view_id
 
     # ---------------------------------------------------------
-    # FilterState -> UI
-    # ---------------------------------------------------------
-    @app.callback(
-        Output("dataset-select", "value", allow_duplicate=True),
-        Output("view-select", "value", allow_duplicate=True),
-        Output("cluster-select", "value", allow_duplicate=True),
-        Output("condition-select", "value", allow_duplicate=True),
-        Output("sample-select", "value", allow_duplicate=True),
-        Output("celltype-select", "value", allow_duplicate=True),
-        Output("gene-select", "value", allow_duplicate=True),
-        Output("embedding-select", "value", allow_duplicate=True),
-        Output("dim-x-select", "value", allow_duplicate=True),
-        Output("dim-y-select", "value", allow_duplicate=True),
-        Output("dim-z-select", "value", allow_duplicate=True),
-        Output("colour-scale-select", "value", allow_duplicate=True),
-        Input("filter-state", "data"),
-        prevent_initial_call=True,
-    )
-    def sync_ui_from_filter_state(fs_data):
-        if not fs_data:
-            raise exceptions.PreventUpdate
-
-        try:
-            state = FilterState.from_dict(fs_data)
-        except Exception:
-            logger.exception(
-                "Invalid filter-state in sync_ui_from_filter_state: %r",
-                fs_data,
-            )
-            raise exceptions.PreventUpdate
-
-        return (
-            state.dataset_name,
-            state.view_id,
-            state.clusters,
-            state.conditions,
-            state.samples,
-            state.cell_types,
-            state.genes,
-            state.embedding,
-            state.dim_x,
-            state.dim_y,
-            state.dim_z,
-            state.color_scale,
-        )
-
-    # ---------------------------------------------------------
     # Toggle Download button
     # ---------------------------------------------------------
     @app.callback(
@@ -824,14 +777,12 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         - Try to keep the current selection if it's still valid
         - Otherwise, fall back to active_figure_id or __new__
         """
-        # Always start with the sentinel
         options = [
             {"label": "New view (current filters)", "value": "__new__"},
         ]
 
         session = session_from_dict(session_data)
         if session is None or not session.figures:
-            # No saved figures yet
             return options, "__new__"
 
         ids = []
@@ -841,7 +792,6 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             options.append({"label": display, "value": fig.id})
             ids.append(fig.id)
 
-        # Prefer: current value (if valid) → active_figure_id → __new__
         if current_value in ids or current_value == "__new__":
             value = current_value
         elif active_figure_id in ids:
@@ -851,15 +801,13 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         return options, value
 
-
     # ---------------------------------------------------------
-    # Load a saved figure from the dropdown
+    # Load a saved figure: apply full snapshot to UI + filter-state
     # ---------------------------------------------------------
     @app.callback(
+        # UI controls
         Output("dataset-select", "value", allow_duplicate=True),
-        Output("active-figure-id", "data", allow_duplicate=True),
         Output("view-select", "value", allow_duplicate=True),
-        Output("figure-label-input", "value", allow_duplicate=True),
         Output("cluster-select", "value", allow_duplicate=True),
         Output("condition-select", "value", allow_duplicate=True),
         Output("sample-select", "value", allow_duplicate=True),
@@ -870,88 +818,130 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         Output("dim-y-select", "value", allow_duplicate=True),
         Output("dim-z-select", "value", allow_duplicate=True),
         Output("options-checklist", "value", allow_duplicate=True),
+        Output("colour-scale-select", "value", allow_duplicate=True),
+        Output("figure-label-input", "value", allow_duplicate=True),
+
+        # State
+        Output("filter-state", "data", allow_duplicate=True),
+        Output("active-figure-id", "data", allow_duplicate=True),
+
         Input("saved-figure-load-btn", "n_clicks"),
         State("saved-figure-select", "value"),
         State("session-metadata", "data"),
         prevent_initial_call=True,
-        )
+    )
     def load_figure_from_dropdown(n_clicks, figure_id, session_data):
-        # "New view": clear active figure + label; do NOT touch filters/view/dataset
+        if not n_clicks:
+            raise exceptions.PreventUpdate
+
+        # "New view": clear active figure + label; keep current UI and filter-state
         if not figure_id or figure_id == "__new__":
             return (
                 no_update,  # dataset-select
-                None,       # active-figure-id
                 no_update,  # view-select
-                "",         # figure-label-input
                 no_update,  # cluster-select
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
+                no_update,  # condition-select
+                no_update,  # sample-select
+                no_update,  # celltype-select
+                no_update,  # gene-select
+                no_update,  # embedding-select
+                no_update,  # dim-x-select
+                no_update,  # dim-y-select
+                no_update,  # dim-z-select
                 no_update,  # options-checklist
+                no_update,  # colour-scale-select
+                "",         # figure-label-input
+                no_update,  # filter-state
+                None,       # active-figure-id
             )
 
-        # Existing behaviour below stays the same
         session = session_from_dict(session_data)
         if session is None:
-            raise dash.exceptions.PreventUpdate
+            raise exceptions.PreventUpdate
 
         meta = next((f for f in session.figures if f.id == figure_id), None)
         if meta is None:
-            raise dash.exceptions.PreventUpdate
+            raise exceptions.PreventUpdate
 
         ds = ctx.dataset_by_key.get(meta.dataset_key)
         if ds is None:
-            raise dash.exceptions.PreventUpdate
+            logger.warning(
+                "Cannot load figure %r: dataset_key %r not found",
+                figure_id,
+                meta.dataset_key,
+            )
+            raise exceptions.PreventUpdate
 
-        fs = meta.filter_state or {}
+        fs_dict = meta.filter_state or {}
 
-        clusters = fs.get("clusters", [])
-        conditions = fs.get("conditions", [])
-        samples = fs.get("samples", [])
-        cell_types = fs.get("cell_types", [])
-        genes = fs.get("genes", [])
+        try:
+            state = FilterState.from_dict(fs_dict)
+        except Exception:
+            logger.exception(
+                "Invalid filter_state on figure %r, aborting load", figure_id
+            )
+            raise exceptions.PreventUpdate
 
-        embedding = fs.get("embedding", None)
-        if not embedding or embedding not in ds.adata.obsm:
+        # Ensure dataset + view line up with current app
+        state.dataset_name = ds.name
+        state.view_id = meta.view_id
+
+        # Embedding fallback & normalisation
+        emb = state.embedding
+        if emb and emb not in ds.adata.obsm:
             default_emb = getattr(ds, "embedding_key", None)
             if default_emb and default_emb in ds.adata.obsm:
-                embedding = default_emb
+                state.embedding = default_emb
             else:
-                embedding = None
+                state.embedding = None
 
-        dim_x = fs.get("dim_x", 0)
-        dim_y = fs.get("dim_y", 1)
-        dim_z = fs.get("dim_z", 2)
-        split_by_condition = fs.get("split_by_condition", False)
-        is_3d = fs.get("is_3d", False)
+        if state.embedding:
+            labels = []
+            try:
+                labels = ds.get_embedding_labels(state.embedding)
+            except KeyError:
+                logger.warning(
+                    "Embedding key %r not found while loading figure %r",
+                    state.embedding,
+                    figure_id,
+                )
 
+            if labels:
+                if state.dim_x is None or not (0 <= state.dim_x < len(labels)):
+                    state.dim_x = 0
+                if state.dim_y is None or not (0 <= state.dim_y < len(labels)):
+                    state.dim_y = 1 if len(labels) > 1 else 0
+
+                if state.is_3d:
+                    if state.dim_z is None or not (0 <= state.dim_z < len(labels)):
+                        state.dim_z = 2 if len(labels) > 2 else None
+                else:
+                    state.dim_z = None
+
+        # Build options-checklist values from state flags
         options = []
-        if split_by_condition:
+        if state.split_by_condition:
             options.append("split_by_condition")
-        if is_3d:
+        if state.is_3d:
             options.append("is_3d")
 
-        dataset_name = ds.name
+        colour_scale = getattr(state, "color_scale", None)
 
         return (
-            dataset_name,
-            figure_id,
-            meta.view_id,
-            meta.label or "",
-            clusters,
-            conditions,
-            samples,
-            cell_types,
-            genes,
-            embedding,
-            dim_x,
-            dim_y,
-            dim_z,
+            state.dataset_name,
+            state.view_id,
+            state.clusters,
+            state.conditions,
+            state.samples,
+            state.cell_types,
+            state.genes,
+            state.embedding,
+            state.dim_x,
+            state.dim_y,
+            state.dim_z,
             options,
-
+            colour_scale,
+            meta.label or "",
+            state.to_dict(),
+            figure_id,
         )

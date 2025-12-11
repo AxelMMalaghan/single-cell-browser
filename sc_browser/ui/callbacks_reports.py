@@ -248,29 +248,69 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         existing_session = session_from_dict(session_data)
 
-        def _dedupe_figures(figures):
-            seen_ids = set()
+        def _merge_and_normalise_figures(existing_figures, imported_figures):
+            """
+            Merge existing + imported figures, dedupe by content, and ensure unique,
+            sequential ids (fig-0001, fig-0002, ...).
+
+            Two figures are considered duplicates if:
+              - dataset_key is the same
+              - view_id is the same
+              - filter_state (as JSON) is the same
+              - label is the same
+            """
+            all_figs = list(existing_figures or []) + list(imported_figures or [])
+
+            # 1) Deduplicate by content, not by id
+            seen_content = set()
             unique = []
-            for fig in figures:
-                fig_id = getattr(fig, "id", None) or getattr(fig, "figure_id", None)
-                if fig_id is None or fig_id in seen_ids:
+            for fig in all_figs:
+                key = (
+                    getattr(fig, "dataset_key", None),
+                    getattr(fig, "view_id", None),
+                    json.dumps(getattr(fig, "filter_state", None) or {}, sort_keys=True),
+                    getattr(fig, "label", None),
+                )
+                if key in seen_content:
+                    # Exact same figure already present -> skip
                     continue
-                seen_ids.add(fig_id)
+                seen_content.add(key)
                 unique.append(fig)
+
+            # 2) Enforce unique, sequential ids
+            for idx, fig in enumerate(unique, start=1):
+                fig.id = f"fig-{idx:04d}"
+
             return unique
 
         if existing_session is None:
-            imported_session.figures = _dedupe_figures(imported_session.figures)
             merged = imported_session
+            merged.figures = _merge_and_normalise_figures([], imported_session.figures)
             merged_from_existing = False
         else:
             merged = existing_session
-            merged.figures = _dedupe_figures(existing_session.figures + imported_session.figures)
+            merged.figures = _merge_and_normalise_figures(
+                existing_session.figures,
+                imported_session.figures,
+            )
             merged_from_existing = True
+
+        # Hard cap AFTER merge & re-id
+        n_total = len(merged.figures)
+        if n_total > MAX_IMPORTED_FIGURES:
+            logger.warning(
+                "Truncating merged session figures after import: %d > MAX_IMPORTED_FIGURES=%d",
+                n_total,
+                MAX_IMPORTED_FIGURES,
+            )
+            merged.figures = merged.figures[:MAX_IMPORTED_FIGURES]
 
         touch_session(merged)
 
-        n_imported_effective = len(imported_session.figures)
+        # Effective imported count = how many imported survived dedupe + truncation
+        # (best-effort estimate; if you care you can compute more exactly)
+        n_imported_effective = min(len(imported_session.figures), MAX_IMPORTED_FIGURES)
+
 
         if n_imported_effective == 0:
             banner = (
