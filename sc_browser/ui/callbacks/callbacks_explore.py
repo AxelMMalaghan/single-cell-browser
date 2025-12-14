@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objs as go
 from dash import Input, Output, State, exceptions, dcc as dash_dcc, html, no_update
 
-from .helpers import get_filter_dropdown_options
+from sc_browser.ui.helpers import get_filter_dropdown_options
 from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.model import (
     FigureMetadata,
@@ -21,7 +21,7 @@ from sc_browser.metadata_io.model import (
 )
 
 if TYPE_CHECKING:
-    from .config import AppConfig
+    from sc_browser.ui.config import AppConfig
 
 logger = logging.getLogger(__name__)
 

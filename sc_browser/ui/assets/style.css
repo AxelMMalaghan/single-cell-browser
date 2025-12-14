@@ -33,7 +33,6 @@ body {
 
 .scb-navbar {
     margin: 0 -1.5rem 0;
-    /* old: padding: 0.75rem 1.5rem; */
     padding: 1.25rem 1.5rem;           /* more vertical padding */
     border-radius: 0;
     color: #F9FAFB;
@@ -61,21 +60,34 @@ body {
     opacity: 0.9;
 }
 
-/* Dataset dropdown in navbar */
-.scb-navbar .scb-dataset-dropdown .Select-control,
-.scb-navbar .scb-dataset-dropdown .Select__control {
-    border-radius: 4px !important;
-    border: 1px solid rgba(209, 213, 219, 0.9) !important;
-    background: #f9fafb !important;   /* light background */
-    box-shadow: none !important;
-    color: #111827;                    /* dark text */
-    min-height: 2.1rem !important;
+/* Navbar dataset block */
+.navbar-dataset-block {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;   /* dropdown can fill width */
 }
 
-.scb-navbar .scb-dataset-dropdown .Select__control--is-focused,
-.scb-navbar .scb-dataset-dropdown .is-open > .Select-control {
-    border-color: #e5e7eb !important;
-    box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.6) !important;
+.navbar-dataset-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #e5e7eb; /* light gray */
+    text-align: right;
+}
+
+.navbar-dataset-subtitle {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    text-align: right;
+}
+
+/* Ensure dropdown fills dataset block */
+.scb-dataset-dropdown {
+    width: 100%;
 }
 
 /* --------------------------------------------------
@@ -140,9 +152,12 @@ body {
     color: #9ca3af !important;
 }
 
-/* Dropdowns and inputs (monotone) */
-.Select-control,
-.Select__control {
+/* --------------------------------------------------
+   dcc.Dropdown (react-select v1) — base styling (scoped)
+   Applies to: dataset-select, view-select, filters, etc.
+-------------------------------------------------- */
+
+.scb-root .Select-control {
     border-radius: 4px !important;
     border: 1px solid #d1d5db !important;
     min-height: 2.1rem !important;
@@ -152,20 +167,62 @@ body {
     color: #111827;
 }
 
-.Select--multi .Select-value,
-.Select__multi-value {
-    border-radius: 999px !important;
-    background: #e5e7eb !important;
-    border: none !important;
-    color: #111827;
+/* selected value + placeholder */
+.scb-root .Select-value-label,
+.scb-root .Select-placeholder {
+    color: #111827 !important;
 }
 
-.Select-input > input {
+/* typed/search text */
+.scb-root .Select-input > input {
     padding: 0.1rem 0 !important;
     color: #111827 !important;
 }
 
-/* Text input */
+/* multi-value pills */
+.scb-root .Select--multi .Select-value {
+    border-radius: 999px !important;
+    background: #e5e7eb !important;
+    border: none !important;
+    color: #111827 !important;
+}
+
+/* dropdown menu container */
+.scb-root .Select-menu-outer {
+    background: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+}
+
+/* menu option text (common “white text” culprit) */
+.scb-root .Select-option {
+    color: #111827 !important;
+}
+
+/* --------------------------------------------------
+   Navbar dataset dropdown override
+   (keeps your light control against dark navbar)
+-------------------------------------------------- */
+
+.scb-navbar #dataset-select.scb-dataset-dropdown .Select-control {
+    border-radius: 4px !important;
+    border: 1px solid rgba(209, 213, 219, 0.9) !important;
+    background: #f9fafb !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    min-height: 2.1rem !important;
+}
+
+/* Focus/open state (v1 patterns) */
+.scb-navbar #dataset-select.scb-dataset-dropdown.is-open > .Select-control,
+.scb-navbar #dataset-select.scb-dataset-dropdown .Select-control:focus {
+    border-color: #e5e7eb !important;
+    box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.6) !important;
+}
+
+/* --------------------------------------------------
+   Text input
+-------------------------------------------------- */
+
 input.form-control,
 input[type="text"].form-control {
     border-radius: 4px;
@@ -370,6 +427,20 @@ input[type="text"].form-control:focus {
 }
 
 /* --------------------------------------------------
+   Dash DataTable font
+-------------------------------------------------- */
+
+.dash-table-container,
+.dash-table-container table,
+.dash-spreadsheet,
+.dash-table {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", sans-serif !important;
+    font-size: 0.78rem;
+    color: #111827;
+}
+
+/* --------------------------------------------------
    Misc small tweaks
 -------------------------------------------------- */
 
@@ -398,92 +469,4 @@ hr {
         margin: 0 -1rem 0;
         padding-inline: 1rem;
     }
-}
-
-
-.navbar-dataset-block {
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-}
-
-.navbar-dataset-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #e5e7eb; /* light gray */
-}
-
-.navbar-dataset-subtitle {
-    font-size: 0.75rem;
-    color: #9ca3af;
-}
-
-.scb-dataset-dropdown .Select__single-value,
-.scb-dataset-dropdown .Select-value-label,
-.scb-dataset-dropdown .Select__placeholder {
-    color: #111827 !important;
-}
-
-.navbar-dataset-block {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;   /* dropdown can fill width */
-}
-
-/* right-align just the text */
-.navbar-dataset-title,
-.navbar-dataset-subtitle {
-    text-align: right;
-}
-
-/* dropdown should fill the block width */
-.scb-dataset-dropdown {
-    width: 100%;
-}
-
-
-/* Make Dash DataTable use the same font as the rest of the UI */
-.dash-table-container,
-.dash-table-container table,
-.dash-spreadsheet,
-.dash-table {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                 "Segoe UI", sans-serif !important;
-    font-size: 0.78rem;
-    color: #111827;
-}
-
-
-/* =========================================================
-   dcc.Dropdown (react-select v1) — force black text + app font
-   Applies to navbar dataset dropdown
-   ========================================================= */
-
-#dataset-select.scb-dataset-dropdown,
-#dataset-select.scb-dataset-dropdown * {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                 "Segoe UI", sans-serif !important;
-}
-
-/* control background */
-#dataset-select.scb-dataset-dropdown .Select-control {
-    background: #f9fafb !important;
-    border: 1px solid rgba(209, 213, 219, 0.9) !important;
-}
-
-/* selected value + placeholder text */
-#dataset-select.scb-dataset-dropdown .Select-value-label,
-#dataset-select.scb-dataset-dropdown .Select-placeholder {
-    color: #111827 !important;
-}
-
-/* typed/search text (if searchable) */
-#dataset-select.scb-dataset-dropdown .Select-input > input {
-    color: #111827 !important;
-}
-
-/* absolute “stop being white” override for anything inside control */
-#dataset-select.scb-dataset-dropdown .Select-control * {
-    color: #111827 !important;
 }

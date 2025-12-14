@@ -5,7 +5,6 @@ from dash import dash_table, html
 
 from sc_browser.core.dataset import Dataset
 
-
 def get_filter_dropdown_options(
     dataset: Dataset,
 ) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
@@ -137,4 +136,8 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
         sort_action="native",
         filter_action="none",
     )
+
+
+
+
 

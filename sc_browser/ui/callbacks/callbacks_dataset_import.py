@@ -11,10 +11,10 @@ from pathlib import Path
 
 from sc_browser.config.loader import load_datasets
 from sc_browser.config.new_config_writer import save_dataset_config
-from .helpers import dataset_status
+from sc_browser.ui.helpers import dataset_status
 
 if TYPE_CHECKING:
-    from .config import AppContext
+    from sc_browser.ui.config import AppContext
 
 MAX_UPLOAD_BYTES = 1_000_000_000
 logger = logging.getLogger(__name__)

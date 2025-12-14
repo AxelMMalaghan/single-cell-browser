@@ -5,10 +5,10 @@ import dash
 from dash import Input, Output
 from typing import TYPE_CHECKING
 
-from .helpers import obs_preview_table
+from sc_browser.ui.helpers import obs_preview_table
 
 if TYPE_CHECKING:
-    from .config import AppConfig
+    from sc_browser.ui.config import AppConfig
 
 
 def register_dataset_preview_callbacks(app: dash.Dash, ctx: AppConfig) -> None:

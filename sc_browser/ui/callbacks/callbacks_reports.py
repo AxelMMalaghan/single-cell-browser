@@ -11,7 +11,7 @@ from sc_browser.metadata_io.model import session_from_dict, touch_session, sessi
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .config import AppConfig
+    from sc_browser.ui.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
