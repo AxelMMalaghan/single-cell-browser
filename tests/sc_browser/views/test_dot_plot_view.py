@@ -65,6 +65,8 @@ def _make_state_for_dotplot(genes=None, split_by_condition=False) -> FilterState
     genes = genes or []
 
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=[],
         conditions=[],
         genes=genes,

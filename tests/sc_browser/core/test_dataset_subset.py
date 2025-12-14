@@ -44,6 +44,8 @@ def test_subset_for_state_filters_correctly():
     ds = _make_dataset()
 
     state = FilterState(
+        dataset_name=ds.name,
+        view_id="subset",
         clusters=["A"],
         conditions=["x"],
         samples=[],
@@ -63,6 +65,8 @@ def test_sub_for_state_filters_samples():
     ds = _make_dataset()
 
     state = FilterState(
+        dataset_name=ds.name,
+        view_id="subset",
         clusters=[],
         conditions=[],
         samples=["s2"],
@@ -73,3 +77,4 @@ def test_sub_for_state_filters_samples():
 
     assert list(sub.adata.obs_names) == ["c3", "c4"]
     assert list(sub.clusters) == ["B", "B"]
+

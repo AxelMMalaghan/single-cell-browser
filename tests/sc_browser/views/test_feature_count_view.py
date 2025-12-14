@@ -61,6 +61,8 @@ def _make_state(split_by_condition: bool = False, clusters=None, conditions=None
     conditions = conditions or []
 
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=clusters,
         conditions=conditions,
         genes=[],

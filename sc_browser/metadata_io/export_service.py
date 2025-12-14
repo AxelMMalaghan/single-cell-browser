@@ -50,7 +50,7 @@ class ExportService:
         ds = self._get_dataset(metadata.dataset_key)
         view = self._create_view(metadata.view_id, ds)
 
-        filter_state = FilterState(**metadata.filter_state)
+        filter_state = FilterState.from_dict(metadata.filter_state)
 
         data = view.compute_data(filter_state)
         figure = view.render_figure(data, filter_state)

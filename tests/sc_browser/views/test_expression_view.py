@@ -67,6 +67,8 @@ def _make_state_for_expression(genes=None, split_by_condition=False) -> FilterSt
     genes = genes or []
 
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=[],
         conditions=[],
         samples=[] if hasattr(FilterState, "samples") else [],

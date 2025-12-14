@@ -70,6 +70,8 @@ def _make_default_state() -> FilterState:
     We only care about embedding + 2D mode; other fields can use defaults.
     """
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=[],
         conditions=[],
         genes=[],

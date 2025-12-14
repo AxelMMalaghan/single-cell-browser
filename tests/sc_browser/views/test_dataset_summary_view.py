@@ -52,6 +52,8 @@ def _make_state() -> FilterState:
     Minimal FilterState for DatasetSummary.
     """
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=[],    # no filtering
         conditions=[],
         genes=[],

@@ -51,11 +51,8 @@ class FilterState:
 
 
     # To and from dictionary methods
+
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Explicit dict representation instead of dataclasses.asdict to
-        avoid surprises if this class is wrapped / monkey-patched.
-        """
         return {
             "dataset_name": self.dataset_name,
             "view_id": self.view_id,

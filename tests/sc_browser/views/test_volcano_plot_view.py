@@ -58,6 +58,8 @@ def _make_state_for_volcano(conditions=None, clusters=None, samples=None) -> Fil
     samples = samples or []
 
     state = FilterState(
+        dataset_name="dataset_name",
+        view_id="subset",
         clusters=clusters,
         conditions=conditions,
         genes=[],
