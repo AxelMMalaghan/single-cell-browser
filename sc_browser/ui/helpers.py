@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Tuple
-from dash import html
+from dash import dash_table, html
 
 from sc_browser.core.dataset import Dataset
 
@@ -49,7 +49,7 @@ def get_filter_dropdown_options(
     return cluster_options, condition_options, sample_options, celltype_options, emb_options
 
 
-def dataset_status(ds: Dataset) -> str:
+def dataset_status(ds: Dataset):
     obs = ds.adata.obs
     obsm = ds.adata.obsm
 
@@ -58,25 +58,83 @@ def dataset_status(ds: Dataset) -> str:
     has_condition = ds.condition_key in obs.columns if ds.condition_key is not None else False
 
     if not has_emb:
-        return f" Missing embedding (obsm['{ds.embedding_key}'] not found)"
+        return html.Span(
+            [
+                html.Strong("Status: "),
+                "Missing embedding ",
+                html.Code(f"obsm['{ds.embedding_key}']"),
+                " not found.",
+            ],
+            className="dm-status dm-status-error",
+        )
+
     if not has_cluster or not has_condition:
-        return " Missing or invalid cluster/condition mapping"
-    return "Ready"
+        missing_bits = []
+        if not has_cluster:
+            missing_bits.append("cluster")
+        if not has_condition:
+            missing_bits.append("condition")
+        missing_text = "/".join(missing_bits)
 
+        return html.Span(
+            [
+                html.Strong("Status: "),
+                f"Missing or invalid {missing_text} mapping.",
+            ],
+            className="dm-status dm-status-warn",
+        )
 
-def obs_preview_table(ds: Dataset, max_rows: int = 5) -> html.Table:
-    obs = ds.adata.obs.copy()
-    if obs.empty:
-        return html.Table([html.Tr([html.Td("No obs columns")])])
-
-    df = obs.reset_index().head(max_rows)
-    columns = df.columns.tolist()
-    rows = df.to_dict("records")
-
-    header = html.Tr([html.Th(col) for col in columns])
-    body = [html.Tr([html.Td(row[col]) for col in columns]) for row in rows]
-
-    return html.Table(
-        [html.Thead(header), html.Tbody(body)],
-        className="table table-sm table-striped",
+    return html.Span(
+        [
+            html.Strong("Status: "),
+            "Ready.",
+        ],
+        className="dm-status dm-status-ok",
     )
+
+
+
+def obs_preview_table(ds: Dataset, max_rows: int = 20):
+    """
+    Build a styled Dash DataTable showing a preview of .obs.
+    """
+    df = ds.adata.obs.copy()
+    df = df.reset_index().head(max_rows)
+
+    return dash_table.DataTable(
+        data=df.to_dict("records"),
+        columns=[{"name": c, "id": c} for c in df.columns],
+
+        # ---- FONT + LOOK & FEEL ----
+        style_table={
+            "overflowX": "auto",
+        },
+        style_as_list_view=True,
+        style_cell={
+            "fontFamily": 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
+            "fontSize": "12px",
+            "padding": "6px 8px",
+            "border": "none",
+            "textAlign": "left",
+            "minWidth": "80px",
+            "maxWidth": "260px",
+            "whiteSpace": "nowrap",
+            "textOverflow": "ellipsis",
+        },
+        style_header={
+            "fontFamily": 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "backgroundColor": "#f3f4f6",
+            "borderBottom": "1px solid #e5e7eb",
+        },
+        style_data={
+            "borderBottom": "1px solid #e5e7eb",
+        },
+
+        # optional: small tweaks
+        page_size=max_rows,
+        sort_action="native",
+        filter_action="none",
+    )
+

@@ -15,10 +15,14 @@ if TYPE_CHECKING:
 
 
 
-def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Dataset | None) -> dbc.Navbar:
+def _build_navbar(
+    datasets: List[Dataset],
+    global_config,
+    default_dataset: Dataset | None,
+) -> dbc.Navbar:
     navbar_image_src = getattr(global_config, "navbar_image_src", "/assets/hgtc_logo.png")
 
-    title = getattr(global_config, "ui_title", "sc-B++")
+    title = getattr(global_config, "ui_title", "SC-B++")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
     if default_dataset is not None:
@@ -26,42 +30,63 @@ def _build_navbar(datasets: List[Dataset], global_config, default_dataset: Datas
     else:
         default_name = datasets[0].name if datasets else None
 
+    dataset_options = [{"label": ds.name, "value": ds.name} for ds in datasets]
+
     return dbc.Navbar(
         dbc.Container(
             fluid=True,
             children=[
+                # Left: logo + title
                 html.Div(
-                    [
+                    className="d-flex align-items-center",
+                    children=[
                         html.Img(
                             src=navbar_image_src,
-                            alt="HGTC logo",
-                            className="hgtc-logo",
-                            style={"height": "60px"},
+                            alt="Logo",
+                            style={"height": "70px"},
+                            className="me-3",
+                        ),
+                        html.Div(
+                            [
+                                html.H2(title, className="mb-0"),
+                                html.Small(
+                                    subtitle,
+                                    className="text-muted",
+                                    id="navbar-subtitle",
+                                ),
+                            ],
+                            className="d-flex flex-column justify-content-center",
                         ),
                     ],
-                    className="d-flex align-items-center me-3",
                 ),
 
                 html.Div(
                     [
-                        html.H2(title, className="mb-0"),
-                        html.Small(subtitle, className="text-muted", id="navbar-subtitle"),
+                        html.Div(
+                            "Active Dataset",
+                            className="navbar-dataset-title",
+                        ),
+                        html.Div(
+                            "Selects the current dataset",
+                            className="navbar-dataset-subtitle",
+                        ),
+                        dcc.Dropdown(
+                            id="dataset-select",
+                            options=dataset_options,
+                            value=default_name,
+                            clearable=False,
+                            placeholder="Select dataset",
+                            className="scb-dataset-dropdown mt-1",
+                        ),
                     ],
-                    className="d-flex flex-column justify-content-center",
-                ),
-                html.Div(
-                    dcc.Dropdown(
-                        id="dataset-select",
-                        options=[{"label": ds.name, "value": ds.name} for ds in datasets],
-                        value=default_name,
-                        clearable=False,
-                        placeholder="Select dataset",
-                        style={"minWidth": "260px"},
-                        className="scb-dataset-dropdown",
-                    ),
-                    className="ms-auto d-flex align-items-center",
-                    style={"width": "300px"},
-                ),
+                    className="ms-auto navbar-dataset-block",
+                    style={
+                        "minWidth": "280px",
+                        "maxWidth": "380px",
+                        "marginRight": "24px",
+                    },
+                )
+
             ],
         ),
         dark=False,

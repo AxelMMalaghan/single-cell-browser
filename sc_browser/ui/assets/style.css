@@ -399,3 +399,91 @@ hr {
         padding-inline: 1rem;
     }
 }
+
+
+.navbar-dataset-block {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+}
+
+.navbar-dataset-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #e5e7eb; /* light gray */
+}
+
+.navbar-dataset-subtitle {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+.scb-dataset-dropdown .Select__single-value,
+.scb-dataset-dropdown .Select-value-label,
+.scb-dataset-dropdown .Select__placeholder {
+    color: #111827 !important;
+}
+
+.navbar-dataset-block {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;   /* dropdown can fill width */
+}
+
+/* right-align just the text */
+.navbar-dataset-title,
+.navbar-dataset-subtitle {
+    text-align: right;
+}
+
+/* dropdown should fill the block width */
+.scb-dataset-dropdown {
+    width: 100%;
+}
+
+
+/* Make Dash DataTable use the same font as the rest of the UI */
+.dash-table-container,
+.dash-table-container table,
+.dash-spreadsheet,
+.dash-table {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", sans-serif !important;
+    font-size: 0.78rem;
+    color: #111827;
+}
+
+
+/* =========================================================
+   dcc.Dropdown (react-select v1) — force black text + app font
+   Applies to navbar dataset dropdown
+   ========================================================= */
+
+#dataset-select.scb-dataset-dropdown,
+#dataset-select.scb-dataset-dropdown * {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", sans-serif !important;
+}
+
+/* control background */
+#dataset-select.scb-dataset-dropdown .Select-control {
+    background: #f9fafb !important;
+    border: 1px solid rgba(209, 213, 219, 0.9) !important;
+}
+
+/* selected value + placeholder text */
+#dataset-select.scb-dataset-dropdown .Select-value-label,
+#dataset-select.scb-dataset-dropdown .Select-placeholder {
+    color: #111827 !important;
+}
+
+/* typed/search text (if searchable) */
+#dataset-select.scb-dataset-dropdown .Select-input > input {
+    color: #111827 !important;
+}
+
+/* absolute “stop being white” override for anything inside control */
+#dataset-select.scb-dataset-dropdown .Select-control * {
+    color: #111827 !important;
+}
