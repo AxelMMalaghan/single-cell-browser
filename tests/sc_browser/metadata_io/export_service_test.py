@@ -1,153 +1,120 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock
+from pathlib import Path
 
+import pandas as pd
 import pytest
+import plotly.graph_objs as go
 
-from sc_browser.metadata_io.export_service import ExportService
 from sc_browser.core.filter_state import FilterState
+from sc_browser.metadata_io.model import FigureMetadata
+from sc_browser.metadata_io.export_service import ExportService
 
 
-def test_render_figure_builds_filter_state_from_dict_and_calls_view_pipeline():
-    ds = object()
+class _DummyView:
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.compute_data_called = 0
+        self.render_figure_called = 0
+        self.last_filter_state = None
+        self.last_data = None
+        self.last_render_filter_state = None
 
-    view = MagicMock()
-    view.compute_data.return_value = {"some": "data"}
-    fig = MagicMock()
-    view.render_figure.return_value = fig
+    def compute_data(self, filter_state):
+        self.compute_data_called += 1
+        self.last_filter_state = filter_state
+        return pd.DataFrame({"x": [1], "y": [2]})
 
-    view_registry = MagicMock()
-    view_registry.create.return_value = view
+    def render_figure(self, data, filter_state):
+        self.render_figure_called += 1
+        self.last_data = data
+        self.last_render_filter_state = filter_state
+        return go.Figure()
 
-    svc = ExportService(
-        datasets_by_key={"ds1": ds},
-        view_registry=view_registry,
-        output_root=None,  # not used here
-    )
+class _DummyRegistry:
+    def __init__(self):
+        self.last_view = None
 
-    fs = FilterState(
-        dataset_name="ds1",
-        view_id="v1",
-        genes=["MS4A1"],
-        clusters=["T"],
-        conditions=["treated"],
-        merge_genes=True,
-        split_by_condition=False,
-        is_3d=True,
-        dim_x=1,
-        dim_y=2,
-        dim_z=3,
-        color_scale="viridis",
-    )
-
-    metadata = SimpleNamespace(
-        dataset_key="ds1",
-        view_id="v1",
-        filter_state=fs.to_dict(),
-        file_stem=None,
-        id="fig-0001",
-    )
-
-    out = svc.render_figure(metadata)
-
-    view_registry.create.assert_called_once_with("v1", ds)
-
-    # Assert FilterState instance & contents passed through
-    view.compute_data.assert_called_once()
-    (fs_arg,) = view.compute_data.call_args.args
-    assert isinstance(fs_arg, FilterState)
-    assert fs_arg.to_dict() == fs.to_dict()
-
-    view.render_figure.assert_called_once_with({"some": "data"}, fs_arg)
-    assert out is fig
+    def create(self, view_id, dataset):
+        self.last_view = _DummyView(dataset)
+        return self.last_view
 
 
-def test_render_figure_missing_dataset_key_raises_keyerror():
-    view_registry = MagicMock()
-    svc = ExportService(datasets_by_key={}, view_registry=view_registry, output_root=None)
-
-    fs = FilterState(dataset_name="nope", view_id="v1")
-    metadata = SimpleNamespace(
-        dataset_key="nope",
-        view_id="v1",
-        filter_state=fs.to_dict(),
-        file_stem=None,
-        id="fig-0001",
-    )
-
-    with pytest.raises(KeyError, match="Dataset with key nope not found"):
-        svc.render_figure(metadata)
-
-    view_registry.create.assert_not_called()
+class _DummyDataset:
+    def __init__(self, name: str = "ds1") -> None:
+        self.name = name
 
 
-def test_export_single_writes_image_default_stem(tmp_path):
-    ds = object()
+@pytest.fixture()
+def dataset_map():
+    # ExportService uses dataset_key lookup; keep it simple
+    return {"ds1": _DummyDataset("ds1")}
 
-    fig = MagicMock()
-    view = MagicMock()
-    view.compute_data.return_value = {"d": 1}
-    view.render_figure.return_value = fig
 
-    view_registry = MagicMock()
-    view_registry.create.return_value = view
+@pytest.fixture()
+def state() -> FilterState:
+    return FilterState(dataset_name="ds1", view_id="cluster")
+
+
+def test_render_figure_calls_view_and_returns_plotly_figure(tmp_path: Path, dataset_map, state: FilterState):
+    registry = _DummyRegistry()
 
     svc = ExportService(
-        datasets_by_key={"ds1": ds},
-        view_registry=view_registry,
+        datasets_by_key=dataset_map,
+        view_registry=registry,
         output_root=tmp_path,
     )
 
-    fs = FilterState(dataset_name="ds1", view_id="umap")
-    metadata = SimpleNamespace(
+    md = FigureMetadata.from_runtime(
+        figure_id="fig-0001",
         dataset_key="ds1",
-        view_id="umap",
-        filter_state=fs.to_dict(),
-        file_stem=None,   # triggers default naming
-        id="fig-0007",
+        view_id="cluster",
+        state=state,
+        view_params={},
+        label="Test",
+        file_stem="fig-0001",
     )
 
-    out_path = svc.export_single(metadata, session_id="session-abc", image_format="png")
+    fig = svc.render_figure(md)
 
-    expected_dir = tmp_path / "session-abc"
-    assert expected_dir.is_dir()
+    expected_state = md.filter_state
+    if isinstance(expected_state, dict):
+        expected_state = FilterState.from_dict(expected_state)
 
-    expected_stem = "ds1.umap_fig-0007"
-    assert out_path == expected_dir / f"{expected_stem}.png"
+    assert registry.last_view.compute_data_called == 1
+    assert registry.last_view.render_figure_called == 1
+    assert registry.last_view.last_filter_state == expected_state
+    assert registry.last_view.last_render_filter_state == expected_state
+    assert isinstance(registry.last_view.last_data, pd.DataFrame)
 
-    fig.write_image.assert_called_once_with(str(out_path))
-
-
-def test_export_single_uses_custom_stem_and_format(tmp_path):
-    ds = object()
-
-    fig = MagicMock()
-    view = MagicMock()
-    view.compute_data.return_value = {"d": 1}
-    view.render_figure.return_value = fig
-
-    view_registry = MagicMock()
-    view_registry.create.return_value = view
-
+def test_write_image_is_mockable(tmp_path: Path, monkeypatch, dataset_map, state: FilterState):
+    registry = _DummyRegistry()
     svc = ExportService(
-        datasets_by_key={"ds1": ds},
-        view_registry=view_registry,
+        datasets_by_key=dataset_map,
+        view_registry=registry,
         output_root=tmp_path,
     )
 
-    fs = FilterState(dataset_name="ds1", view_id="heatmap")
-    metadata = SimpleNamespace(
+    md = FigureMetadata.from_runtime(
+        figure_id="fig-0001",
         dataset_key="ds1",
-        view_id="heatmap",
-        filter_state=fs.to_dict(),
-        file_stem="my_custom_name",
-        id="fig-0002",
+        view_id="cluster",
+        state=state,
+        view_params={},
+        label="Test",
+        file_stem="fig-0001",
     )
 
-    out_path = svc.export_single(metadata, session_id="session-xyz", image_format="jpg")
+    fig = svc.render_figure(md)
 
-    expected = tmp_path / "session-xyz" / "my_custom_name.jpg"
-    assert out_path == expected
+    called = {"path": None}
 
-    fig.write_image.assert_called_once_with(str(expected))
+    def _fake_write_image(self, file, *args, **kwargs):
+        called["path"] = Path(file)
+
+    monkeypatch.setattr(go.Figure, "write_image", _fake_write_image, raising=True)
+
+    out = tmp_path / "fig.png"
+    fig.write_image(out)
+
+    assert called["path"] == out

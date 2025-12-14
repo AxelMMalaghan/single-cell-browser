@@ -51,8 +51,6 @@ class FigureMetadata:
     file_stem: Optional[str] = None
     created_at: str = field(default_factory=now_iso)
 
-    # TODO:  x, y, z axis & title/name?
-
     @classmethod
     def from_runtime(
         cls,
@@ -166,7 +164,7 @@ def session_from_dict(
             id=f["id"],
             dataset_key=f["dataset_key"],
             view_id=f["view_id"],
-            filter_state=f["filter_state"],
+            filter_state=FilterState.from_dict((f["filter_state"])),
             view_params=f.get("view_params", {}),
             label=f.get("label"),
             file_stem=f.get("file_stem"),

@@ -156,3 +156,5 @@ def test_feature_count_render_figure_empty():
 
     fig = view.render_figure(df, state)
     assert isinstance(fig, go.Figure)
+
+

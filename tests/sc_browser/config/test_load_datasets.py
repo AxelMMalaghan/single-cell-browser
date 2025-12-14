@@ -4,7 +4,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import anndata as ad
+import pytest
 
+from sc_browser.core.dataset import Dataset
+from sc_browser.core.filter_state import FilterState
 from sc_browser.config.loader import load_datasets
 
 
@@ -80,3 +83,62 @@ def test_load_datasets_from_config_dir(tmp_path):
     # obs columns mapped correctly
     assert list(ds.clusters) == ["A", "B"]
     assert list(ds.conditions) == ["x", "y"]
+
+
+
+def test_non_unique_obs_names_can_be_made_unique():
+    X = np.random.rand(3, 2)
+    adata = ad.AnnData(X=X)
+    adata.obs_names = ["cell", "cell", "cell"]
+
+    adata.obs_names_make_unique()
+
+    assert len(set(adata.obs_names)) == adata.n_obs
+
+
+def test_missing_embedding_key_detected():
+    X = np.random.rand(5, 3)
+    adata = ad.AnnData(X=X)
+    adata.obs["cluster"] = ["A"] * 5
+    adata.obs["condition"] = ["C"] * 5
+    # No adata.obsm["X_umap"]
+
+    ds = Dataset(
+        name="test",
+        group="g",
+        adata=adata,
+        cluster_key="cluster",
+        condition_key="condition",
+        embedding_key="X_umap",
+        obs_columns=None,
+    )
+
+    with pytest.raises(ValueError, match="Embedding 'X_umap' not found"):
+        ds.get_embedding()
+
+
+def test_empty_subset_does_not_crash():
+    X = np.random.rand(5, 3)
+    adata = ad.AnnData(X=X)
+    adata.obs["cluster"] = ["A"] * 5
+    adata.obs["condition"] = ["C"] * 5
+    adata.obsm["X_umap"] = np.random.rand(5, 2)
+
+    ds = Dataset(
+        name="test",
+        group="g",
+        adata=adata,
+        cluster_key="cluster",
+        condition_key="condition",
+        embedding_key="X_umap",
+        obs_columns=None,
+    )
+
+    state = FilterState(dataset_name="test", view_id="cluster", clusters=["DOES_NOT_EXIST"])
+    sub = ds.subset_for_state(state)
+
+    assert sub.adata.n_obs == 0
+
+    # Should not crash to request embedding even if empty (embedding exists in obsm)
+    emb = sub.get_embedding()
+    assert emb.shape[0] == 0
