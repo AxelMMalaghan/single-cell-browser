@@ -1,0 +1,12 @@
+services:
+  scb:
+    build: .
+    ports:
+      - "8050:8050"
+    environment:
+      - PORT=8050
+      - LOG_FORMAT=text
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output

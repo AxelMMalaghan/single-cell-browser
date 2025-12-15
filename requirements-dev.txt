@@ -1,4 +1,12 @@
+# Include all production dependencies
+# (so dev/CI runs against the exact same runtime stack)
 -r requirements.txt
-pytest>=8.4.2
-black==24.10.0
-ruff
+
+# --- Testing ---
+pytest>=8.4.2          # test runner for unit + integration tests
+
+# --- Formatting ---
+black==24.10.0         # opinionated code formatter (no style debates)
+
+# --- Linting ---
+ruff                  # fast static analysis: bugs, unused code, import issues

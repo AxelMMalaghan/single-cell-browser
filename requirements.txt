@@ -1,11 +1,20 @@
-numpy>=2.0.2
-pandas>=2.3.3
-anndata>=0.10.9
-plotly>=6.5.0
-dash>=3.3.0
-dash-bootstrap-components>=2.0.4
-scipy>=1.13.1
-python-json-logger>=4.0.0
-scanpy>=1.10.3
-gunicorn
-kaleido
+# --- Core numeric / data stack ---
+numpy>=2.0.2          # core numerical arrays (scanpy/anndata/pandas build on this)
+pandas>=2.3.3         # tabular data + DataFrame manipulation
+scipy>=1.13.1         # scientific routines (stats, sparse matrices, clustering, etc.)
+
+# --- Single-cell ecosystem ---
+anndata>=0.10.9       # AnnData object: wraps X/obs/var + .h5ad storage format
+scanpy>=1.10.3        # single-cell analysis toolkit (filtering, QC, plotting helpers)
+
+# --- Web UI (Dash) ---
+dash>=3.3.0           # Dash framework (Flask under the hood)
+dash-bootstrap-components>=2.0.4  # Bootstrap components/themes for Dash layouts
+
+# --- Plotting / export ---
+plotly>=6.5.0         # interactive figures used by your views/exports
+kaleido               # Plotly static image export (PNG/SVG/PDF via fig.write_image)
+
+# --- Server / logging ---
+gunicorn              # production WSGI server to run Dash/Flask in Docker
+python-json-logger>=4.0.0  # JSON log formatter (nice for Docker/CI log aggregation)
