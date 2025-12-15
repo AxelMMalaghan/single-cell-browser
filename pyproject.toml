@@ -1,0 +1,45 @@
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+
+# Core useful rule sets:
+# E/F  -> pycodestyle + pyflakes (real bugs)
+# I    -> import sorting
+# B    -> flake8-bugbear (footguns)
+select = ["E", "F", "I", "B"]
+
+# Black compatibility + sane ignores
+ignore = [
+  "E203",  # whitespace before ':'
+  "E501",  # line length (Black handles)
+]
+
+# Exclude junk directories
+exclude = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  "build",
+  "dist",
+]
+
+[tool.ruff.isort]
+known-first-party = ["sc_browser"]
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

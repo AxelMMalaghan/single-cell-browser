@@ -1,2 +1,4 @@
+-r requirements.txt
 pytest>=8.4.2
 black==24.10.0
+ruff

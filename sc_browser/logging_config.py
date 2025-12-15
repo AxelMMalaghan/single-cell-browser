@@ -2,50 +2,60 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
-
+import sys
 from pythonjsonlogger import jsonlogger
 
-def configure_logging(
-        level: int = logging.INFO,
-        force_format: Optional[str] = None,
-) -> None:
+
+def _env_bool(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def configure_logging() -> None:
     """
-    Configure root logger for the app
+    Configure app logging for both dev and prod.
 
-    Modes:
-    - JSON (default) in prod
-    - plain text (dev mode)
-
-    Selection Order:
-        1) force_format argument ("json or "plain") if provided
-        2) env var SC_BROWSER_LOG_FORMAT
-        3) default = "json"
+    Env vars:
+      - LOG_LEVEL: DEBUG/INFO/WARNING/ERROR (default INFO, DEBUG if DEBUG=1)
+      - LOG_FORMAT: "json" or "text" (default json in prod, text in dev)
+      - DEBUG: if 1/true enables debug defaults
     """
 
-    if force_format is not None:
-        format_mode = force_format
-    else:
-        format_mode = os.getenv("SC_BROWSER_LOG_FORMAT", "json").lower()
+    debug = _env_bool("DEBUG", "0")
+    level_name = os.getenv("LOG_LEVEL", "DEBUG" if debug else "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
 
-    logger = logging.getLogger()
-    logger.setLevel(level)
+    # Heuristic: Docker/k8s/prod -> json, local dev -> text
+    default_format = "text" if debug else "json"
+    fmt = os.getenv("LOG_FORMAT", default_format).lower()
 
-    handler = logging.StreamHandler()
+    root = logging.getLogger()
+    root.setLevel(level)
 
-    if format_mode == "plain":
-        # Test logs (dev mode)
-        formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    # Clear existing handlers to avoid duplicate logs (esp. with Dash reload / tests)
+    root.handlers.clear()
+
+    handler = logging.StreamHandler(sys.stdout)
+
+    if fmt == "json":
+        formatter = jsonlogger.JsonFormatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s"
         )
     else:
-        formatter = jsonlogger.JsonFormatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        formatter = logging.Formatter(
+            fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            datefmt="%H:%M:%S",
         )
 
     handler.setFormatter(formatter)
+    root.addHandler(handler)
 
-    # Replace any existing handlers to avoid duplicate logs
-    logger.handlers.clear()
-    logger.addHandler(handler)
+    # Keep noisy libraries sane
+    logging.getLogger("werkzeug").setLevel(logging.WARNING if not debug else logging.INFO)
+    logging.getLogger("dash").setLevel(logging.INFO if debug else logging.WARNING)
 
+    # Make sure gunicorn logs propagate to root so they use the same handler
+    for name in ("gunicorn", "gunicorn.error", "gunicorn.access"):
+        lg = logging.getLogger(name)
+        lg.handlers.clear()
+        lg.propagate = True
+        lg.setLevel(level)

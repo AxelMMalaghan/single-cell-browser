@@ -10,6 +10,7 @@ pipelines:
           - pip install --upgrade pip
           - pip install -r requirements-dev.txt
           - black --check .
+          - ruff check .
     - step:
         name: Tests
         caches:

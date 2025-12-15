@@ -7,9 +7,5 @@ dash-bootstrap-components>=2.0.4
 scipy>=1.13.1
 python-json-logger>=4.0.0
 scanpy>=1.10.3
-
-# Production server
 gunicorn
-
-# Plotly static export (only keep if you actually export PNG/SVG in prod)
 kaleido
