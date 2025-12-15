@@ -151,7 +151,7 @@ Recommended:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### Run locally
@@ -210,24 +210,103 @@ Docker is the **reference deployment path** for in‑house use.
 
 ## 10. Coding Standards
 
-* Black‑formatted Python
+* Black‑formatted Python (style checker)
 * Ruff for linting
-* Explicit imports (avoid `__init__.py` side‑effects)
+* Explicit imports
 * No implicit global state
 
-If you add a new view:
+If you add a new view (see adding_views_example.md):
 
 1. Add the class
-2. Add at least one unit test
+2. Follow the unit test pattern of the existing views
 3. Register it in the view registry
 
 ---
 
-## 11. Common Failure Modes
+## 11. Dataset Validation & Readiness
 
-* Circular imports → usually caused by `__init__.py` imports
-* Treating `FilterState` like a dict
-* Forgetting to normalise obs column names
-* Rendering large datasets without downsampling
+Before a dataset is usable in the app, it should satisfy a clear **readiness contract**. This avoids runtime surprises and gives users actionable feedback early.
 
-If something feels "mysteriously broken", check imports first.
+### 11.1 Validation stages
+
+**Load-time validation (hard failures):**
+
+* AnnData object loads successfully
+* `.obs` and `.var` are present and aligned
+* Observation names are unique (or can be made unique)
+
+**Configuration validation (soft failures):**
+
+* `cluster_key` exists in `.obs` if configured
+* `condition_key` exists in `.obs` if configured
+* `embedding_key` exists in `.obsm` if configured
+* Optional obs columns (`sample`, `cell_type`, etc.) exist if declared
+
+Soft failures should:
+
+* Mark the dataset as *partially usable*
+* Disable views that depend on missing mappings
+* Surface clear messages to the user
+
+### 11.2 Recommended readiness report
+
+Each dataset should be able to produce a structured readiness summary, e.g.:
+
+* status: `READY | DEGRADED | INVALID`
+* missing_embeddings: list[str]
+* missing_obs_columns: list[str]
+* warnings: list[str]
+
+This report should be computed once and reused by UI and export layers.
+
+---
+
+## 12. Performance Guardrails
+
+Single-cell datasets scale quickly so performance needs to be taken into consideration.
+
+### 12.1 Downsampling policy
+
+* Downsampling must be deterministic (seeded)
+* UI should clearly indicate when downsampling occurs
+* Exported figures should include a note when data is subsampled
+
+### 12.2 Caching rules
+
+* Dataset subsets are cached by filter signature
+* Expression matrices are cached by gene tuple
+* Long-lived caches must be clearable
+
+Never cache UI objects or Plotly figures.
+
+---
+
+## 13. Observability & Debugging
+
+Critical data flows should have logging
+
+### 13.1 Logging standards
+
+Each view render should log:
+
+* dataset name
+* view id
+* number of observations
+* render duration
+* whether downsampling occurred
+
+Logs should avoid:
+
+* raw expression values
+* patient/sample identifiers (unless explicitly allowed)
+
+
+### 13.2 User-facing error surfaces
+
+Errors shown to users should:
+
+* be actionable ("missing embedding X_umap")
+* avoid stack traces
+* offer next steps where possible
+
+Internally, full tracebacks should still be logged.

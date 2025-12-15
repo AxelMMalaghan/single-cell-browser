@@ -6,7 +6,7 @@ from sc_browser.logging_config import configure_logging
 configure_logging()
 
 app = create_dash_app()
-server = app.server
+server = app.server  # gunicorn imports `app:server`
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8050"))

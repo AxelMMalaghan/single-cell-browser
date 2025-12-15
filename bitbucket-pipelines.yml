@@ -1,0 +1,25 @@
+image: python:3.11-slim
+
+pipelines:
+  default:
+    - step:
+        name: Lint (Black)
+        caches:
+          - pip
+        script:
+          - pip install --upgrade pip
+          - pip install -r requirements-dev.txt
+          - black --check .
+    - step:
+        name: Tests
+        caches:
+          - pip
+        script:
+          - pip install --upgrade pip
+          - pip install -r requirements.txt
+          - pip install -r requirements-dev.txt
+          - pytest -q
+
+definitions:
+  caches:
+    pip: ~/.cache/pip

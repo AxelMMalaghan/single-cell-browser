@@ -2,10 +2,14 @@ numpy>=2.0.2
 pandas>=2.3.3
 anndata>=0.10.9
 plotly>=6.5.0
-pytest>=8.4.2
-dash-bootstrap-components>=2.0.4
 dash>=3.3.0
+dash-bootstrap-components>=2.0.4
 scipy>=1.13.1
 python-json-logger>=4.0.0
 scanpy>=1.10.3
+
+# Production server
 gunicorn
+
+# Plotly static export (only keep if you actually export PNG/SVG in prod)
+kaleido
