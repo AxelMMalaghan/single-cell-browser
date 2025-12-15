@@ -1,0 +1,7 @@
+{
+  "include": ["sc_browser", "app.py", "tests"],
+  "exclude": ["**/__pycache__", ".venv", "build", "dist"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "standard",
+  "reportMissingTypeStubs": "none"
+}

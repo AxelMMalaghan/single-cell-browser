@@ -43,9 +43,9 @@ class FilterState:
     is_3d: bool = False
 
     # Dimension options
-    dim_x: int = 0
-    dim_y: int = 1
-    dim_z: int = 2
+    dim_x: Optional[int] = 0
+    dim_y: Optional[int] = 1
+    dim_z: Optional[int] = None
 
     color_scale: Optional[str] = "viridis"
 

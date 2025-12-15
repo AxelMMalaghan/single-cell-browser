@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, field
 from typing import Any, Optional, Dict, List
 from datetime import datetime, timezone
-
-from sc_browser.core.filter_state import FilterState
 
 # -------------------------------------------------------------------------
 # Helpers
@@ -44,7 +42,7 @@ class FigureMetadata:
     id: str
     dataset_key: str
     view_id: str
-    filter_state: FilterState
+    filter_state: Dict[str, Any]
     view_params: Dict[str, Any] = field(default_factory=dict)
 
     label: Optional[str] = None
@@ -58,7 +56,7 @@ class FigureMetadata:
         figure_id: str,
         dataset_key: str,
         view_id: str,
-        state: FilterState,
+        state: Dict[str, Any],
         view_params: Dict[str, Any],
         label: Optional[str] = None,
         file_stem: Optional[str] = None,
@@ -70,7 +68,7 @@ class FigureMetadata:
             id=figure_id,
             dataset_key=dataset_key,
             view_id=view_id,
-            filter_state=state,
+            filter_state=state or {},
             view_params=view_params or {},
             label=label,
             file_stem=file_stem,
@@ -142,11 +140,27 @@ def touch_session(session: SessionMetadata) -> None:
 
 
 def session_to_dict(session: SessionMetadata) -> Dict[str, Any]:
-    """
-    Convert SessionMetadata (with nested FigureMetadata) to a plain dict
-    suitable for storing in dcc.Store or JSON.
-    """
-    return asdict(session)
+    return {
+        "session_id": session.session_id,
+        "schema_version": session.schema_version,
+        "app_version": session.app_version,
+        "datasets_config_hash": session.datasets_config_hash,
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+        "figures": [
+            {
+                "id": f.id,
+                "dataset_key": f.dataset_key,
+                "view_id": f.view_id,
+                "filter_state": f.filter_state or {},
+                "view_params": f.view_params or {},
+                "label": f.label,
+                "file_stem": f.file_stem,
+                "created_at": f.created_at,
+            }
+            for f in session.figures
+        ],
+    }
 
 
 def session_from_dict(
@@ -164,7 +178,7 @@ def session_from_dict(
             id=f["id"],
             dataset_key=f["dataset_key"],
             view_id=f["view_id"],
-            filter_state=FilterState.from_dict((f["filter_state"])),
+            filter_state=f.get("filter_state") or {},
             view_params=f.get("view_params", {}),
             label=f.get("label"),
             file_stem=f.get("file_stem"),

@@ -11,7 +11,7 @@ from .config import AppConfig
 from sc_browser.config.loader import load_datasets
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
-from sc_browser.metadata_io.export_service import ExportService
+from sc_browser.services.metadata_export_service import ExportService
 from sc_browser.ui.layout.build_layout import build_layout
 from sc_browser.ui.callbacks.callbacks_explore import register_explore_callbacks
 from sc_browser.ui.callbacks.callbacks_dataset_import import register_dataset_import_callbacks

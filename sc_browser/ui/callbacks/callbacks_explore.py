@@ -1,31 +1,37 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from dataclasses import replace
+from typing import Any, Optional, TYPE_CHECKING
 
 import dash
 import pandas as pd
 import plotly.graph_objs as go
 from dash import Input, Output, State, exceptions, dcc as dash_dcc, html, no_update
 
-from sc_browser.ui.helpers import get_filter_dropdown_options
 from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.model import (
-    FigureMetadata,
-    new_session_metadata,
+    generate_session_id,
     session_from_dict,
     session_to_dict,
-    generate_session_id,
-    generate_figure_id,
-    now_iso,
 )
+from sc_browser.services.session_service import ensure_session, save_figure
+from sc_browser.ui.helpers import get_filter_dropdown_options
+from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
+NEW_FIGURE_VALUE = "__new__"
+OPT_SPLIT_BY_CONDITION = "split_by_condition"
+OPT_IS_3D = "is_3d"
 
+
+# -----------------------------------------------------------------------------
+# Small utilities
+# -----------------------------------------------------------------------------
 def _message_figure(title: str, details: Optional[str] = None) -> go.Figure:
     fig = go.Figure()
     text = title if details is None else f"{title}\n\n{details}"
@@ -44,10 +50,31 @@ def _message_figure(title: str, details: Optional[str] = None) -> go.Figure:
 
 
 def _error_figure(details: str) -> go.Figure:
-    return _message_figure(
-        "Something went wrong while rendering this view.",
-        details,
-    )
+    return _message_figure("Something went wrong while rendering this view.", details)
+
+
+def _parse_filter_state(raw: Any) -> FilterState:
+    """
+    Strict parse: returns a FilterState or raises.
+    Centralises the boundary conversion without "safe optional" behaviour.
+    """
+    if raw is None:
+        raise ValueError("filter_state is None")
+    if not isinstance(raw, dict):
+        raise TypeError(f"filter_state must be dict, got {type(raw)}")
+    return FilterState.from_dict(raw)
+
+
+def _view_label(ctx: "AppConfig", view_id: str) -> str:
+    if not view_id:
+        return "No view"
+    try:
+        for cls in ctx.registry.all_classes():
+            if getattr(cls, "id", None) == view_id:
+                return getattr(cls, "label", view_id)
+    except Exception:
+        pass
+    return view_id
 
 
 def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
@@ -55,12 +82,12 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Sidebar metadata
     # ---------------------------------------------------------
     @app.callback(
-        Output("sidebar-dataset-name", "children"),
-        Output("sidebar-dataset-meta", "children"),
-        Input("dataset-select", "value"),
+        Output(IDs.Control.SIDEBAR_DATASET_NAME, "children"),
+        Output(IDs.Control.SIDEBAR_DATASET_META, "children"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
     )
-    def update_sidebar_dataset_summary(dataset_name: str):
-        ds = ctx.dataset_by_name.get(dataset_name)
+    def update_sidebar_dataset_summary(dataset_name: str | None):
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
         if ds is None:
             return "No dataset", "0 cells · 0 genes"
         return ds.name, f"{ds.adata.n_obs} cells · {ds.adata.n_vars} genes"
@@ -69,40 +96,37 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Update dropdown options for filters (per dataset)
     # ---------------------------------------------------------
     @app.callback(
-        Output("cluster-select", "options"),
-        Output("condition-select", "options"),
-        Output("sample-select", "options"),
-        Output("celltype-select", "options"),
-        Output("embedding-select", "options"),
-        Input("dataset-select", "value"),
+        Output(IDs.Control.CLUSTER_SELECT, "options"),
+        Output(IDs.Control.CONDITION_SELECT, "options"),
+        Output(IDs.Control.SAMPLE_SELECT, "options"),
+        Output(IDs.Control.CELLTYPE_SELECT, "options"),
+        Output(IDs.Control.EMBEDDING_SELECT, "options"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
     )
-    def update_filters(dataset_name: str):
-        ds = ctx.dataset_by_name.get(dataset_name)
+    def update_filters(dataset_name: str | None):
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
         if ds is None:
-            empty = []
+            empty: list[dict] = []
             return empty, empty, empty, empty, empty
         return get_filter_dropdown_options(ds)
 
     # ---------------------------------------------------------
-    # Live gene search (prefix, keep selected)
+    # Live gene search (prefix, keep selected) — uses Dataset.valid_sets()
     # ---------------------------------------------------------
     @app.callback(
-        Output("gene-select", "options"),
-        Input("gene-select", "search_value"),
-        Input("dataset-select", "value"),
-        State("gene-select", "value"),
+        Output(IDs.Control.GENE_SELECT, "options"),
+        Input(IDs.Control.GENE_SELECT, "search_value"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
+        State(IDs.Control.GENE_SELECT, "value"),
     )
     def update_gene_options(search_value, dataset_name, selected_genes):
-        ds = ctx.dataset_by_name.get(dataset_name)
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
         if ds is None:
             return []
 
-        all_genes = (
-            list(getattr(ds, "genes", []))
-            or list(getattr(ds, "gene_names", []))
-            or list(ds.adata.var_names)
-        )
-        gene_set = set(all_genes)
+        valid = ds.valid_sets()
+        all_genes = sorted(valid.genes)
+        gene_set = valid.genes
 
         selected_genes = [g for g in (selected_genes or []) if g in gene_set]
 
@@ -117,54 +141,35 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         return [{"label": g, "value": g} for g in union]
 
     # ---------------------------------------------------------
-    # Hide/show filters based on active view
+    # Hide/show filters based on active view + dataset capabilities
     # ---------------------------------------------------------
     @app.callback(
-        Output("cluster-filter-container", "style"),
-        Output("condition-filter-container", "style"),
-        Output("sample-filter-container", "style"),
-        Output("celltype-filter-container", "style"),
-        Output("gene-filter-container", "style"),
-        Output("embedding-filter-container", "style"),
-        Output("dim-filter-container", "style"),
-        Output("options-container", "style"),
-        Output("options-checklist", "options"),
-        Output("colour-scale-select", "style"),
-        Input("view-select", "value"),
-        State("dataset-select", "value"),
+        Output(IDs.Control.CLUSTER_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.CONDITION_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.SAMPLE_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.CELLTYPE_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.GENE_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.EMBEDDING_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.DIM_FILTER_CONTAINER, "style"),
+        Output(IDs.Control.OPTIONS_CONTAINER, "style"),
+        Output(IDs.Control.OPTIONS_CHECKLIST, "options"),
+        Output(IDs.Control.COLOUR_SCALE_SELECT, "style"),
+        Input(IDs.Control.VIEW_SELECT, "value"),
+        State(IDs.Control.DATASET_SELECT, "value"),
     )
-    def update_filter_visibility(view_id: str, dataset_name: str):
-        ds = ctx.dataset_by_name.get(dataset_name)
-        if ds is None:
-            def style(_): return {}
-            opts = [
-                {"label": " Split by condition", "value": "split_by_condition"},
-                {"label": " 3D view", "value": "is_3d"},
-            ]
-            return (
-                style(True),
-                style(True),
-                style(True),
-                style(True),
-                style(True),
-                style(True),
-                style(True),
-                style(True),
-                opts,
-                style(False),
-            )
-
-        view = ctx.registry.create(view_id, ds)
-        profile = getattr(view, "filter_profile", None)
-
+    def update_filter_visibility(view_id: str | None, dataset_name: str | None):
         def style(flag: bool) -> dict:
             return {} if flag else {"display": "none"}
 
-        if profile is None:
-            options = [
-                {"label": " Split by condition", "value": "split_by_condition"},
-                {"label": " 3D view", "value": "is_3d"},
+        def default_options():
+            return [
+                {"label": "Split by condition", "value": OPT_SPLIT_BY_CONDITION},
+                {"label": "3D view", "value": OPT_IS_3D},
             ]
+
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
+        if ds is None or not view_id:
+            options = default_options()
             return (
                 style(True),
                 style(True),
@@ -178,24 +183,45 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
                 style(False),
             )
 
-        embedding_flag = getattr(profile, "embedding", False)
+        view = ctx.registry.create(view_id, ds)
+        profile = getattr(view, "filter_profile", None)
+        if profile is None:
+            options = default_options()
+            return (
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                options,
+                style(False),
+            )
+
+        has_clusters = ds.clusters is not None
+        has_conditions = ds.conditions is not None
+        has_samples = ds.samples is not None
+        has_cell_types = ds.cell_types is not None
+
+        embedding_flag = bool(getattr(profile, "embedding", False))
         dim_flag = embedding_flag
-        colour_scale_flag = getattr(profile, "colour_scale", False)
+        colour_scale_flag = bool(getattr(profile, "colour_scale", False))
 
         options = []
         if getattr(profile, "split_by_condition", False):
-            options.append({"label": " Split by condition", "value": "split_by_condition"})
+            options.append({"label": "Split by condition", "value": OPT_SPLIT_BY_CONDITION})
         if getattr(profile, "is_3d", False) and embedding_flag:
-            options.append({"label": " 3D view", "value": "is_3d"})
-
+            options.append({"label": "3D view", "value": OPT_IS_3D})
         show_options = bool(options)
 
         return (
-            style(getattr(profile, "clusters", True)),
-            style(getattr(profile, "conditions", True)),
-            style(getattr(profile, "samples", True)),
-            style(getattr(profile, "cell_types", True)),
-            style(getattr(profile, "genes", False)),
+            style(bool(getattr(profile, "clusters", True)) and has_clusters),
+            style(bool(getattr(profile, "conditions", True)) and has_conditions),
+            style(bool(getattr(profile, "samples", True)) and has_samples),
+            style(bool(getattr(profile, "cell_types", True)) and has_cell_types),
+            style(bool(getattr(profile, "genes", False))),
             style(embedding_flag),
             style(dim_flag),
             style(show_options),
@@ -207,21 +233,21 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Dimension selector population (labels from Dataset)
     # ---------------------------------------------------------
     @app.callback(
-        Output("dim-x-select", "options"),
-        Output("dim-y-select", "options"),
-        Output("dim-z-select", "options"),
-        Output("dim-z-select", "style"),
-        Input("embedding-select", "value"),
-        State("dataset-select", "value"),
+        Output(IDs.Control.DIM_X, "options"),
+        Output(IDs.Control.DIM_Y, "options"),
+        Output(IDs.Control.DIM_Z, "options"),
+        Output(IDs.Control.DIM_Z, "style"),
+        Input(IDs.Control.EMBEDDING_SELECT, "value"),
+        State(IDs.Control.DATASET_SELECT, "value"),
     )
     def update_dim_selectors(emb_key, dataset_name):
-        empty = []
+        empty: list[dict] = []
         hide_z = {"display": "none"}
 
         if not emb_key:
             return empty, empty, empty, hide_z
 
-        ds = ctx.dataset_by_name.get(dataset_name)
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
         if ds is None:
             return empty, empty, empty, hide_z
 
@@ -243,20 +269,20 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Main figure: FilterState -> figure
     # ---------------------------------------------------------
     @app.callback(
-        Output("main-graph", "figure"),
-        Input("filter-state", "data"),
+        Output(IDs.Control.MAIN_GRAPH, "figure"),
+        Input(IDs.Store.FILTER_STATE, "data"),
     )
     def update_main_graph_from_state(fs_data):
-        if not fs_data:
+        if fs_data is None:
             return _message_figure(
                 "No dataset/view selected.",
                 "Choose a dataset and view to see any plots.",
             )
 
         try:
-            state = FilterState.from_dict(fs_data)
+            state = _parse_filter_state(fs_data)
         except Exception:
-            logger.exception("Invalid filter-state data: %r", fs_data)
+            logger.exception("Invalid filter state in main graph callback: %r", fs_data)
             return _error_figure("Internal error: invalid filter state.")
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
@@ -326,19 +352,18 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Download CSV of current view data
     # ---------------------------------------------------------
     @app.callback(
-        Output("download-data", "data"),
-        Input("download-data-btn", "n_clicks"),
-        State("filter-state", "data"),
+        Output(IDs.Control.DOWNLOAD_DATA, "data"),
+        Input(IDs.Control.DOWNLOAD_DATA_BTN, "n_clicks"),
+        State(IDs.Store.FILTER_STATE, "data"),
         prevent_initial_call=True,
     )
     def download_current_data(n_clicks, fs_data):
-        if not n_clicks or not fs_data:
+        if not n_clicks or fs_data is None:
             raise exceptions.PreventUpdate
 
         try:
-            state = FilterState.from_dict(fs_data)
+            state = _parse_filter_state(fs_data)
         except Exception:
-            logger.exception("Invalid filter-state in download_current_data: %r", fs_data)
             raise exceptions.PreventUpdate
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
@@ -355,19 +380,19 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         return dash_dcc.send_data_frame(data.to_csv, filename, index=False)
 
     # ---------------------------------------------------------
-    # Save current figure -> metadata
+    # Save current figure -> metadata (via SessionService)
     # ---------------------------------------------------------
     @app.callback(
-        Output("session-metadata", "data"),
-        Output("active-session-id", "data"),
-        Output("save-figure-status", "children"),
-        Output("active-figure-id", "data"),
-        Input("save-figure-btn", "n_clicks"),
-        State("filter-state", "data"),
-        State("figure-label-input", "value"),
-        State("session-metadata", "data"),
-        State("active-session-id", "data"),
-        State("active-figure-id", "data"),
+        Output(IDs.Store.SESSION_META, "data"),
+        Output(IDs.Store.ACTIVE_SESSION_ID, "data"),
+        Output(IDs.Control.SAVE_FIGURE_STATUS, "children"),
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data"),
+        Input(IDs.Control.SAVE_FIGURE_BTN, "n_clicks"),
+        State(IDs.Store.FILTER_STATE, "data"),
+        State(IDs.Control.FIGURE_LABEL_INPUT, "value"),
+        State(IDs.Store.SESSION_META, "data"),
+        State(IDs.Store.ACTIVE_SESSION_ID, "data"),
+        State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
         prevent_initial_call=True,
     )
     def save_current_figure(
@@ -381,13 +406,12 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         if not n_clicks:
             raise exceptions.PreventUpdate
 
-        if not fs_data:
+        if fs_data is None:
             return session_data, active_session_id, "Failed to save: no current state.", active_figure_id
 
         try:
-            state = FilterState.from_dict(fs_data)
+            state = _parse_filter_state(fs_data)
         except Exception:
-            logger.exception("Invalid filter-state in save_current_figure: %r", fs_data)
             return session_data, active_session_id, "Failed to save: invalid state.", active_figure_id
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
@@ -397,71 +421,43 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         if active_session_id is None:
             active_session_id = generate_session_id()
 
-        session = session_from_dict(session_data)
-        if session is None:
-            session = new_session_metadata(
-                session_id=active_session_id,
-                app_version="0.0.0-dev",
-                datasets_config_hash="unknown",
-            )
-
-        if figure_label is None:
-            label_clean = None
-        else:
-            stripped = figure_label.strip()
-            label_clean = stripped or None
+        session = ensure_session(
+            session_from_dict(session_data),
+            session_id=active_session_id,
+            app_version="0.0.0-dev",
+            datasets_config_hash="unknown",
+        )
 
         ds_key = getattr(ds, "key", ds.name)
 
-        existing_fig = None
-        if active_figure_id:
-            existing_fig = next((f for f in session.figures if f.id == active_figure_id), None)
+        # IMPORTANT: store/persist dict only
+        filter_state_dict = fs_data if isinstance(fs_data, dict) else {}
 
-        same_label_as_existing = (
-            existing_fig is not None
-            and (label_clean or "") == (existing_fig.label or "")
-        )
-
-        if existing_fig is not None and same_label_as_existing:
-            figure_id = existing_fig.id
-            is_overwrite = True
-        else:
-            figure_id = generate_figure_id(session)
-            is_overwrite = False
-            active_figure_id = figure_id
-
-        meta = FigureMetadata.from_runtime(
-            figure_id=figure_id,
+        session, new_active_figure_id, is_overwrite = save_figure(
+            session,
+            active_figure_id=active_figure_id,
             dataset_key=ds_key,
             view_id=state.view_id,
-            state=fs_data,
-            view_params={},
-            label=label_clean,
-            file_stem=None,
+            filter_state=filter_state_dict,
+            label=figure_label,
         )
 
-        if is_overwrite and existing_fig is not None:
-            for idx, f in enumerate(session.figures):
-                if f.id == existing_fig.id:
-                    session.figures[idx] = meta
-                    break
-        else:
-            session.figures.append(meta)
+        active_figure_id = new_active_figure_id
+        view_label = _view_label(ctx, state.view_id)
 
-        session.updated_at = now_iso()
-
-        view_label = _view_label(state.view_id)
-
+        label_clean = None if figure_label is None else (str(figure_label).strip() or None)
         if is_overwrite:
-            if label_clean:
-                status = f"Updated “{label_clean}” ({view_label}, {ds.name})."
-            else:
-                status = f"Updated {view_label} for {ds.name}."
+            status = (
+                f"Updated “{label_clean}” ({view_label}, {ds.name})."
+                if label_clean
+                else f"Updated {view_label} for {ds.name}."
+            )
         else:
-            if label_clean:
-                status = f"Saved “{label_clean}” ({view_label}, {ds.name})."
-            else:
-                status = f"Saved {view_label} for {ds.name}."
+            status = (
+                f"Saved “{label_clean}” ({view_label}, {ds.name})."
+                if label_clean
+                else f"Saved {view_label} for {ds.name}."
+            )
 
         return session_to_dict(session), active_session_id, status, active_figure_id
 
@@ -469,11 +465,11 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Status bar
     # ---------------------------------------------------------
     @app.callback(
-        Output("status-bar", "children"),
-        Input("filter-state", "data"),
+        Output(IDs.Control.STATUS_BAR, "children"),
+        Input(IDs.Store.FILTER_STATE, "data"),
     )
     def update_status_bar(fs_data):
-        if not fs_data:
+        if fs_data is None:
             return html.Span(
                 [
                     html.Strong("Dataset: "),
@@ -491,9 +487,8 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             )
 
         try:
-            state = FilterState.from_dict(fs_data)
+            state = _parse_filter_state(fs_data)
         except Exception:
-            logger.exception("Invalid filter-state in update_status_bar: %r", fs_data)
             return html.Span(
                 [
                     html.Strong("Dataset: "),
@@ -512,7 +507,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
 
         ds = ctx.dataset_by_name.get(state.dataset_name)
         dataset_label = ds.name if ds is not None else f"{state.dataset_name} (missing)"
-        view_label = _view_label(state.view_id) if state.view_id else "No view"
+        view_label = _view_label(ctx, state.view_id) if state.view_id else "No view"
         emb_label = state.embedding or "Default embedding"
 
         genes = state.genes or []
@@ -540,23 +535,24 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         )
 
     # ---------------------------------------------------------
-    # UI -> FilterState (canonical)
+    # UI -> FilterState (canonical)  **USES ds.valid_sets()**
     # ---------------------------------------------------------
     @app.callback(
-        Output("filter-state", "data"),
-        Input("dataset-select", "value"),
-        Input("view-select", "value"),
-        Input("cluster-select", "value"),
-        Input("condition-select", "value"),
-        Input("sample-select", "value"),
-        Input("celltype-select", "value"),
-        Input("gene-select", "value"),
-        Input("embedding-select", "value"),
-        Input("dim-x-select", "value"),
-        Input("dim-y-select", "value"),
-        Input("dim-z-select", "value"),
-        Input("options-checklist", "value"),
-        Input("colour-scale-select", "value"),
+        Output(IDs.Store.FILTER_STATE, "data"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
+        Input(IDs.Control.VIEW_SELECT, "value"),
+        Input(IDs.Control.CLUSTER_SELECT, "value"),
+        Input(IDs.Control.CONDITION_SELECT, "value"),
+        Input(IDs.Control.SAMPLE_SELECT, "value"),
+        Input(IDs.Control.CELLTYPE_SELECT, "value"),
+        Input(IDs.Control.GENE_SELECT, "value"),
+        Input(IDs.Control.EMBEDDING_SELECT, "value"),
+        Input(IDs.Control.DIM_X, "value"),
+        Input(IDs.Control.DIM_Y, "value"),
+        Input(IDs.Control.DIM_Z, "value"),
+        Input(IDs.Control.OPTIONS_CHECKLIST, "value"),
+        Input(IDs.Control.COLOUR_SCALE_SELECT, "value"),
+        Input(IDs.Control.SAVED_FIGURE_LOAD_BTN, "n_clicks"),
     )
     def sync_filter_state_from_ui(
         dataset_name,
@@ -572,7 +568,11 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         dim_z,
         options,
         colour_scale,
+        _load_clicks,
     ):
+        if dash.ctx.triggered_id == IDs.Control.SAVED_FIGURE_LOAD_BTN:
+            raise exceptions.PreventUpdate
+
         if not dataset_name or not view_id:
             return None
 
@@ -580,27 +580,7 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         if ds is None:
             return None
 
-        valid_clusters = set(ds.clusters.astype(str).unique())
-        valid_conditions = (
-            set(ds.conditions.astype(str).unique())
-            if ds.conditions is not None
-            else set()
-        )
-        valid_samples = (
-            set(ds.samples.astype(str).unique())
-            if getattr(ds, "samples", None) is not None
-            else set()
-        )
-        valid_celltypes = (
-            set(ds.cell_types.astype(str).unique())
-            if getattr(ds, "cell_types", None) is not None
-            else set()
-        )
-        valid_genes = (
-            set(getattr(ds, "genes", []))
-            or set(getattr(ds, "gene_names", []))
-            or set(ds.adata.var_names)
-        )
+        valid = ds.valid_sets()
 
         orig_clusters = list(clusters or [])
         orig_conditions = list(conditions or [])
@@ -608,11 +588,11 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
         orig_cell_types = list(cell_types or [])
         orig_genes = list(genes or [])
 
-        clusters = [str(c) for c in (clusters or []) if str(c) in valid_clusters]
-        conditions = [str(c) for c in (conditions or []) if str(c) in valid_conditions]
-        samples = [str(s) for s in (samples or []) if str(s) in valid_samples]
-        cell_types = [str(ct) for ct in (cell_types or []) if str(ct) in valid_celltypes]
-        genes = [g for g in (genes or []) if g in valid_genes]
+        clusters = [str(c) for c in (clusters or []) if str(c) in valid.clusters]
+        conditions = [str(c) for c in (conditions or []) if str(c) in valid.conditions]
+        samples = [str(s) for s in (samples or []) if str(s) in valid.samples]
+        cell_types = [str(ct) for ct in (cell_types or []) if str(ct) in valid.cell_types]
+        genes = [g for g in (genes or []) if g in valid.genes]
 
         if (
             len(clusters) < len(orig_clusters)
@@ -642,29 +622,28 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
 
         opts = set(options or [])
-        split_by_condition = "split_by_condition" in opts
-        is_3d = "is_3d" in opts
+        split_by_condition = OPT_SPLIT_BY_CONDITION in opts
+        is_3d = OPT_IS_3D in opts
 
-        labels = []
         if embedding:
             try:
                 labels = ds.get_embedding_labels(embedding)
             except KeyError:
-                logger.warning(
-                    "Embedding key %r not found for dataset %r while setting default dims",
-                    embedding,
-                    dataset_name,
-                )
+                labels = []
 
-        if embedding and labels:
-            if dim_x is None and len(labels) >= 1:
-                dim_x = 0
-            if dim_y is None and len(labels) >= 2:
-                dim_y = 1
-            if is_3d and dim_z is None and len(labels) >= 3:
-                dim_z = 2
-            if not is_3d:
-                dim_z = None
+            if labels:
+                if dim_x is None and len(labels) >= 1:
+                    dim_x = 0
+                if dim_y is None and len(labels) >= 2:
+                    dim_y = 1
+
+                if is_3d:
+                    if dim_z is None and len(labels) >= 3:
+                        dim_z = 2
+                    if dim_z is not None and dim_z >= len(labels):
+                        dim_z = 2 if len(labels) >= 3 else None
+                else:
+                    dim_z = None
 
         state = FilterState(
             dataset_name=dataset_name,
@@ -682,23 +661,22 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             dim_z=dim_z,
             color_scale=colour_scale,
         )
-
         return state.to_dict()
 
     # ---------------------------------------------------------
     # Autosave / restore user state
     # ---------------------------------------------------------
     @app.callback(
-        Output("user-state", "data"),
-        Input("filter-state", "data"),
+        Output(IDs.Store.USER_STATE, "data"),
+        Input(IDs.Store.FILTER_STATE, "data"),
     )
     def autosave_user_state(fs_data):
         return fs_data or {}
 
     @app.callback(
-        Output("filter-state", "data", allow_duplicate=True),
-        Input("user-state", "modified_timestamp"),
-        State("user-state", "data"),
+        Output(IDs.Store.FILTER_STATE, "data", allow_duplicate=True),
+        Input(IDs.Store.USER_STATE, "modified_timestamp"),
+        State(IDs.Store.USER_STATE, "data"),
         prevent_initial_call=True,
     )
     def restore_user_state(_ts, state):
@@ -706,98 +684,69 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             raise exceptions.PreventUpdate
 
         try:
-            restored = FilterState.from_dict(state)
+            restored = _parse_filter_state(state)
         except Exception:
-            logger.exception("Failed to restore user-state (invalid filter-state): %r", state)
             raise exceptions.PreventUpdate
 
         if restored.dataset_name not in ctx.dataset_by_name:
-            logger.info(
-                "Skipping restore of user-state: dataset %r no longer available",
-                restored.dataset_name,
-            )
+            logger.info("Skipping restore of user-state: dataset %r no longer available", restored.dataset_name)
             raise exceptions.PreventUpdate
 
         valid_view_ids = {cls.id for cls in ctx.registry.all_classes()}
         if restored.view_id not in valid_view_ids:
-            logger.info(
-                "Skipping restore of user-state: view_id %r no longer registered",
-                restored.view_id,
-            )
+            logger.info("Skipping restore of user-state: view_id %r no longer registered", restored.view_id)
             raise exceptions.PreventUpdate
 
         return restored.to_dict()
-
-    def _view_label(view_id: str) -> str:
-        try:
-            for cls in ctx.registry.all_classes():
-                if getattr(cls, "id", None) == view_id:
-                    return getattr(cls, "label", view_id)
-        except Exception:
-            pass
-        return view_id
 
     # ---------------------------------------------------------
     # Toggle Download button
     # ---------------------------------------------------------
     @app.callback(
-        Output("download-data-btn", "disabled"),
-        Input("filter-state", "data"),
+        Output(IDs.Control.DOWNLOAD_DATA_BTN, "disabled"),
+        Input(IDs.Store.FILTER_STATE, "data"),
     )
     def toggle_download_button(fs_data):
-        if not fs_data:
+        if fs_data is None:
             return True
-
         try:
-            state = FilterState.from_dict(fs_data)
+            state = _parse_filter_state(fs_data)
         except Exception:
             return True
-
         if state.dataset_name not in ctx.dataset_by_name:
             return True
-
         return False
 
     # ---------------------------------------------------------
     # Saved figure dropdown (single authoritative callback)
     # ---------------------------------------------------------
     @app.callback(
-        Output("saved-figure-select", "options"),
-        Output("saved-figure-select", "value"),
-        Input("session-metadata", "data"),
-        State("saved-figure-select", "value"),
-        State("active-figure-id", "data"),
+        Output(IDs.Control.SAVED_FIGURE_SELECT, "options"),
+        Output(IDs.Control.SAVED_FIGURE_SELECT, "value"),
+        Input(IDs.Store.SESSION_META, "data"),
+        State(IDs.Control.SAVED_FIGURE_SELECT, "value"),
+        State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
     )
     def update_saved_figure_dropdown(session_data, current_value, active_figure_id):
-        """
-        Keep the saved-figure dropdown in sync with session metadata.
-
-        - Always include a 'New view' sentinel (__new__)
-        - Rebuild options from session.figures
-        - Try to keep the current selection if it's still valid
-        - Otherwise, fall back to active_figure_id or __new__
-        """
-        options = [
-            {"label": "New view (current filters)", "value": "__new__"},
-        ]
+        options = [{"label": "New view (current filters)", "value": NEW_FIGURE_VALUE}]
 
         session = session_from_dict(session_data)
         if session is None or not session.figures:
-            return options, "__new__"
+            return options, NEW_FIGURE_VALUE
 
-        ids = []
+        ids: list[str] = []
         for fig in session.figures:
             display = fig.label or fig.view_id
             display = f"{display} ({fig.dataset_key})"
             options.append({"label": display, "value": fig.id})
             ids.append(fig.id)
 
-        if current_value in ids or current_value == "__new__":
+        if current_value in ids or current_value == NEW_FIGURE_VALUE:
             value = current_value
         elif active_figure_id in ids:
             value = active_figure_id
         else:
-            value = "__new__"
+            value = NEW_FIGURE_VALUE
 
         return options, value
 
@@ -805,54 +754,49 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
     # Load a saved figure: apply full snapshot to UI + filter-state
     # ---------------------------------------------------------
     @app.callback(
-        # UI controls
-        Output("dataset-select", "value", allow_duplicate=True),
-        Output("view-select", "value", allow_duplicate=True),
-        Output("cluster-select", "value", allow_duplicate=True),
-        Output("condition-select", "value", allow_duplicate=True),
-        Output("sample-select", "value", allow_duplicate=True),
-        Output("celltype-select", "value", allow_duplicate=True),
-        Output("gene-select", "value", allow_duplicate=True),
-        Output("embedding-select", "value", allow_duplicate=True),
-        Output("dim-x-select", "value", allow_duplicate=True),
-        Output("dim-y-select", "value", allow_duplicate=True),
-        Output("dim-z-select", "value", allow_duplicate=True),
-        Output("options-checklist", "value", allow_duplicate=True),
-        Output("colour-scale-select", "value", allow_duplicate=True),
-        Output("figure-label-input", "value", allow_duplicate=True),
-
-        # State
-        Output("filter-state", "data", allow_duplicate=True),
-        Output("active-figure-id", "data", allow_duplicate=True),
-
-        Input("saved-figure-load-btn", "n_clicks"),
-        State("saved-figure-select", "value"),
-        State("session-metadata", "data"),
+        Output(IDs.Control.DATASET_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.VIEW_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.CLUSTER_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.CONDITION_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.SAMPLE_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.CELLTYPE_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.GENE_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.EMBEDDING_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.DIM_X, "value", allow_duplicate=True),
+        Output(IDs.Control.DIM_Y, "value", allow_duplicate=True),
+        Output(IDs.Control.DIM_Z, "value", allow_duplicate=True),
+        Output(IDs.Control.OPTIONS_CHECKLIST, "value", allow_duplicate=True),
+        Output(IDs.Control.COLOUR_SCALE_SELECT, "value", allow_duplicate=True),
+        Output(IDs.Control.FIGURE_LABEL_INPUT, "value", allow_duplicate=True),
+        Output(IDs.Store.FILTER_STATE, "data", allow_duplicate=True),
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
+        Input(IDs.Control.SAVED_FIGURE_LOAD_BTN, "n_clicks"),
+        State(IDs.Control.SAVED_FIGURE_SELECT, "value"),
+        State(IDs.Store.SESSION_META, "data"),
         prevent_initial_call=True,
     )
     def load_figure_from_dropdown(n_clicks, figure_id, session_data):
         if not n_clicks:
             raise exceptions.PreventUpdate
 
-        # "New view": clear active figure + label; keep current UI and filter-state
-        if not figure_id or figure_id == "__new__":
+        if not figure_id or figure_id == NEW_FIGURE_VALUE:
             return (
-                no_update,  # dataset-select
-                no_update,  # view-select
-                no_update,  # cluster-select
-                no_update,  # condition-select
-                no_update,  # sample-select
-                no_update,  # celltype-select
-                no_update,  # gene-select
-                no_update,  # embedding-select
-                no_update,  # dim-x-select
-                no_update,  # dim-y-select
-                no_update,  # dim-z-select
-                no_update,  # options-checklist
-                no_update,  # colour-scale-select
-                "",         # figure-label-input
-                no_update,  # filter-state
-                None,       # active-figure-id
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                "",
+                no_update,
+                None,
             )
 
         session = session_from_dict(session_data)
@@ -864,66 +808,64 @@ def register_explore_callbacks(app: dash.Dash, ctx: "AppConfig") -> None:
             raise exceptions.PreventUpdate
 
         ds = ctx.dataset_by_key.get(meta.dataset_key)
+
+        # fallback 1: maybe dataset_key is actually the dataset name
+        if ds is None:
+            ds = ctx.dataset_by_name.get(meta.dataset_key)
+
+        # fallback 2: match by name in case keys changed
+        if ds is None:
+            ds = next((d for d in ctx.datasets if d.name == meta.dataset_key), None)
+
         if ds is None:
             logger.warning(
-                "Cannot load figure %r: dataset_key %r not found",
+                "Cannot load figure %r: dataset_key=%r not found in current datasets (%d available).",
                 figure_id,
                 meta.dataset_key,
+                len(ctx.datasets),
             )
             raise exceptions.PreventUpdate
 
         fs_dict = meta.filter_state or {}
-
         try:
-            state = FilterState.from_dict(fs_dict)
+            state = _parse_filter_state(fs_dict)
         except Exception:
-            logger.exception(
-                "Invalid filter_state on figure %r, aborting load", figure_id
-            )
+            logger.exception("Invalid filter_state on figure %r, aborting load", figure_id)
             raise exceptions.PreventUpdate
 
-        # Ensure dataset + view line up with current app
-        state.dataset_name = ds.name
-        state.view_id = meta.view_id
+        state = replace(state, dataset_name=ds.name, view_id=meta.view_id)
 
-        # Embedding fallback & normalisation
-        emb = state.embedding
-        if emb and emb not in ds.adata.obsm:
+        if state.embedding and state.embedding not in ds.adata.obsm:
             default_emb = getattr(ds, "embedding_key", None)
-            if default_emb and default_emb in ds.adata.obsm:
-                state.embedding = default_emb
-            else:
-                state.embedding = None
+            state = replace(
+                state,
+                embedding=default_emb if (default_emb and default_emb in ds.adata.obsm) else None,
+            )
 
         if state.embedding:
-            labels = []
             try:
                 labels = ds.get_embedding_labels(state.embedding)
             except KeyError:
-                logger.warning(
-                    "Embedding key %r not found while loading figure %r",
-                    state.embedding,
-                    figure_id,
-                )
+                labels = []
 
             if labels:
-                if state.dim_x is None or not (0 <= state.dim_x < len(labels)):
-                    state.dim_x = 0
-                if state.dim_y is None or not (0 <= state.dim_y < len(labels)):
-                    state.dim_y = 1 if len(labels) > 1 else 0
-
+                dx = state.dim_x if (state.dim_x is not None and 0 <= state.dim_x < len(labels)) else 0
+                dy = state.dim_y if (state.dim_y is not None and 0 <= state.dim_y < len(labels)) else (
+                    1 if len(labels) > 1 else 0
+                )
                 if state.is_3d:
-                    if state.dim_z is None or not (0 <= state.dim_z < len(labels)):
-                        state.dim_z = 2 if len(labels) > 2 else None
+                    dz = state.dim_z if (state.dim_z is not None and 0 <= state.dim_z < len(labels)) else (
+                        2 if len(labels) > 2 else None
+                    )
                 else:
-                    state.dim_z = None
+                    dz = None
+                state = replace(state, dim_x=dx, dim_y=dy, dim_z=dz)
 
-        # Build options-checklist values from state flags
-        options = []
+        options: list[str] = []
         if state.split_by_condition:
-            options.append("split_by_condition")
+            options.append(OPT_SPLIT_BY_CONDITION)
         if state.is_3d:
-            options.append("is_3d")
+            options.append(OPT_IS_3D)
 
         colour_scale = getattr(state, "color_scale", None)
 

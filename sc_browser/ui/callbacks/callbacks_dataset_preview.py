@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import dash
-
-from dash import Input, Output
 from typing import TYPE_CHECKING
 
+import dash
+from dash import Input, Output
+
+from sc_browser.ui.ids import IDs
 from sc_browser.ui.helpers import obs_preview_table
 
 if TYPE_CHECKING:
@@ -13,18 +14,23 @@ if TYPE_CHECKING:
 
 def register_dataset_preview_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     @app.callback(
-        Output("dm-obs-preview", "children"),
-        Input("dataset-select", "value"),
+        Output(IDs.Control.DM_OBS_PREVIEW, "children"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
     )
-    def update_dataset_preview(dataset_name: str):
-        if not dataset_name or dataset_name not in ctx.dataset_by_name:
+    def update_dataset_preview(dataset_name: str | None):
+        # Dash can pass None/"" during initial load or when cleared
+        if not dataset_name:
             return (
                 "No dataset selected. "
                 "Choose a dataset from the navbar dropdown to preview its .obs table."
             )
 
+        ds = ctx.dataset_by_name.get(dataset_name)
+        if ds is None:
+            return (
+                f"Dataset '{dataset_name}' not found. "
+                "It may have been removed or failed to load. "
+                "Choose another dataset."
+            )
 
-
-
-        ds = ctx.dataset_by_name[dataset_name]
         return obs_preview_table(ds)

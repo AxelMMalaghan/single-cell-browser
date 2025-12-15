@@ -1,6 +1,8 @@
 from __future__ import annotations
+
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple, Sequence, TYPE_CHECKING, Any
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import anndata as ad
 import numpy as np
@@ -10,6 +12,20 @@ from sc_browser.config.model import ObsColumns
 
 if TYPE_CHECKING:
     from sc_browser.core.filter_state import FilterState
+
+
+@dataclass(frozen=True)
+class ValidSets:
+    """
+    Cached valid values for UI validation / sanitisation.
+    Computing .unique() on large Series can be expensive, so we do it once per Dataset.
+    """
+    clusters: set[str]
+    conditions: set[str]
+    samples: set[str]
+    cell_types: set[str]
+    genes: set[str]
+    embeddings: set[str]
 
 
 class Dataset:
@@ -22,6 +38,9 @@ class Dataset:
     - Cached expression extraction (cells × genes)
     - Sparse-aware handling where possible
     """
+
+    MAX_SUBSET_CACHE = 128
+    MAX_EXPR_CACHE = 128
 
     # -------------------------------------------------------------------------
     # Constructor
@@ -37,7 +56,6 @@ class Dataset:
         obs_columns: Optional[Any] = None,
         file_path: Optional[Path] = None,
     ) -> None:
-
         self.name = name
         self.group = group
         self.adata = adata
@@ -59,26 +77,30 @@ class Dataset:
         # ---------------------------------------------------------------------
         obs = adata.obs
 
-        self._cluster_series = (
+        self._cluster_series: Optional[pd.Series] = (
             obs[cluster_key].astype(str).copy()
-            if cluster_key is not None and cluster_key in obs.columns else None
+            if cluster_key is not None and cluster_key in obs.columns
+            else None
         )
 
-        self._condition_series = (
+        self._condition_series: Optional[pd.Series] = (
             obs[condition_key].astype(str).copy()
-            if condition_key is not None and condition_key in obs.columns else None
+            if condition_key is not None and condition_key in obs.columns
+            else None
         )
 
         sample_key = self.obs_columns.get("sample")
-        self._sample_series = (
+        self._sample_series: Optional[pd.Series] = (
             obs[sample_key].astype(str).copy()
-            if sample_key and sample_key in obs.columns else None
+            if sample_key and sample_key in obs.columns
+            else None
         )
 
         cell_type_key = self.obs_columns.get("cell_type")
-        self._cell_type_series = (
+        self._cell_type_series: Optional[pd.Series] = (
             obs[cell_type_key].astype(str).copy()
-            if cell_type_key and cell_type_key in obs.columns else None
+            if cell_type_key and cell_type_key in obs.columns
+            else None
         )
 
         # ---------------------------------------------------------------------
@@ -87,11 +109,14 @@ class Dataset:
         # Cache of filtered Dataset objects
         self._subset_cache: Dict[
             Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]],
-            "Dataset"
+            "Dataset",
         ] = {}
 
         # Cache for expression matrices (per subset, per gene set)
         self._expr_cache: Dict[Tuple[str, ...], pd.DataFrame] = {}
+
+        # Cached valid values for UI sanitisation
+        self._valid_sets: Optional[ValidSets] = None
 
     # -------------------------------------------------------------------------
     # Internal: normalise obs_columns
@@ -107,11 +132,9 @@ class Dataset:
         if obs_columns is None:
             return {}
 
-        # If already a dict-like with .get, just copy it
         if isinstance(obs_columns, dict):
             return {k: v for k, v in obs_columns.items() if v is not None}
 
-        # ObsColumns dataclass path
         if isinstance(obs_columns, ObsColumns):
             mapping: Dict[str, str] = {}
             if obs_columns.sample is not None:
@@ -128,11 +151,39 @@ class Dataset:
                 mapping["condition"] = obs_columns.condition
             return mapping
 
-        # Fallback: try to treat it as mapping-like (very defensive)
         try:
             return {k: v for k, v in dict(obs_columns).items() if v is not None}
         except Exception:
             return {}
+
+    # -------------------------------------------------------------------------
+    # Cached valid values for UI sanitisation
+    # -------------------------------------------------------------------------
+    def valid_sets(self) -> ValidSets:
+        """
+        Return cached valid values for dropdown sanitisation.
+
+        This avoids recomputing `.unique()` in callbacks on every UI change.
+        """
+        if self._valid_sets is not None:
+            return self._valid_sets
+
+        clusters = set(self._cluster_series.unique()) if self._cluster_series is not None else set()
+        conditions = set(self._condition_series.unique()) if self._condition_series is not None else set()
+        samples = set(self._sample_series.unique()) if self._sample_series is not None else set()
+        cell_types = set(self._cell_type_series.unique()) if self._cell_type_series is not None else set()
+        genes = set(map(str, self.adata.var_names))
+        embeddings = set(map(str, self.adata.obsm.keys()))
+
+        self._valid_sets = ValidSets(
+            clusters=clusters,
+            conditions=conditions,
+            samples=samples,
+            cell_types=cell_types,
+            genes=genes,
+            embeddings=embeddings,
+        )
+        return self._valid_sets
 
     # -------------------------------------------------------------------------
     # Helper: build cache key for subsetting
@@ -166,12 +217,17 @@ class Dataset:
         conditions: Optional[List[str]] = None,
         samples: Optional[List[str]] = None,
         cell_types: Optional[List[str]] = None,
+        *,
+        copy_adata: bool = False,
     ) -> "Dataset":
         """
         Efficiently return a new Dataset filtered by cluster, condition, sample,
         and/or cell type. Subsets are cached to avoid recomputation.
+
+        Args:
+            copy_adata: If True, forces `adata[mask].copy()` (safer if any code mutates AnnData).
+                       Default False keeps views (lower memory) assuming read-only usage.
         """
-        # Fast-path: return cached subset
         key = self._subset_cache_key(clusters, conditions, samples, cell_types)
         cached = self._subset_cache.get(key)
         if cached is not None:
@@ -180,10 +236,8 @@ class Dataset:
         adata = self.adata
         n = adata.n_obs
 
-        # Start with full mask
         mask = np.ones(n, dtype=bool)
 
-        # Apply pre-normalised filters
         if clusters and self._cluster_series is not None:
             mask &= self._cluster_series.isin(clusters).to_numpy()
 
@@ -196,8 +250,7 @@ class Dataset:
         if cell_types and self._cell_type_series is not None:
             mask &= self._cell_type_series.isin(cell_types).to_numpy()
 
-        # Slice WITHOUT copying (views are fine since we never mutate)
-        sub_adata = adata[mask]
+        sub_adata = adata[mask].copy() if copy_adata else adata[mask]
 
         subset_ds = Dataset(
             name=self.name,
@@ -206,12 +259,16 @@ class Dataset:
             cluster_key=self.cluster_key,
             condition_key=self.condition_key,
             embedding_key=self.embedding_key,
-            obs_columns=self.obs_columns,  # already normalised dict
+            obs_columns=self.obs_columns,
             file_path=self.file_path,
         )
 
-        # Register cache entry
         self._subset_cache[key] = subset_ds
+
+        # Prevent unbounded growth
+        if len(self._subset_cache) > self.MAX_SUBSET_CACHE:
+            self._subset_cache.clear()
+
         return subset_ds
 
     # -------------------------------------------------------------------------
@@ -220,16 +277,8 @@ class Dataset:
     def subset_for_state(self, state: "FilterState") -> "Dataset":
         """
         Convenience wrapper to subset this Dataset based on a FilterState.
-
-        This is the single entrypoint views should use for filtering so
-        cluster/condition/sample/cell-type semantics stay consistent.
         """
-        # Be defensive about attribute names; different versions of FilterState
-        # might use 'celltypes' vs 'cell_types', etc.
-        cell_types = (
-            getattr(state, "cell_types", None)
-            or getattr(state, "celltypes", None)
-        )
+        cell_types = getattr(state, "cell_types", None) or getattr(state, "celltypes", None)
 
         return self.subset(
             clusters=getattr(state, "clusters", None) or None,
@@ -243,17 +292,19 @@ class Dataset:
     # -------------------------------------------------------------------------
     def expression_matrix(self, genes: Sequence[str]) -> pd.DataFrame:
         """
-        Return an expression matrix (cells × genes) for the given genes,
-        using caching and restricting computation to the relevant subset.
+        Return an expression matrix (cells × genes) for the given genes.
+
+        Notes:
+        - Cache key is order-insensitive (genes are normalised to a sorted unique tuple).
+        - If none of the genes exist, returns an empty DataFrame indexed by obs_names.
         """
-        key = tuple(genes)
+        key = tuple(sorted(set(map(str, genes))))
         if key in self._expr_cache:
             return self._expr_cache[key]
 
         adata = self.adata
 
-        # Restrict to genes that actually exist
-        var_mask = adata.var_names.isin(genes)
+        var_mask = adata.var_names.isin(list(key))
         if not var_mask.any():
             df = pd.DataFrame(index=adata.obs_names)
             self._expr_cache[key] = df
@@ -262,35 +313,84 @@ class Dataset:
         selected_genes = adata.var_names[var_mask]
         X = adata[:, var_mask].X  # sparse or dense slice
 
-        # Convert to dense only if needed
         if hasattr(X, "toarray"):
             X = X.toarray()
 
         df = pd.DataFrame(X, index=adata.obs_names, columns=selected_genes)
 
         self._expr_cache[key] = df
+
+        if len(self._expr_cache) > self.MAX_EXPR_CACHE:
+            self._expr_cache.clear()
+
         return df
 
     # -------------------------------------------------------------------------
     # Cache management
     # -------------------------------------------------------------------------
     def clear_caches(self) -> None:
-        """Reset caches for subsets and expression matrices."""
+        """Reset caches for subsets, expression matrices, and valid value sets."""
         self._subset_cache.clear()
         self._expr_cache.clear()
+        self._valid_sets = None
+
+    def refresh_obs_indexes(self) -> None:
+        """
+        Rebuild cached, string-normalised obs Series after mapping changes.
+        Also clears caches and valid_sets.
+        """
+        obs = self.adata.obs
+
+        self._cluster_series = (
+            obs[self.cluster_key].astype(str).copy()
+            if self.cluster_key and self.cluster_key in obs.columns
+            else None
+        )
+
+        self._condition_series = (
+            obs[self.condition_key].astype(str).copy()
+            if self.condition_key and self.condition_key in obs.columns
+            else None
+        )
+
+        sample_key = self.obs_columns.get("sample")
+        self._sample_series = (
+            obs[sample_key].astype(str).copy()
+            if sample_key and sample_key in obs.columns
+            else None
+        )
+
+        cell_type_key = self.obs_columns.get("cell_type")
+        self._cell_type_series = (
+            obs[cell_type_key].astype(str).copy()
+            if cell_type_key and cell_type_key in obs.columns
+            else None
+        )
+
+        self.clear_caches()
 
     # -------------------------------------------------------------------------
     # Properties & getters
     # -------------------------------------------------------------------------
     @property
-    def clusters(self) -> pd.Series:
-        """Return cluster labels."""
+    def clusters(self) -> Optional[pd.Series]:
+        """Return cluster labels (string-normalised), if configured."""
         return self._cluster_series
 
     @property
-    def conditions(self) -> pd.Series:
-        """Return condition labels."""
+    def conditions(self) -> Optional[pd.Series]:
+        """Return condition labels (string-normalised), if configured."""
         return self._condition_series
+
+    @property
+    def samples(self) -> Optional[pd.Series]:
+        """Return sample labels (string-normalised), if configured."""
+        return self._sample_series
+
+    @property
+    def cell_types(self) -> Optional[pd.Series]:
+        """Return cell type labels (string-normalised), if configured."""
+        return self._cell_type_series
 
     @property
     def genes(self) -> pd.Index:
@@ -312,7 +412,6 @@ class Dataset:
 
         emb = self.adata.obsm[emb_key]
 
-        # If already a DataFrame
         if isinstance(emb, pd.DataFrame):
             df = emb.copy()
             if df.shape[1] > 2:
@@ -320,34 +419,29 @@ class Dataset:
             df.columns = [f"dim{i + 1}" for i in range(df.shape[1])]
             return df
 
-        # Otherwise assume array-like
         arr = np.asarray(emb)
         if arr.ndim != 2:
             raise ValueError(f"Embedding '{emb_key}' must be 2D, got shape {arr.shape}")
 
-        n_dims = arr.shape[1]
-        cols = [f"dim{i + 1}" for i in range(n_dims)]
+        cols = [f"dim{i + 1}" for i in range(arr.shape[1])]
         return pd.DataFrame(arr, index=self.adata.obs.index, columns=cols)
 
-    def get_embedding_matrix(self, key):
-        """Return embedding matrix as numpy array."""
+    def get_embedding_matrix(self, key: str) -> np.ndarray:
+        """Return embedding matrix as a numpy array."""
         emb = self.adata.obsm[key]
+        if isinstance(emb, pd.DataFrame):
+            return emb.to_numpy()
+        return np.asarray(emb)
 
-        # DataFrame -> numpy
-        if hasattr(emb, "values"):
-            return emb.values
-        return emb
-
-    def get_embedding_labels(self, key):
+    def get_embedding_labels(self, key: str) -> List[str]:
         """Return names of embedding axes."""
         emb = self.adata.obsm[key]
 
-        # Pandas DataFrame: use column names
-        if hasattr(emb, "columns"):
+        if isinstance(emb, pd.DataFrame):
             return [str(c) for c in emb.columns]
 
-        # numpy: default labels
-        n = emb.shape[1]
+        arr = np.asarray(emb)
+        n = arr.shape[1]
         return [f"Dim {i + 1}" for i in range(n)]
 
     @property

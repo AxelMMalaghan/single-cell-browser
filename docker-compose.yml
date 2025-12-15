@@ -4,9 +4,13 @@ services:
     ports:
       - "8050:8050"
     environment:
-      - PORT=8050
-      - LOG_FORMAT=text
-      - LOG_LEVEL=INFO
+      PORT: "8050"
+      SC_BROWSER_CONFIG_ROOT: /app/config
+      SC_BROWSER_DATA_ROOT: /app/data
+      SC_BROWSER_OUTPUT_ROOT: /output
     volumes:
+      - .:/app
+      - ./config:/app/config:ro
       - ./data:/app/data:ro
-      - ./output:/app/output
+      - ./output:/output
+

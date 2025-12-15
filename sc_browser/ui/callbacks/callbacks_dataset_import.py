@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
-
 import base64
 import logging
-import dash
-
-from dash import Input, Output, State
 from pathlib import Path
+from typing import Optional, TYPE_CHECKING
+
+import dash
+from dash import Input, Output, State
 
 from sc_browser.config.loader import load_datasets
 from sc_browser.config.new_config_writer import save_dataset_config
-from sc_browser.ui.helpers import dataset_status
+from sc_browser.ui.helpers import dataset_status, warn_on_invalid_datasets
+from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppContext
@@ -21,27 +21,27 @@ logger = logging.getLogger(__name__)
 
 
 def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
-
     @app.callback(
-        Output("dm-status-text", "children"),
-        Output("dm-summary-text", "children"),
-        Output("dm-cluster-key", "options"),
-        Output("dm-cluster-key", "value"),
-        Output("dm-condition-key", "options"),
-        Output("dm-condition-key", "value"),
-        Output("dm-sample-key", "options"),
-        Output("dm-sample-key", "value"),
-        Output("dm-celltype-key", "options"),
-        Output("dm-celltype-key", "value"),
-        Output("dm-embedding-key", "options"),
-        Output("dm-embedding-key", "value"),
-        Output("dm-current-dataset", "children"),
-        Input("dataset-select", "value"),
+        Output(IDs.Control.DM_STATUS_TEXT, "children"),
+        Output(IDs.Control.DM_SUMMARY_TEXT, "children"),
+        Output(IDs.Control.DM_CLUSTER_KEY, "options"),
+        Output(IDs.Control.DM_CLUSTER_KEY, "value"),
+        Output(IDs.Control.DM_CONDITION_KEY, "options"),
+        Output(IDs.Control.DM_CONDITION_KEY, "value"),
+        Output(IDs.Control.DM_SAMPLE_KEY, "options"),
+        Output(IDs.Control.DM_SAMPLE_KEY, "value"),
+        Output(IDs.Control.DM_CELLTYPE_KEY, "options"),
+        Output(IDs.Control.DM_CELLTYPE_KEY, "value"),
+        Output(IDs.Control.DM_EMBEDDING_KEY, "options"),
+        Output(IDs.Control.DM_EMBEDDING_KEY, "value"),
+        Output(IDs.Control.DM_CURRENT_DATASET, "children"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
     )
-    def update_dataset_mapping_and_status(dataset_name: str):
-        if not dataset_name or dataset_name not in ctx.dataset_by_name:
-            empty_obs_options = []
-            empty_emb_options = []
+    def update_dataset_mapping_and_status(dataset_name: str | None):
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
+        if ds is None:
+            empty_obs_options: list[dict] = []
+            empty_emb_options: list[dict] = []
             return (
                 "No dataset selected.",
                 "",
@@ -57,8 +57,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 None,
                 "Current dataset: none",
             )
-
-        ds = ctx.dataset_by_name[dataset_name]
 
         status = dataset_status(ds)
         summary = f"{ds.adata.n_obs} cells · {ds.adata.n_vars} genes"
@@ -104,19 +102,19 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         )
 
     @app.callback(
-        Output("dm-save-status", "children"),
-        Input("dm-save-btn", "n_clicks"),
-        State("dataset-select", "value"),
-        State("dm-cluster-key", "value"),
-        State("dm-condition-key", "value"),
-        State("dm-sample-key", "value"),
-        State("dm-celltype-key", "value"),
-        State("dm-embedding-key", "value"),
+        Output(IDs.Control.DM_SAVE_STATUS, "children"),
+        Input(IDs.Control.DM_SAVE_BTN, "n_clicks"),
+        State(IDs.Control.DATASET_SELECT, "value"),
+        State(IDs.Control.DM_CLUSTER_KEY, "value"),
+        State(IDs.Control.DM_CONDITION_KEY, "value"),
+        State(IDs.Control.DM_SAMPLE_KEY, "value"),
+        State(IDs.Control.DM_CELLTYPE_KEY, "value"),
+        State(IDs.Control.DM_EMBEDDING_KEY, "value"),
         prevent_initial_call=True,
     )
     def save_dataset_mapping(
         n_clicks: int,
-        dataset_name: str,
+        dataset_name: str | None,
         cluster_key: Optional[str],
         condition_key: Optional[str],
         sample_key: Optional[str],
@@ -126,19 +124,20 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
 
-        if not dataset_name or dataset_name not in ctx.dataset_by_name:
+        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
+        if ds is None:
             return "Cannot save mapping: no dataset selected."
 
-        ds = ctx.dataset_by_name[dataset_name]
-
-        changed_fields = []
+        changed_fields: list[str] = []
 
         if cluster_key and cluster_key != ds.cluster_key:
             ds.cluster_key = cluster_key
             changed_fields.append(f"cluster → {cluster_key}")
+
         if condition_key and condition_key != ds.condition_key:
             ds.condition_key = condition_key
             changed_fields.append(f"condition → {condition_key}")
+
         if embedding_key and embedding_key != ds.embedding_key:
             ds.embedding_key = embedding_key
             changed_fields.append(f"embedding → {embedding_key}")
@@ -148,13 +147,26 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         if sample_key and obs_cols.get("sample") != sample_key:
             obs_cols["sample"] = sample_key
             changed_fields.append(f"sample → {sample_key}")
+
         if celltype_key and obs_cols.get("cell_type") != celltype_key:
             obs_cols["cell_type"] = celltype_key
             changed_fields.append(f"cell_type → {celltype_key}")
 
+        # Keep semantic keys aligned
         obs_cols["cluster"] = ds.cluster_key
         obs_cols["condition"] = ds.condition_key
         ds.obs_columns = obs_cols
+
+        # Refresh cached series + clear caches (new Dataset API)
+        refresh = getattr(ds, "refresh_obs_indexes", None)
+        if callable(refresh):
+            refresh()
+        else:
+            logger.warning(
+                "Dataset.refresh_obs_indexes() not found on %r. "
+                "Mapping changes may not be reflected until restart.",
+                ds.name,
+            )
 
         if not changed_fields:
             return f"No changes to save for dataset '{ds.name}'."
@@ -163,18 +175,15 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         rel_path = path.relative_to(ctx.config_root.parent)
 
         changed_str = ", ".join(changed_fields)
-        return (
-            f"Updated mapping for '{ds.name}' "
-            f"({changed_str}). Saved to {rel_path}."
-        )
+        return f"Updated mapping for '{ds.name}' ({changed_str}). Saved to {rel_path}."
 
     @app.callback(
-        Output("dm-import-status", "children"),
-        Output("dataset-select", "options"),
-        Output("dataset-select", "value"),
-        Input("dm-upload", "contents"),
-        State("dm-upload", "filename"),
-        State("dataset-select", "value"),
+        Output(IDs.Control.DM_IMPORT_STATUS, "children"),
+        Output(IDs.Control.DATASET_SELECT, "options"),
+        Output(IDs.Control.DATASET_SELECT, "value"),
+        Input(IDs.Control.DM_UPLOAD, "contents"),
+        State(IDs.Control.DM_UPLOAD, "filename"),
+        State(IDs.Control.DATASET_SELECT, "value"),
         prevent_initial_call=True,
     )
     def import_dataset(contents, filename, current_dataset_name):
@@ -260,6 +269,9 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
 
         ctx.datasets = new_datasets
         ctx.dataset_by_name = {ds.name: ds for ds in ctx.datasets}
+        ctx.dataset_by_key = {getattr(ds, "key", ds.name): ds for ds in ctx.datasets}
+
+        warn_on_invalid_datasets(ctx.datasets, logger)
 
         imported_ds_name = None
         for ds in ctx.datasets:

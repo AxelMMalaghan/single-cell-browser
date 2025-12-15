@@ -3,23 +3,25 @@ image: python:3.11-slim
 pipelines:
   default:
     - step:
-        name: Lint (Black)
+        name: Lint + Typecheck
         caches:
           - pip
         script:
-          - pip install --upgrade pip
+          - python -m pip install --upgrade pip
           - pip install -r requirements-dev.txt
           - black --check .
           - ruff check .
+          - pyright
+
     - step:
-        name: Tests
+        name: Tests (with coverage)
         caches:
           - pip
         script:
-          - pip install --upgrade pip
-          - pip install -r requirements.txt
+          - python -m pip install --upgrade pip
           - pip install -r requirements-dev.txt
-          - pytest -q
+          - pytest -q --cov=sc_browser --cov-report=term-missing --cov-fail-under=60
+
     - step:
         name: Build Docker image
         services:

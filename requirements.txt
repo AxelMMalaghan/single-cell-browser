@@ -1,20 +1,64 @@
-# --- Core numeric / data stack ---
-numpy>=2.0.2          # core numerical arrays (scanpy/anndata/pandas build on this)
-pandas>=2.3.3         # tabular data + DataFrame manipulation
-scipy>=1.13.1         # scientific routines (stats, sparse matrices, clustering, etc.)
+# ==============================
+# Core numerical / data stack
+# ==============================
 
-# --- Single-cell ecosystem ---
-anndata>=0.10.9       # AnnData object: wraps X/obs/var + .h5ad storage format
-scanpy>=1.10.3        # single-cell analysis toolkit (filtering, QC, plotting helpers)
+numpy~=2.0
+# Numerical array foundation. Pinned to minor to avoid ABI breakage
+# affecting scipy / pandas wheels.
 
-# --- Web UI (Dash) ---
-dash>=3.3.0           # Dash framework (Flask under the hood)
-dash-bootstrap-components>=2.0.4  # Bootstrap components/themes for Dash layouts
+pandas~=2.3
+# Tabular data structures and DataFrame operations used throughout
+# dataset metadata and aggregation layers.
 
-# --- Plotting / export ---
-plotly>=6.5.0         # interactive figures used by your views/exports
-kaleido               # Plotly static image export (PNG/SVG/PDF via fig.write_image)
+scipy~=1.13
+# Scientific routines (sparse matrices, stats) used by scanpy
+# and downstream analytical helpers.
 
-# --- Server / logging ---
-gunicorn              # production WSGI server to run Dash/Flask in Docker
-python-json-logger>=4.0.0  # JSON log formatter (nice for Docker/CI log aggregation)
+
+# ==============================
+# Single-cell ecosystem
+# ==============================
+
+anndata~=0.10
+# Core container for single-cell data (.X / .obs / .var / .obsm).
+# Version-coupled with scanpy and numpy.
+
+scanpy~=1.10
+# High-level single-cell analysis toolkit.
+# Used for filtering, QC, and expression summaries.
+
+
+# ==============================
+# Web UI (Dash)
+# ==============================
+
+dash~=3.3
+# Dash web framework (Flask-based).
+# Provides layout, callbacks, and app lifecycle.
+
+dash-bootstrap-components~=2.0
+# Bootstrap UI components and themes for Dash layouts.
+
+
+# ==============================
+# Plotting / export
+# ==============================
+
+plotly~=6.5
+# Interactive plotting backend used by all views.
+
+kaleido~=0.2
+# Static image export engine for Plotly (PNG/SVG/PDF).
+# Pinned to avoid runtime regressions in headless Docker environments.
+
+
+# ==============================
+# Server / logging
+# ==============================
+
+gunicorn~=22.0
+# Production WSGI server used in Docker deployments.
+# Avoids Dash's built-in dev server.
+
+python-json-logger~=4.0
+# Structured JSON logging for containerised environments and CI logs.

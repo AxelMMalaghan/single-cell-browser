@@ -4,9 +4,14 @@
 
 # --- Testing ---
 pytest>=8.4.2          # test runner for unit + integration tests
+pytest-cov             # coverage
 
 # --- Formatting ---
 black==24.10.0         # opinionated code formatter (no style debates)
 
 # --- Linting ---
 ruff                  # fast static analysis: bugs, unused code, import issues
+
+
+# --- Type Checking ---
+pyright
