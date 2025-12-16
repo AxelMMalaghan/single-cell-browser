@@ -44,10 +44,16 @@ class LocalFileSystemStorage(StorageBackend):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _resolve(self, path: str) -> Path:
-        # Prevent path traversal attacks
+        # Prevent path traversal attacks (Fixed)
         full_path = (self.root / path).resolve()
-        if not str(full_path).startswith(str(self.root)):
+
+        # Check if full_path is inside self.root using pathlib's semantic check
+        # This handles the "sibling prefix" vulnerability correctly.
+        try:
+            full_path.relative_to(self.root)
+        except ValueError:
             raise ValueError(f"Access denied: {path}")
+
         return full_path
 
     def write_bytes(self, path: str, data: bytes) -> None:

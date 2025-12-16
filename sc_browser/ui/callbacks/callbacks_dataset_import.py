@@ -7,7 +7,7 @@ from typing import Optional, TYPE_CHECKING, List
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, no_update
+from dash import Input, Output, State
 
 from sc_browser.config.dataset_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
@@ -153,13 +153,13 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def save_dataset_mapping(
-            n_clicks: int,
-            dataset_name: str | None,
-            cluster_key: Optional[str],
-            condition_key: Optional[str],
-            sample_key: Optional[str],
-            celltype_key: Optional[str],
-            embedding_key: Optional[str],
+        n_clicks: int,
+        dataset_name: str | None,
+        cluster_key: Optional[str],
+        condition_key: Optional[str],
+        sample_key: Optional[str],
+        celltype_key: Optional[str],
+        embedding_key: Optional[str],
     ):
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
@@ -285,6 +285,16 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             safe_name = safe_name + ".h5ad"
 
         out_path = data_dir / safe_name
+
+        # FIX: Prevent overwrite logic
+        if out_path.exists():
+            opts, current = _current_options_and_value()
+            return (
+                f"Import failed: A dataset named '{safe_name}' already exists. "
+                "Please rename your file and try again to avoid overwriting existing data.",
+                opts,
+                current,
+            )
 
         try:
             with out_path.open("wb") as f:
