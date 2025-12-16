@@ -1,0 +1,13 @@
+{
+  "schema": "anndata_mapped",
+  "name": "IMM Analysis",
+  "group": "IMM",
+  "path": "data/IMM_sce.h5ad",
+  "obs_columns": {
+    "cluster": "label",
+    "condition": "cond",
+    "sample": "patient",
+    "cell_type": "label"
+  },
+  "embedding_key": "UMAP"
+}

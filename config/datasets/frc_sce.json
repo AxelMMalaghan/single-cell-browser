@@ -1,0 +1,15 @@
+{
+  "schema": "anndata_mapped",
+  "name": "FRC Spleen (Full)",
+  "group": "FRC",
+
+  "path": "data/FRC_sce.h5ad",
+
+  "obs_columns": {
+    "cluster": "leiden",
+    "condition": "cond",
+    "sample": "dataset",
+    "cell_type": "celltype_panglao"
+  },
+  "embedding_key": "X_umap"
+}
