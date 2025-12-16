@@ -71,6 +71,7 @@ def build_navbar(
                             placeholder="Select dataset",
                             className="scb-dataset-dropdown mt-1",
                         ),
+
                     ],
                     className="ms-auto navbar-dataset-block",
                     style={

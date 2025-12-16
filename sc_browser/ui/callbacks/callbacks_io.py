@@ -74,7 +74,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Output(IDs.Control.EMBEDDING_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.DIM_X, "value", allow_duplicate=True),
         Output(IDs.Control.DIM_Y, "value", allow_duplicate=True),
-        Output(IDs.Control.DIM_Z, "value", allow_duplicate=True),
+        Output(IDs.Control.DIM_Z_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.OPTIONS_CHECKLIST, "value", allow_duplicate=True),
         Output(IDs.Control.COLOUR_SCALE_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.FIGURE_LABEL_INPUT, "value", allow_duplicate=True),

@@ -160,8 +160,8 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     @app.callback(
         Output(IDs.Control.DIM_X, "options"),
         Output(IDs.Control.DIM_Y, "options"),
-        Output(IDs.Control.DIM_Z, "options"),
-        Output(IDs.Control.DIM_Z, "style"),
+        Output(IDs.Control.DIM_Z_SELECT, "options"),
+        Output(IDs.Control.DIM_Z_CONTAINER, "style"),
         Input(IDs.Control.EMBEDDING_SELECT, "value"),
         State(IDs.Control.DATASET_SELECT, "value"),
     )

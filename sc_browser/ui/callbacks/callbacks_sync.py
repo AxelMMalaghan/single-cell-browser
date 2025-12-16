@@ -162,7 +162,7 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Input(IDs.Control.EMBEDDING_SELECT, "value"),
         Input(IDs.Control.DIM_X, "value"),
         Input(IDs.Control.DIM_Y, "value"),
-        Input(IDs.Control.DIM_Z, "value"),
+        Input(IDs.Control.DIM_Z_SELECT, "value"),
         Input(IDs.Control.OPTIONS_CHECKLIST, "value"),
         Input(IDs.Control.COLOUR_SCALE_SELECT, "value"),
     )

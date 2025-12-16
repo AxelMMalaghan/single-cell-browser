@@ -470,3 +470,20 @@ hr {
         padding-inline: 1rem;
     }
 }
+
+
+/* --------------------------------------------------
+   FIX: Navbar Dropdown Text Color
+   Forces the selected value and placeholder to be dark
+   (overriding the white text inherited from the Navbar)
+-------------------------------------------------- */
+.scb-navbar #dataset-select .Select-value-label,
+.scb-navbar #dataset-select .Select-placeholder,
+.scb-navbar #dataset-select .Select-input > input {
+    color: #111827 !important; /* Dark text */
+}
+
+/* Ensure the single value container itself doesn't force white */
+.scb-navbar #dataset-select .Select-value {
+    color: #111827 !important;
+}

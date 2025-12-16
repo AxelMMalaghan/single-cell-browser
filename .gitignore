@@ -82,7 +82,7 @@ logs/
 # Data / outputs (big + local)
 # -----------------------
 data/
-datasets/
+/datasets/
 *.h5ad
 *.h5mu
 *.h5

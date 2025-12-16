@@ -6,10 +6,10 @@
   "path": "data/FRC_sce.h5ad",
 
   "obs_columns": {
-    "cluster": "leiden",
+    "cluster": "label",
     "condition": "cond",
     "sample": "dataset",
-    "cell_type": "celltype_panglao"
+    "cell_type": "label"
   },
   "embedding_key": "X_umap"
 }

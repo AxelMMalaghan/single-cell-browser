@@ -1,50 +1,27 @@
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-
 from dash import dcc, html
-
 from sc_browser.ui.ids import IDs
 
 
 def build_dataset_import_panel() -> dbc.Container:
     """
     Datasets → Import & mapping page.
-
-    - Upload/import .h5ad
-    - Show current dataset status + summary
-    - Map obs columns / embedding
     """
     status_card = dbc.Card(
         [
-            dbc.Toast(
-                id=IDs.Control.DATASET_TOAST,  # create this ID
-                header="Dataset",
-                is_open=False,
-                dismissable=True,
-                duration=3500,
-                icon="success",  # will be overridden by callback if needed
-                style={
-                    "position": "fixed",
-                    "top": 80,
-                    "right": 16,
-                    "width": 360,
-                    "zIndex": 2000,
-                },
-            ),
+            # --- REMOVED dbc.Toast HERE (It is now in build_layout.py) ---
+
             dbc.CardHeader("Current dataset"),
             dbc.CardBody(
                 [
-                    # Changed from 'mb-1 fw-semibold' to 'form-label mb-1' to match right side labels
                     html.Div(id="dm-current-dataset", className="form-label mb-1"),
-
-                    # Added 'small' class to match the font size of the labels (0.78rem)
                     html.Div(id="dm-status-text", className="mb-1 small"),
                     html.Div(id="dm-summary-text", className="text-muted mb-3 small"),
 
                     html.Hr(),
 
-                    # Changed from html.H6 to html.Label with 'form-label' class
                     html.Label("Import dataset (.h5ad)", className="form-label mt-1"),
 
                     dcc.Upload(
@@ -121,11 +98,6 @@ def build_dataset_import_panel() -> dbc.Container:
         className="h-100",
     )
 
-    html.Span(
-        id=IDs.Control.DATASET_STATUS_BADGE,  # create this ID
-        className="ms-2",
-    )
-
     return dbc.Container(
         fluid=True,
         children=[
@@ -138,5 +110,4 @@ def build_dataset_import_panel() -> dbc.Container:
             ),
         ],
         className="scb-datasets-view",
-
     )

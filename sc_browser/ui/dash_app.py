@@ -96,7 +96,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
         view_registry=registry,
-        storage=storage_backend,  # Injected storage backend
+        storage=storage_backend,
     )
 
     session_service = SessionService(storage=storage_backend)
@@ -105,17 +105,28 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     ctx = AppConfig(
         config_root=config_root,
         global_config=global_config,
-        datasets=[default_dataset],  # Keep compatible with list-based access if needed
+        # Pass ALL datasets (as lazy wrappers) so the UI dropdown sees them all.
+        datasets=[dataset_manager.get(n) for n in sorted(cfg_by_name.keys())],
         dataset_by_name=dataset_manager,
         dataset_by_key=dataset_key_manager,
         default_dataset=default_dataset,
         registry=registry,
         export_service=export_service,
-        session_service=session_service,  # Added session service
+        session_service=session_service,
         enable_dataset_management=bool(os.getenv("ENABLE_DATASET_MANAGEMENT", "0") == "1"),
     )
 
-    app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
+    # --- FIX: Explicitly resolve the assets folder path ---
+    # This ensures styles.css is found regardless of where you run the app from.
+    assets_path = Path(__file__).parent / "assets"
+
+    app = Dash(
+        __name__,
+        external_stylesheets=[dbc.themes.FLATLY],
+        assets_folder=str(assets_path) # Explicitly set path
+    )
+    # ----------------------------------------------------
+
     app.title = getattr(global_config, "ui_title", "Single-Cell Browser")
 
     app.layout = build_layout(ctx)

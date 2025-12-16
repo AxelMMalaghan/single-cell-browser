@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-
 from dash import dcc, html
-
 from sc_browser.core.dataset import Dataset
-
 from sc_browser.ui.helpers import get_filter_dropdown_options
-
 
 def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
     (
@@ -23,6 +19,22 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
             dbc.CardHeader("Filters", className="fw-semibold"),
             dbc.CardBody(
                 [
+                    # --- NEW SECTION: Dataset Info Header ---
+                    html.Div([
+                        html.H5(
+                            default_dataset.name,
+                            id="sidebar-dataset-name",
+                            className="card-title"
+                        ),
+                        html.P(
+                            f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
+                            id="sidebar-dataset-meta",
+                            className="card-subtitle text-muted mb-3"
+                        ),
+                        html.Hr(),
+                    ]),
+                    # ----------------------------------------
+
                     html.Div(
                         id="cluster-filter-container",
                         children=[
@@ -135,9 +147,8 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Dimension Y", className="form-label"),
                             dcc.Dropdown(id="dim-y-select", className="mb-2"),
 
-                            # WRAPPER: Group label and dropdown so they hide together
                             html.Div(
-                                id="dim-z-container",  # New ID to target in your callback
+                                id="dim-z-container",
                                 children=[
                                     html.Label("Dimension Z", className="form-label"),
                                     dcc.Dropdown(id="dim-z-select", className="mb-2"),

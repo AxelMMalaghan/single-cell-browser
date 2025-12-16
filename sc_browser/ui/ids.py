@@ -25,7 +25,8 @@ class IDs:
 
         DIM_X = "dim-x-select"
         DIM_Y = "dim-y-select"
-        DIM_Z = "dim-z-container"
+        DIM_Z_SELECT = "dim-z-select"  # The Dropdown
+        DIM_Z_CONTAINER = "dim-z-container"
 
         OPTIONS_CHECKLIST = "options-checklist"
         COLOUR_SCALE_SELECT = "colour-scale-select"

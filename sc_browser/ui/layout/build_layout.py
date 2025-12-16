@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-
 from dash import dcc
 from typing import List, Optional
 
@@ -51,13 +50,24 @@ def build_layout(ctx: "AppContext"):
             navbar,
             status_bar,
 
+            # --- NEW COMPONENT: Toast for notifications ---
+            dbc.Toast(
+                id="dataset-toast",
+                header="Notification",
+                is_open=False,
+                dismissable=True,
+                duration=4000,
+                icon="primary",
+                style={"position": "fixed", "top": 80, "right": 20, "zIndex": 9999},
+            ),
+            # ----------------------------------------------
+
             # App-level stores
             dcc.Store(id="session-metadata", storage_type="session"),
             dcc.Store(id="active-session-id", storage_type="session"),
             dcc.Store(id="active-figure-id", storage_type="session"),
             dcc.Store(id="filter-state", storage_type="session"),
             dcc.Store(id="user-state", storage_type="local"),
-
 
             dcc.Tabs(
                 id="page-tabs",
@@ -119,3 +129,6 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
+
+
+

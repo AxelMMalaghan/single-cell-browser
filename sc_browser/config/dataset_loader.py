@@ -9,31 +9,10 @@ from sc_browser.config.model import DatasetConfig, GlobalConfig
 
 logger = logging.getLogger(__name__)
 
+
 def load_global_config(root: Path) -> GlobalConfig:
     """
     Load configuration from a directory using the multi-file layout.
-
-    Expected structure:
-
-        root/
-            global.json
-            datasets/
-                dataset_1.json
-                dataset_2.json
-                ...
-
-    Each file in 'datasets/' is parsed into a DatasetConfig. The resulting GlobalConfig includes:
-
-    - ui_title: title for UI, defaults to 'Single-Cell Browser'
-    - default_group: group for UI, defaults to 'Default'
-    - datasets: list of DatasetConfigs
-    - data_root: root directory for datasets, used for auto-discovery of .h5ad files.
-                 (Auto-discovery may be handled elsewhere; this function just
-                  parses what is explicitly configured here.)
-
-    :param root: Directory containing 'global.json' and optionally 'datasets/'.
-    :return: A GlobalConfig instance.
-    :raises FileNotFoundError: if global.json does not exist.
     """
     logger.info(
         "Loading global config",
@@ -51,16 +30,28 @@ def load_global_config(root: Path) -> GlobalConfig:
     datasets: List[DatasetConfig] = []
 
     if datasets_dir.is_dir():
-        for idx, config_file in enumerate(sorted(datasets_dir.glob("*.json"))):
-            with config_file.open() as f:
-                raw = json.load(f)
-            datasets.append(
-                DatasetConfig.from_raw(raw, source_path=config_file, index=idx)
-            )
+        # --- ADDED LOGGING HERE ---
+        logger.info(f"Scanning for dataset configurations in: {datasets_dir}")
+
+        files = sorted(list(datasets_dir.glob("*.json")))
+        if not files:
+            logger.warning(f"No .json files found in {datasets_dir}")
+
+        for idx, config_file in enumerate(files):
+            logger.info(f"Loading dataset config: {config_file.name}")
+            try:
+                with config_file.open() as f:
+                    raw = json.load(f)
+                datasets.append(
+                    DatasetConfig.from_raw(raw, source_path=config_file, index=idx)
+                )
+            except Exception as e:
+                logger.error(f"Failed to load {config_file.name}: {e}")
+        # --------------------------
+    else:
+        logger.warning(f"Datasets directory not found at: {datasets_dir}")
 
     # Resolve data_root properly:
-    # - Absolute paths are used as-is.
-    # - Relative paths are resolved relative to the config root directory.
     data_root_raw = raw_global.get("data_root")
     if data_root_raw is None:
         data_root = None
@@ -83,8 +74,6 @@ def load_dataset_registry(path: Path) -> tuple[GlobalConfig, Dict[str, DatasetCo
     """
     Load global config + dataset config objects only (NO AnnData loading).
     Returns mapping of dataset name -> DatasetConfig.
-
-    :raises RuntimeError: if no dataset configs exist (optional; your call).
     """
     global_config = load_global_config(path)
     all_cfgs: List[DatasetConfig] = global_config.datasets
@@ -102,7 +91,8 @@ def load_dataset_registry(path: Path) -> tuple[GlobalConfig, Dict[str, DatasetCo
         raise RuntimeError(f"Duplicate dataset names in config: {sorted(set(duplicates))}")
 
     if not cfg_by_name:
-        raise RuntimeError(f"No datasets configured under: {path}")
+        # Changed from RuntimeError to warning so app can start empty if needed
+        logger.warning(f"No datasets configured under: {path}")
 
     logger.info(
         "Dataset registry loaded (lazy mode; datasets not materialised)",
@@ -114,4 +104,3 @@ def load_dataset_registry(path: Path) -> tuple[GlobalConfig, Dict[str, DatasetCo
     )
 
     return global_config, cfg_by_name
-
