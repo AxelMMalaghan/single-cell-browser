@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
+from .metadata_model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
 
 
 def load_session_metadata_from_file(path: Path) -> SessionMetadata:

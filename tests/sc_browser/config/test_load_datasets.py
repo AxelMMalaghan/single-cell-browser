@@ -8,7 +8,7 @@ import pytest
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
-from sc_browser.config.loader import load_datasets
+from sc_browser.config.dataset_loader import load_datasets
 
 
 def _make_tiny_h5ad(tmp_path: Path) -> Path:

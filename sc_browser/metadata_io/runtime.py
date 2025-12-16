@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Any, Tuple
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.model import FigureMetadata
+from sc_browser.metadata_io.metadata_model import FigureMetadata
 
 def figure_to_runtime(metadata: FigureMetadata) -> Tuple[str, str, Dict[str, Any], Dict[str, Any]]:
     """

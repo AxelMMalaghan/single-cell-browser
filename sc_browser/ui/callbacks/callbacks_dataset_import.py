@@ -8,10 +8,12 @@ from typing import Optional, TYPE_CHECKING
 import dash
 from dash import Input, Output, State
 
-from sc_browser.config.loader import load_datasets
+from sc_browser.config.dataset_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
-from sc_browser.ui.helpers import dataset_status, warn_on_invalid_datasets
+from sc_browser.ui.helpers import dataset_status
 from sc_browser.ui.ids import IDs
+import dash_bootstrap_components as dbc
+from dash import Input, Output, no_update
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppContext
@@ -20,7 +22,125 @@ MAX_UPLOAD_BYTES = 1_000_000_000
 logger = logging.getLogger(__name__)
 
 
+def _get_registry(ctx):
+    """
+    Best-effort access to the dataset registry in lazy mode.
+    Adjust these attribute names once you know where you store it.
+    """
+    reg = getattr(ctx, "dataset_registry", None)
+    if reg is not None:
+        return reg
+
+    for attr in ("registry", "dataset_registry", "datasets_registry"):
+        reg = getattr(ctx.global_config, attr, None)
+        if reg is not None:
+            return reg
+
+    return None
+
+
+def _list_dataset_names(ctx) -> list[str]:
+    datasets = getattr(ctx, "datasets", None)
+
+    # Case 1: dict-like mapping (name -> Dataset/handle/config)
+    if isinstance(datasets, dict):
+        return list(datasets.keys())
+
+    # Case 2: sequence (list/tuple)
+    if isinstance(datasets, (list, tuple)):
+        if not datasets:
+            return []
+        first = datasets[0]
+        if isinstance(first, str):
+            return list(datasets)
+        if hasattr(first, "name"):
+            return [ds.name for ds in datasets]
+
+    # Case 3: registry object reachable via ctx/global_config
+    reg = _get_registry(ctx)
+    if reg is not None:
+        # Prefer an explicit dataset_names list if it exists
+        for attr in ("dataset_names", "names"):
+            val = getattr(reg, attr, None)
+            if callable(val):
+                return list(val())
+            if isinstance(val, (list, tuple)):
+                return list(val)
+
+        # Sometimes the registry stores configs in a dict
+        for attr in ("datasets", "dataset_configs", "by_name", "configs"):
+            val = getattr(reg, attr, None)
+            if isinstance(val, dict):
+                return list(val.keys())
+
+    # Fallback: whatever is currently materialised
+    by_name = getattr(ctx, "dataset_by_name", None)
+    if isinstance(by_name, dict):
+        return list(by_name.keys())
+
+    return []
+
+
+def _materialise_dataset(ctx, name: str):
+    ds = ctx.dataset_by_name.get(name)
+    if ds is not None:
+        return ds
+
+    reg = _get_registry(ctx)
+
+    # If ctx.datasets is a dict and already holds Dataset objects, use it
+    datasets = getattr(ctx, "datasets", None)
+    if isinstance(datasets, dict):
+        maybe = datasets.get(name)
+        if maybe is not None and hasattr(maybe, "name") and hasattr(maybe, "adata"):
+            ds = maybe
+            ctx.dataset_by_name[name] = ds
+            ctx.dataset_by_key[getattr(ds, "key", ds.name)] = ds
+            if ctx.default_dataset is None:
+                ctx.default_dataset = ds
+            return ds
+
+    if reg is None:
+        return None
+
+    for meth in ("materialise", "materialize", "load", "get", "get_dataset", "dataset"):
+        fn = getattr(reg, meth, None)
+        if callable(fn):
+            try:
+                ds = fn(name)
+            except Exception:
+                logger.exception("Dataset registry method %s(%r) failed", meth, name)
+                ds = None
+
+            if ds is not None:
+                ctx.dataset_by_name[name] = ds
+                ctx.dataset_by_key[getattr(ds, "key", ds.name)] = ds
+                if ctx.default_dataset is None:
+                    ctx.default_dataset = ds
+                return ds
+
+    return None
+
+
+
+def _dataset_select_options(ctx) -> list[dict]:
+    names = _list_dataset_names(ctx)
+    return [{"label": n, "value": n} for n in names]
+
+
+def _coerce_selected_name(ctx, current_name: str | None) -> str | None:
+    names = _list_dataset_names(ctx)
+    if not names:
+        return None
+    if current_name and current_name in names:
+        return current_name
+    return names[0]
+
+
 def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None:
+    # ---------------------------------------------------------
+    # Mapping/status panel updates when dataset-select changes
+    # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DM_STATUS_TEXT, "children"),
         Output(IDs.Control.DM_SUMMARY_TEXT, "children"),
@@ -38,7 +158,12 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         Input(IDs.Control.DATASET_SELECT, "value"),
     )
     def update_dataset_mapping_and_status(dataset_name: str | None):
-        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
+        ds = None
+        if dataset_name:
+            ds = ctx.dataset_by_name.get(dataset_name)
+            if ds is None:
+                ds = _materialise_dataset(ctx, dataset_name)
+
         if ds is None:
             empty_obs_options: list[dict] = []
             empty_emb_options: list[dict] = []
@@ -101,6 +226,9 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             current_label,
         )
 
+    # ---------------------------------------------------------
+    # Save mapping changes
+    # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DM_SAVE_STATUS, "children"),
         Input(IDs.Control.DM_SAVE_BTN, "n_clicks"),
@@ -124,7 +252,12 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
 
-        ds = ctx.dataset_by_name.get(dataset_name) if dataset_name else None
+        ds = None
+        if dataset_name:
+            ds = ctx.dataset_by_name.get(dataset_name)
+            if ds is None:
+                ds = _materialise_dataset(ctx, dataset_name)
+
         if ds is None:
             return "Cannot save mapping: no dataset selected."
 
@@ -157,7 +290,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         obs_cols["condition"] = ds.condition_key
         ds.obs_columns = obs_cols
 
-        # Refresh cached series + clear caches (new Dataset API)
         refresh = getattr(ds, "refresh_obs_indexes", None)
         if callable(refresh):
             refresh()
@@ -177,6 +309,9 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
         changed_str = ", ".join(changed_fields)
         return f"Updated mapping for '{ds.name}' ({changed_str}). Saved to {rel_path}."
 
+    # ---------------------------------------------------------
+    # Import dataset upload (.h5ad), reload registry, refresh dropdown
+    # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DM_IMPORT_STATUS, "children"),
         Output(IDs.Control.DATASET_SELECT, "options"),
@@ -191,8 +326,8 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             raise dash.exceptions.PreventUpdate
 
         def _current_options_and_value():
-            opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
-            current = current_dataset_name or (ctx.datasets[0].name if ctx.datasets else None)
+            opts = _dataset_select_options(ctx)
+            current = _coerce_selected_name(ctx, current_dataset_name)
             return opts, current
 
         if not filename.endswith(".h5ad"):
@@ -255,7 +390,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
             )
 
         try:
-            ctx.global_config, new_datasets = load_datasets(ctx.config_root)
+            ctx.global_config, reg_or_ds = load_dataset_registry(ctx.config_root)
         except Exception as e:
             logger.exception("Reloading datasets after import failed")
             opts, current = _current_options_and_value()
@@ -267,35 +402,64 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: "AppContext") -> None
                 current,
             )
 
-        ctx.datasets = new_datasets
-        ctx.dataset_by_name = {ds.name: ds for ds in ctx.datasets}
-        ctx.dataset_by_key = {getattr(ds, "key", ds.name): ds for ds in ctx.datasets}
+        # reg_or_ds in lazy mode is NOT necessarily a list.
+        # It might be a dict or a registry-like object.
+        ctx.datasets = reg_or_ds
 
-        warn_on_invalid_datasets(ctx.datasets, logger)
+        # Clear materialised caches; they may now be stale
+        ctx.dataset_by_name = {}
+        ctx.dataset_by_key = {}
+        ctx.default_dataset = None
 
-        imported_ds_name = None
-        for ds in ctx.datasets:
-            fp = getattr(ds, "file_path", None)
-            if fp is not None and fp.name == safe_name:
-                imported_ds_name = ds.name
-                break
+        names = _list_dataset_names(ctx)
+        opts = [{"label": n, "value": n} for n in names]
 
-        if imported_ds_name is None and ctx.datasets:
-            imported_ds_name = ctx.datasets[-1].name
+        # Best-effort: select imported dataset by filename stem in dataset name
+        stem = Path(safe_name).stem.lower()
+        imported_ds_name = next((n for n in names if stem in n.lower()), None)
 
-        opts = [{"label": ds.name, "value": ds.name} for ds in ctx.datasets]
-        selected = imported_ds_name or (ctx.datasets[0].name if ctx.datasets else None)
+        selected = imported_ds_name or (
+            current_dataset_name if current_dataset_name in names else (names[-1] if names else None)
+        )
 
         if imported_ds_name:
             status_msg = (
-                f"Imported '{safe_name}' as dataset '{imported_ds_name}'. "
-                "It is now selected and can be configured in the Datasets → Import & mapping tab."
+                f"Imported '{safe_name}'. "
+                f"Dataset list reloaded and '{imported_ds_name}' is now selected."
             )
         else:
             status_msg = (
                 f"Imported '{safe_name}' and reloaded the dataset list, "
                 "but could not confidently match it to a specific dataset entry. "
-                "Check your config and dataset names."
+                "Select it from the dataset dropdown."
             )
 
         return status_msg, opts, selected
+
+
+    @app.callback(
+        Output(IDs.Control.DATASET_TOAST, "is_open"),
+        Output(IDs.Control.DATASET_TOAST, "children"),
+        Output(IDs.Control.DATASET_TOAST, "icon"),
+        Output(IDs.Control.DATASET_STATUS_BADGE, "children"),
+        Input(IDs.Control.DATASET_SELECT, "value"),
+        prevent_initial_call=True,
+    )
+    def dataset_ui_feedback(dataset_name: str | None):
+        if not dataset_name:
+            badge = dbc.Badge("No dataset selected", color="secondary", className="ms-2")
+            return True, "No dataset selected.", "secondary", badge
+
+        # If you have lazy mode, you can show whether it’s materialised
+        is_materialised = dataset_name in getattr(ctx, "dataset_by_name", {})
+
+        if is_materialised:
+            msg = f"'{dataset_name}' is loaded."
+            icon = "success"
+            badge = dbc.Badge(f"Loaded: {dataset_name}", color="success", className="ms-2")
+        else:
+            msg = f"Selected '{dataset_name}'. (Lazy mode: will load when needed.)"
+            icon = "info"
+            badge = dbc.Badge(f"Selected: {dataset_name}", color="info", className="ms-2")
+
+        return True, msg, icon, badge

@@ -84,6 +84,9 @@ class IDs:
         REPORTS_DOWNLOAD_SESSION = "reports-download-session"
         REPORTS_IMPORT_BANNER = "reports-import-banner"
 
+        DATASET_TOAST = "dataset-toast"
+        DATASET_STATUS_BADGE = "dataset-status-badge"
+
     class Pattern:
         # pattern-matching "type" strings
         REPORTS_DELETE = "reports-delete-figure"

@@ -3,9 +3,6 @@ from __future__ import annotations
 from typing import List, Tuple
 from dash import dash_table, html
 
-
-from sc_browser.validation.dataset_validation import validate_dataset
-from sc_browser.validation.errors import ValidationError
 from sc_browser.core.dataset import Dataset
 
 def get_filter_dropdown_options(
@@ -142,20 +139,3 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
 
 
 
-
-def warn_on_invalid_datasets(datasets: Iterable[Dataset], logger: logging.Logger) -> None:
-    """
-    Validate datasets and log warnings for any that are not deployment-ready.
-
-    This is intentionally warn-only (in-house friendly): the app still runs,
-    but you get actionable signals in logs immediately after load/import.
-    """
-    for ds in datasets:
-        try:
-            validate_dataset(ds)
-        except ValidationError as e:
-            logger.warning(
-                "Dataset %r validation failed: %s",
-                ds.name,
-                "; ".join(f"{issue.code}: {issue.message}" for issue in e.issues),
-            )

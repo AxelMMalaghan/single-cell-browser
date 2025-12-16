@@ -3,14 +3,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Dict
 
 from sc_browser.config.model import DatasetConfig, GlobalConfig
-from sc_browser.core.dataset_loader import from_config, DatasetConfigError
-from sc_browser.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
-
 
 def load_global_config(root: Path) -> GlobalConfig:
     """
@@ -82,69 +79,39 @@ def load_global_config(root: Path) -> GlobalConfig:
     )
 
 
-def load_datasets(path: Path) -> Tuple[GlobalConfig, List[Dataset]]:
+def load_dataset_registry(path: Path) -> tuple[GlobalConfig, Dict[str, DatasetConfig]]:
     """
-    Load the global configuration and instantiate all Dataset objects.
+    Load global config + dataset config objects only (NO AnnData loading).
+    Returns mapping of dataset name -> DatasetConfig.
 
-    Main entrypoint used by UI/services.
-
-    1. Loads the top-level GlobalConfig from 'path'.
-    2. Iterates over GlobalConfig.datasets and calls `from_config` for each.
-    3. Skips any dataset whose config is invalid, logging the error.
-    4. Returns only successfully materialised Dataset objects.
-
-    :param path: Path to config directory.
-    :return: A tuple of (GlobalConfig, List[Dataset]).
-    :raises RuntimeError: if no valid datasets could be loaded.
+    :raises RuntimeError: if no dataset configs exist (optional; your call).
     """
     global_config = load_global_config(path)
-
     all_cfgs: List[DatasetConfig] = global_config.datasets
 
-    datasets: List[Dataset] = []
-    failed = 0
+    cfg_by_name: Dict[str, DatasetConfig] = {}
+    duplicates: List[str] = []
 
     for ds_cfg in all_cfgs:
-        try:
-            ds = from_config(ds_cfg)
-        except DatasetConfigError as e:
-            failed += 1
-            logger.error(
-                "Skipping dataset due to config error",
-                extra={
-                    "dataset": ds_cfg.name,
-                    "path": str(getattr(ds_cfg, "path", "")),
-                    "error": str(e),
-                },
-            )
+        if ds_cfg.name in cfg_by_name:
+            duplicates.append(ds_cfg.name)
             continue
-        except Exception as e:  # hard guard against unexpected issues
-            failed += 1
-            logger.exception(
-                "Unexpected error while loading dataset; skipping",
-                extra={
-                    "dataset": ds_cfg.name,
-                    "path": str(getattr(ds_cfg, "path", "")),
-                },
-            )
-            continue
+        cfg_by_name[ds_cfg.name] = ds_cfg
 
-        datasets.append(ds)
+    if duplicates:
+        raise RuntimeError(f"Duplicate dataset names in config: {sorted(set(duplicates))}")
+
+    if not cfg_by_name:
+        raise RuntimeError(f"No datasets configured under: {path}")
 
     logger.info(
-        "Datasets loaded from config root",
+        "Dataset registry loaded (lazy mode; datasets not materialised)",
         extra={
             "config_root": str(path),
-            "n_datasets": len(datasets),
-            "n_failed": failed,
-            "dataset_names": [ds.name for ds in datasets],
+            "n_dataset_configs": len(cfg_by_name),
+            "dataset_names": sorted(cfg_by_name.keys()),
         },
     )
 
-    if not datasets:
-        # At this point, the app would be useless anyway, so fail fast with a clear error.
-        raise RuntimeError(
-            f"No valid datasets could be loaded from config root: {path}"
-        )
+    return global_config, cfg_by_name
 
-    return global_config, datasets

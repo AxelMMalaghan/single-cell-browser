@@ -4,6 +4,8 @@ import dash_bootstrap_components as dbc
 
 from dash import dcc, html
 
+from sc_browser.ui.ids import IDs
+
 
 def build_dataset_import_panel() -> dbc.Container:
     """
@@ -15,6 +17,21 @@ def build_dataset_import_panel() -> dbc.Container:
     """
     status_card = dbc.Card(
         [
+            dbc.Toast(
+                id=IDs.Control.DATASET_TOAST,  # create this ID
+                header="Dataset",
+                is_open=False,
+                dismissable=True,
+                duration=3500,
+                icon="success",  # will be overridden by callback if needed
+                style={
+                    "position": "fixed",
+                    "top": 80,
+                    "right": 16,
+                    "width": 360,
+                    "zIndex": 2000,
+                },
+            ),
             dbc.CardHeader("Current dataset"),
             dbc.CardBody(
                 [
@@ -97,6 +114,11 @@ def build_dataset_import_panel() -> dbc.Container:
         className="h-100",
     )
 
+    html.Span(
+        id=IDs.Control.DATASET_STATUS_BADGE,  # create this ID
+        className="ms-2",
+    ),
+
     return dbc.Container(
         fluid=True,
         children=[
@@ -109,4 +131,5 @@ def build_dataset_import_panel() -> dbc.Container:
             ),
         ],
         className="scb-datasets-view",
+
     )

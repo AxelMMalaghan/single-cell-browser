@@ -13,11 +13,9 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, dcc, html, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.model import session_from_dict, touch_session, session_to_dict
+from sc_browser.metadata_io.metadata_model import session_from_dict, touch_session, session_to_dict
 from sc_browser.services.session_service import delete_figure as svc_delete_figure
 from sc_browser.ui.ids import IDs
-from sc_browser.validation.errors import ValidationError
-from sc_browser.validation.session_validation import validate_session_import_dict
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig
@@ -258,6 +256,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if contents is None:
             raise dash.exceptions.PreventUpdate
 
+        # dcc.Upload may return a list
         if isinstance(contents, list):
             contents = contents[0] if contents else None
             if contents is None:
@@ -265,42 +264,24 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         try:
             _header, b64data = contents.split(",", 1)
-        except ValueError:
-            return (
-                no_update,
-                "Import failed: could not read the uploaded file. "
-                "Please upload the metadata.json file exported from this app.",
-            )
-
-        try:
             raw_bytes = base64.b64decode(b64data)
             imported_dict = json.loads(raw_bytes.decode("utf-8"))
         except Exception as e:
             return (
                 no_update,
-                f"Import failed: invalid JSON ({e}). "
-                "If you exported a ZIP, unzip it and upload metadata.json.",
-            )
-
-        try:
-            validate_session_import_dict(imported_dict)
-        except ValidationError as e:
-            return (
-                no_update,
-                "Import failed:\n" + "\n".join(f"- {issue.message}" for issue in e.issues),
+                f"Import failed: could not read uploaded file ({e}).",
             )
 
         imported_session = session_from_dict(imported_dict)
         if imported_session is None:
             return (
                 no_update,
-                "Import failed: file didn’t look like session metadata. "
-                "Upload the exported metadata.json.",
+                "Import failed: could not parse session metadata.",
             )
 
         if len(imported_session.figures) > MAX_IMPORTED_FIGURES:
             logger.warning(
-                "Truncating imported session figures: %d > MAX_IMPORTED_FIGURES=%d",
+                "Truncating imported figures: %d > MAX_IMPORTED_FIGURES=%d",
                 len(imported_session.figures),
                 MAX_IMPORTED_FIGURES,
             )
@@ -309,13 +290,15 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         existing_session = session_from_dict(session_data)
         existing_figures = existing_session.figures if existing_session else []
 
-        merged_figures = _merge_and_normalise_figures(existing_figures, imported_session.figures)
+        merged_figures = _merge_and_normalise_figures(
+            existing_figures,
+            imported_session.figures,
+        )
 
         merged_session = existing_session or imported_session
         merged_session.figures = merged_figures
         touch_session(merged_session)
 
-        # sanity log: should always be unique now
         ids = [f.id for f in merged_session.figures]
         logger.info("import: figures=%d unique=%d", len(ids), len(set(ids)))
 
@@ -323,4 +306,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             f"Imported {len(imported_session.figures)} figure(s). "
             f"Session now has {len(merged_figures)} figure(s)."
         )
+
         return session_to_dict(merged_session), banner
+

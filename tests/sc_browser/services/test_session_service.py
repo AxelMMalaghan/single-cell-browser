@@ -6,7 +6,7 @@ from sc_browser.services.session_service import (
     delete_figure,
     merge_sessions,
 )
-from sc_browser.metadata_io.model import new_session_metadata
+from sc_browser.metadata_io.metadata_model import new_session_metadata
 
 
 def _new_session(session_id: str = "s1"):

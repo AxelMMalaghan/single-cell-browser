@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.model import (
+from sc_browser.metadata_io.metadata_model import (
     new_session_metadata,
     session_to_dict,
     session_from_dict,
     generate_session_id,
 )
-from sc_browser.metadata_io.model import FigureMetadata
+from sc_browser.metadata_io.metadata_model import FigureMetadata
 
 
 def test_session_roundtrip_preserves_filter_state_type():

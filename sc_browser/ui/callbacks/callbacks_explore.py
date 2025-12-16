@@ -10,7 +10,7 @@ import plotly.graph_objs as go
 from dash import Input, Output, State, exceptions, dcc as dash_dcc, html, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.model import (
+from sc_browser.metadata_io.metadata_model import (
     generate_session_id,
     session_from_dict,
     session_to_dict,

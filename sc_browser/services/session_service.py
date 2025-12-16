@@ -5,7 +5,7 @@ import json
 from dataclasses import replace
 from typing import Any, Iterable, Optional, Tuple
 
-from sc_browser.metadata_io.model import (
+from sc_browser.metadata_io.metadata_model import (
     FigureMetadata,
     SessionMetadata,
     generate_figure_id,
