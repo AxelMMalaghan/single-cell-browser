@@ -7,8 +7,9 @@ import anndata as ad
 import pytest
 
 from sc_browser.core.dataset import Dataset
+from sc_browser.core.dataset_loader import from_config
 from sc_browser.core.filter_state import FilterState
-from sc_browser.config.dataset_loader import load_datasets
+from sc_browser.config.dataset_loader import load_dataset_registry
 
 
 def _make_tiny_h5ad(tmp_path: Path) -> Path:
@@ -30,11 +31,7 @@ def _make_tiny_h5ad(tmp_path: Path) -> Path:
 
 
 def test_load_datasets_from_config_dir(tmp_path):
-    # Arrange: build config dir:
-    # root/
-    #   global.json
-    #   datasets/
-    #     dataset_0.json
+    # Arrange: build config dir
     config_root = tmp_path / "config"
     datasets_dir = config_root / "datasets"
     datasets_dir.mkdir(parents=True)
@@ -45,7 +42,6 @@ def test_load_datasets_from_config_dir(tmp_path):
     global_json = {
         "ui_title": "Test Browser",
         "default_group": "Example",
-        # data_root not needed for this test
     }
     (config_root / "global.json").write_text(json.dumps(global_json))
 
@@ -64,16 +60,23 @@ def test_load_datasets_from_config_dir(tmp_path):
     (datasets_dir / "dataset_0.json").write_text(json.dumps(dataset_entry))
 
     # Act
-    global_config, datasets = load_datasets(config_root)
+    # load_dataset_registry returns a dict: {"TinyDataset": DatasetConfig(...)}
+    global_config, cfg_by_name = load_dataset_registry(config_root)
 
     # Assert: GlobalConfig wiring
     assert global_config.ui_title == "Test Browser"
     assert global_config.default_group == "Example"
     assert len(global_config.datasets) == 1
 
-    # Dataset instances
-    assert len(datasets) == 1
-    ds = datasets[0]
+    # Assert: Dataset Configs
+    assert len(cfg_by_name) == 1
+
+    # FIX: Access by name key, not index [0]
+    assert "TinyDataset" in cfg_by_name
+    cfg = cfg_by_name["TinyDataset"]
+
+    # Act: Instantiate manually to verify data loading
+    ds = from_config(cfg)
 
     assert ds.name == "TinyDataset"
     assert ds.group == "ExampleGroup"
@@ -83,17 +86,6 @@ def test_load_datasets_from_config_dir(tmp_path):
     # obs columns mapped correctly
     assert list(ds.clusters) == ["A", "B"]
     assert list(ds.conditions) == ["x", "y"]
-
-
-
-def test_non_unique_obs_names_can_be_made_unique():
-    X = np.random.rand(3, 2)
-    adata = ad.AnnData(X=X)
-    adata.obs_names = ["cell", "cell", "cell"]
-
-    adata.obs_names_make_unique()
-
-    assert len(set(adata.obs_names)) == adata.n_obs
 
 
 def test_missing_embedding_key_detected():

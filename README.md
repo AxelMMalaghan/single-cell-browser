@@ -1,92 +1,182 @@
-# sc-B++
+# Single-Cell Browser
 
-*A modular, extensible Dash application for exploring single-cell RNA-seq datasets.*
+An in-house, config-driven web application for interactive exploration of single-cell datasets (`.h5ad`), built on **Dash**, **Scanpy**, and **Plotly**.
+
+The browser is designed to be:
+- **Dataset-agnostic** (no hard-coded schema assumptions)
+- **Robust to partial or imperfect metadata**
+- **Configurable via JSON**, not code changes
+- **Deployable on an internal server** (Docker + Gunicorn)
+
+This is not a hosted SaaS product. It is intended for **controlled, internal use** in a research environment.
 
 ---
 
-## Overview
+## High-Level Architecture
 
-The Single-Cell Browser is an interactive, configurable web application designed for scientists who want to explore single-cell datasets **without needing to write code**. The system provides:
+.h5ad files
+↓
+DatasetConfig (JSON)
+↓
+Dataset Loader
+↓
+Dataset abstraction
+↓
+FilterState
+↓
+Views (cluster, expression, DE, etc.)
+↓
+Dash UI (Plotly figures)
 
-- A clean, intuitive user interface  
-- Consistent dataset handling through a unified adapter  
-- Modular visualisation “views” that plug into the UI automatically  
-- Fast filtering and on-demand computation  
-- Support for multiple datasets with minimal setup  
-
-The backend is built using:
-
-- **AnnData / Scanpy** for data access  
-- **Dash + Plotly** for interactive visualisation  
-- A **View Registry** pattern that cleanly separates UI from analysis logic  
-- A **Dataset abstraction** that standardises `.obs` metadata across datasets  
+Key design principles:
+- **All data access flows through the `Dataset` abstraction**
+- **Views never touch AnnData directly**
+- **Filters are declarative and cached**
+- **Failures degrade gracefully** (empty plots, warnings, not crashes)
 
 ---
 
 ## Features
 
-### Core
-- Load multiple datasets from a JSON config file  
-- Standardised mapping of raw `.obs` columns → semantic names (`cluster`, `condition`, `sample`)  
-- Interactive filtering by:
-  - Clusters  
-  - Conditions  
-  - Samples  
-  - Genes
+- Interactive embedding views (2D / 3D)
+- Gene expression visualisation
+- Differential expression (volcano plots)
+- Dataset-aware filtering (cluster, condition, sample, cell type, genes)
+- Deterministic caching of filtered subsets
+- Session metadata import/export
+- Structured logging (JSON in production)
 
-### Visualisation Views
-Each view is a self-contained analysis/plotting module:
-
-- **ClusterView** – UMAP/embedding coloured by cluster or metadata  
-- **ExpressionView** – Gene expression visualisation  
-- **FeatureCountView** – Total counts vs detected features  
-- **DotplotView** – Marker overview across cell groups  
-- **HeatmapView** – Expression heatmaps  
-- **DEView** – Differential expression testing between groups  
-
-Views automatically appear as tabs in the UI.
-
-### Architecture
-
-- All views register themselves with the `ViewRegistry`  
-- Dash callbacks delegate work to views via a unified interface  
-- Easily extensible — add new views without touching UI code  
-- ....
-- 
-## Repository Structure
-
-tba
-
-## Data Flow
-
-The app is pointed at a config root which is a directory that contains `global.json` as well as `datasets/` which is a directory that contains the loaded datasets.
-`DatasetConfig` then decodes the path where the `.h5ad` files live & obs their respective obs columns mapping.
-`from_config` then turns DatasetConfig into the internal `Dataset` object which is responsible for storing the data, normalising the obs_columnn and also precomputes the series for faster filtering.
-It also initialises the subset cache:
-    `{ (clusters, conditions, samples, cell_types) -> Dataset }`
-And the expression cache:
-    `{ (gene tuple) -> DataFrame}`
-
-From there, the Dataset objects are then used by Dash to create the views.
-
-### Per-view Data Flow
-
-`compute_data()` creates a pandas dataframe....
 ---
 
-## Installation
+## Repository Structure
 
-### 1. Create and activate a virtual environment
+single-cell-browser/
+├── sc_browser/
+│ ├── config/ # Config loading & validation
+│ ├── core/ # Dataset, filtering, views
+│ ├── metadata_io/ # Session & figure metadata
+│ ├── services/ # Export / persistence logic
+│ ├── ui/ # Dash layout & callbacks
+│ ├── validation/ # Config & session validation
+│ └── logging_config.py
+├── tests/
+├── Dockerfile
+├── requirements.txt
+└── README.md
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+---
+
+## Configuration
+
+### Global Config
+
+The application is driven by a **global config directory**, expected to contain:
+
+config/
+├── global.json
+└── datasets/
+├── dataset_1.json
+└── dataset_2.json
+
+`global.json` example:
+
+```json
+{
+  "app_name": "Single-Cell Browser",
+  "enable_dataset_management": true
+}
+Dataset Config
+Each dataset is defined by a JSON file:
+{
+  "name": "Example Dataset",
+  "h5ad_path": "data/example.h5ad",
+  "embedding_key": "X_umap",
+  "obs_columns": {
+    "cluster": "leiden",
+    "condition": "condition",
+    "sample": "sample_id",
+    "cell_type": "cell_type"
+  }
+}
+```
+
+Notes:
+Only name, h5ad_path, and embedding_key are required
+All obs_columns are optional
+Missing metadata does not crash the app — affected views degrade gracefully
+Dataflow & Robustness
+Dataset Loading
+.h5ad files are loaded once at startup
+Duplicate obs/var names are automatically made unique (with warnings)
+Missing files or invalid configs are logged and skipped
+At least one valid dataset must load, or startup fails
+Filtering
+Filters are represented by a FilterState
+All subsetting goes through Dataset.subset_for_state
+Filtered datasets are cached by filter signature
+Empty subsets are valid and handled safely
+Views
+Views consume filtered datasets, never raw AnnData
+Each view declares what filters it requires
+Missing metadata results in empty or informational figures, not exceptions
+
+---
+
+## Running Locally (Development)
+
+### Requirements
+
+- Python 3.11+
+- pip or virtualenv
+- python -m venv .venv 
+- source .venv/bin/activate
+- pip install -r requirements.txt
+
+- Run the app (example entrypoint):
+- export SC_BROWSER_CONFIG_ROOT=./config
+- python app.py
+- The app will be available at:
+- http://localhost:8050
+
+## Running with Docker (Recommended)
+
+### Build
+
+- docker build -t single-cell-browser .
+ - Run
+ - docker run \
+  -p 8050:8050 \
+  -e SC_BROWSER_CONFIG_ROOT=/config \
+  -v $(pwd)/config:/config \
+  -v $(pwd)/data:/data \
+  single-cell-browser
+
+ - Gunicorn is used as the production WSGI server.
+Environment Variables
+Variable	Purpose
+SC_BROWSER_CONFIG_ROOT	Path to config directory
+SC_BROWSER_DATA_ROOT	Optional data root override
+LOG_LEVEL	Logging level (INFO, DEBUG, etc.)
+DEBUG	Enable debug logging
+PORT	Server port (default: 8050)
 
 
-pip install -r requirements.txt
+## Logging
+Structured JSON logging in production
+Human-readable logs in development
+All dataset loading, filtering, and view execution is logged
+Errors are surfaced in the UI without crashing the server
+
+## Testing
+
+### Run tests with:
+
+- pytest
+
+Tests cover:
+- Dataset loading & validation
+- Subsetting and caching
+- Metadata round-tripping
+- Failure cases (missing metadata, empty subsets)
 
 
-pip install pytest black isort
-
-
-python app.py
