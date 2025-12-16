@@ -129,6 +129,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # ---------------------------------------------------------
     # Export session (FIXED: No Zombie Files)
     # ---------------------------------------------------------
+
     @app.callback(
         Output(IDs.Control.REPORTS_DOWNLOAD_SESSION, "data"),
         Input(IDs.Control.REPORTS_EXPORT_BTN, "n_clicks"),
@@ -144,62 +145,21 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if session is None or not session.figures:
             raise dash.exceptions.PreventUpdate
 
-        session_id = session.session_id or active_session_id or "session"
+        # Ensure session ID matches the one passed
+        if not session.session_id and active_session_id:
+            session.session_id = active_session_id
 
-        export_root = getattr(ctx.export_service, "output_root", None) or getattr(ctx.export_service, "_output_root",
-                                                                                  None)
-        if export_root is None:
-            logger.exception("ExportService has no output_root")
+        # Clean, simple delegation to Service layer
+        try:
+            zip_bytes = ctx.export_service.create_session_zip(session)
+        except Exception:
+            logger.exception("Failed to create session ZIP")
             raise dash.exceptions.PreventUpdate
 
-        export_root = Path(export_root)
-        session_dir = export_root / session_id
+        filename = f"{session.session_id}_report.zip"
 
-        logger.info(
-            "Export ZIP requested: session_id=%s export_root=%s",
-            session_id,
-            export_root,
-        )
-
-        def _write_zip(buf: io.BytesIO):
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                meta_dict = session_to_dict(session)
-                zf.writestr("metadata.json", json.dumps(meta_dict, indent=2).encode("utf-8"))
-
-                if not session_dir.exists():
-                    zf.writestr(
-                        "FIGURES_MISSING.txt",
-                        f"No figures directory found at: {session_dir}\n".encode("utf-8"),
-                    )
-                    return
-
-                # Build set of expected filenames to avoid zipping deleted "zombie" figures
-                valid_stems = set()
-                for fig in session.figures:
-                    if fig.file_stem:
-                        valid_stems.add(fig.file_stem)
-                    else:
-                        # Fallback to default naming convention
-                        valid_stems.add(f"{fig.dataset_key}.{fig.view_id}_{fig.id}")
-
-                pngs = list(session_dir.glob("*.png"))
-
-                valid_pngs = []
-                for p in pngs:
-                    if p.stem in valid_stems:
-                        valid_pngs.append(p)
-
-                if not valid_pngs and session.figures:
-                    zf.writestr(
-                        "WARNING.txt",
-                        b"Metadata contains figures, but no matching images were found on disk.\n"
-                    )
-
-                for png_path in valid_pngs:
-                    zf.write(png_path, arcname=f"figures/{png_path.name}")
-
-        filename = f"{session_id}_report.zip"
-        return dcc.send_bytes(_write_zip, filename)
+        # dcc.Download expects base64 or raw bytes
+        return dcc.send_bytes(zip_bytes, filename)
 
     # ---------------------------------------------------------
     # Import helpers

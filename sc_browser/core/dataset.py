@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
@@ -46,15 +47,15 @@ class Dataset:
     # Constructor
     # -------------------------------------------------------------------------
     def __init__(
-        self,
-        name: str,
-        group: str,
-        adata: ad.AnnData,
-        cluster_key: Optional[str],
-        condition_key: Optional[str],
-        embedding_key: Optional[str],
-        obs_columns: Optional[Any] = None,
-        file_path: Optional[Path] = None,
+            self,
+            name: str,
+            group: str,
+            adata: ad.AnnData,
+            cluster_key: Optional[str],
+            condition_key: Optional[str],
+            embedding_key: Optional[str],
+            obs_columns: Optional[Any] = None,
+            file_path: Optional[Path] = None,
     ) -> None:
         self.name = name
         self.group = group
@@ -66,9 +67,6 @@ class Dataset:
 
         # ---------------------------------------------------------------------
         # Normalise obs_columns to a dict[str, str]
-        # Accept both:
-        #   - dict-like: {"sample": "sample_col", "cell_type": "cell_type_col", ...}
-        #   - ObsColumns dataclass instance
         # ---------------------------------------------------------------------
         self.obs_columns: Dict[str, str] = self._normalise_obs_columns(obs_columns)
 
@@ -104,16 +102,16 @@ class Dataset:
         )
 
         # ---------------------------------------------------------------------
-        # Caches
+        # Caches (Updated to OrderedDict for LRU behavior)
         # ---------------------------------------------------------------------
         # Cache of filtered Dataset objects
-        self._subset_cache: Dict[
+        self._subset_cache: OrderedDict[
             Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]],
             "Dataset",
-        ] = {}
+        ] = OrderedDict()
 
         # Cache for expression matrices (per subset, per gene set)
-        self._expr_cache: Dict[Tuple[str, ...], pd.DataFrame] = {}
+        self._expr_cache: OrderedDict[Tuple[str, ...], pd.DataFrame] = OrderedDict()
 
         # Cached valid values for UI sanitisation
         self._valid_sets: Optional[ValidSets] = None
@@ -122,13 +120,6 @@ class Dataset:
     # Internal: normalise obs_columns
     # -------------------------------------------------------------------------
     def _normalise_obs_columns(self, obs_columns: Optional[Any]) -> Dict[str, str]:
-        """
-        Accept either:
-        - dict-like: {"sample": "...", "cell_type": "...", ...}
-        - ObsColumns dataclass instance
-
-        and always return a flat dict[str, str] with only non-None entries.
-        """
         if obs_columns is None:
             return {}
 
@@ -160,11 +151,6 @@ class Dataset:
     # Cached valid values for UI sanitisation
     # -------------------------------------------------------------------------
     def valid_sets(self) -> ValidSets:
-        """
-        Return cached valid values for dropdown sanitisation.
-
-        This avoids recomputing `.unique()` in callbacks on every UI change.
-        """
         if self._valid_sets is not None:
             return self._valid_sets
 
@@ -189,11 +175,11 @@ class Dataset:
     # Helper: build cache key for subsetting
     # -------------------------------------------------------------------------
     def _subset_cache_key(
-        self,
-        clusters: Optional[List[str]],
-        conditions: Optional[List[str]],
-        samples: Optional[List[str]],
-        cell_types: Optional[List[str]],
+            self,
+            clusters: Optional[List[str]],
+            conditions: Optional[List[str]],
+            samples: Optional[List[str]],
+            cell_types: Optional[List[str]],
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
 
         def norm(values: Optional[List[str]]) -> Tuple[str, ...]:
@@ -209,29 +195,27 @@ class Dataset:
         )
 
     # -------------------------------------------------------------------------
-    # Subsetting with caching
+    # Subsetting with caching (LRU)
     # -------------------------------------------------------------------------
     def subset(
-        self,
-        clusters: Optional[List[str]] = None,
-        conditions: Optional[List[str]] = None,
-        samples: Optional[List[str]] = None,
-        cell_types: Optional[List[str]] = None,
-        *,
-        copy_adata: bool = False,
+            self,
+            clusters: Optional[List[str]] = None,
+            conditions: Optional[List[str]] = None,
+            samples: Optional[List[str]] = None,
+            cell_types: Optional[List[str]] = None,
+            *,
+            copy_adata: bool = False,
     ) -> "Dataset":
         """
         Efficiently return a new Dataset filtered by cluster, condition, sample,
         and/or cell type. Subsets are cached to avoid recomputation.
-
-        Args:
-            copy_adata: If True, forces `adata[mask].copy()` (safer if any code mutates AnnData).
-                       Default False keeps views (lower memory) assuming read-only usage.
         """
         key = self._subset_cache_key(clusters, conditions, samples, cell_types)
-        cached = self._subset_cache.get(key)
-        if cached is not None:
-            return cached
+
+        # LRU Hit: move to end
+        if key in self._subset_cache:
+            self._subset_cache.move_to_end(key)
+            return self._subset_cache[key]
 
         adata = self.adata
         n = adata.n_obs
@@ -263,11 +247,10 @@ class Dataset:
             file_path=self.file_path,
         )
 
+        # LRU Miss: Insert and Evict if needed
         self._subset_cache[key] = subset_ds
-
-        # Prevent unbounded growth
         if len(self._subset_cache) > self.MAX_SUBSET_CACHE:
-            self._subset_cache.clear()
+            self._subset_cache.popitem(last=False)  # Remove oldest (FIFO)
 
         return subset_ds
 
@@ -288,18 +271,17 @@ class Dataset:
         )
 
     # -------------------------------------------------------------------------
-    # Expression Matrix Extraction (cached)
+    # Expression Matrix Extraction (cached with LRU)
     # -------------------------------------------------------------------------
     def expression_matrix(self, genes: Sequence[str]) -> pd.DataFrame:
         """
         Return an expression matrix (cells × genes) for the given genes.
-
-        Notes:
-        - Cache key is order-insensitive (genes are normalised to a sorted unique tuple).
-        - If none of the genes exist, returns an empty DataFrame indexed by obs_names.
         """
         key = tuple(sorted(set(map(str, genes))))
+
+        # LRU Hit
         if key in self._expr_cache:
+            self._expr_cache.move_to_end(key)
             return self._expr_cache[key]
 
         adata = self.adata
@@ -308,6 +290,8 @@ class Dataset:
         if not var_mask.any():
             df = pd.DataFrame(index=adata.obs_names)
             self._expr_cache[key] = df
+            if len(self._expr_cache) > self.MAX_EXPR_CACHE:
+                self._expr_cache.popitem(last=False)
             return df
 
         selected_genes = adata.var_names[var_mask]
@@ -318,10 +302,10 @@ class Dataset:
 
         df = pd.DataFrame(X, index=adata.obs_names, columns=selected_genes)
 
+        # LRU Miss
         self._expr_cache[key] = df
-
         if len(self._expr_cache) > self.MAX_EXPR_CACHE:
-            self._expr_cache.clear()
+            self._expr_cache.popitem(last=False)
 
         return df
 
@@ -337,7 +321,6 @@ class Dataset:
     def refresh_obs_indexes(self) -> None:
         """
         Rebuild cached, string-normalised obs Series after mapping changes.
-        Also clears caches and valid_sets.
         """
         obs = self.adata.obs
 
@@ -400,8 +383,6 @@ class Dataset:
     def get_embedding(self, key: Optional[str] = None) -> pd.DataFrame:
         """
         Return the embedding for the given obsm key as a DataFrame with dim1/dim2,...
-
-        If key is None, uses this dataset's configured embedding_key.
         """
         emb_key = key or self.embedding_key
         if emb_key is None:

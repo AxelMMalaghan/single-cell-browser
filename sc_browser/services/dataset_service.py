@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from collections import OrderedDict
 from typing import Dict, Iterator, Mapping
 
 from sc_browser.config.model import DatasetConfig
@@ -13,17 +15,28 @@ logger = logging.getLogger(__name__)
 class DatasetManager(Mapping[str, Dataset]):
     """
     Central service for managing datasets.
-    Implements the Mapping interface (dict-like) to support lazy loading
-    transparency for the UI layer.
+    Implements LRU caching to prevent unbounded memory usage.
     """
+
+    # Default to keeping 5 large datasets in memory.
+    # Can be tuned via env var SC_BROWSER_MAX_LOADED_DATASETS
+    DEFAULT_MAX_LOADED = 5
 
     def __init__(self, cfg_by_name: Dict[str, DatasetConfig]):
         self._cfg_by_name = cfg_by_name
-        self._loaded: Dict[str, Dataset] = {}
+        # Use OrderedDict for LRU behavior: oldest items are at the beginning
+        self._loaded: OrderedDict[str, Dataset] = OrderedDict()
+
+        try:
+            self._max_loaded = int(os.getenv("SC_BROWSER_MAX_LOADED_DATASETS", str(self.DEFAULT_MAX_LOADED)))
+        except ValueError:
+            self._max_loaded = self.DEFAULT_MAX_LOADED
 
     def __getitem__(self, name: str) -> Dataset:
-        # 1. Fast path: already materialised
+        # 1. Fast path: already loaded (LRU Cache Hit)
         if name in self._loaded:
+            # Move to end to mark as recently used
+            self._loaded.move_to_end(name)
             return self._loaded[name]
 
         # 2. Check config existence
@@ -48,7 +61,14 @@ class DatasetManager(Mapping[str, Dataset]):
             )
             raise
 
+        # 4. Cache Management (LRU Eviction)
         self._loaded[name] = ds
+
+        if len(self._loaded) > self._max_loaded:
+            # Pop the first item (FIFO/Oldest)
+            evicted_name, _ = self._loaded.popitem(last=False)
+            logger.info("Evicted dataset from memory cache to free space", extra={"dataset": evicted_name})
+
         return ds
 
     def __iter__(self) -> Iterator[str]:
@@ -69,11 +89,10 @@ class DatasetManager(Mapping[str, Dataset]):
     def refresh_config(self, new_cfg_by_name: Dict[str, DatasetConfig]) -> None:
         """
         Update the configuration map (e.g. after import).
-        Clears the loaded cache for any datasets that have changed or been removed.
+        Clears the loaded cache to ensure consistency.
         """
         self._cfg_by_name = new_cfg_by_name
-        # Conservative: clear everything to ensure consistency
-        # Optimization: could diff keys, but safely reloading is better
+        logger.info("Dataset config refreshed. Clearing memory cache.")
         self._loaded.clear()
 
 
@@ -98,3 +117,9 @@ class DatasetKeyManager(Mapping[str, Dataset]):
 
     def __len__(self) -> int:
         return len(self._name_by_key)
+
+    def get(self, key: str, default=None) -> Dataset | None:
+        try:
+            return self[key]
+        except KeyError:
+            return default

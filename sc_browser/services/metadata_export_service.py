@@ -1,24 +1,25 @@
 from __future__ import annotations
 
-from pathlib import Path
+import io
+import json
+import logging
+import zipfile
 from typing import Dict
 
-import logging
 import plotly.graph_objs as go
 
 from sc_browser.core import Dataset
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
-from sc_browser.metadata_io.metadata_model import FigureMetadata
+from sc_browser.metadata_io.metadata_model import FigureMetadata, SessionMetadata, session_to_dict
+from sc_browser.services.storage import StorageBackend
 
 logger = logging.getLogger(__name__)
 
 
 class ExportService:
     """
-    Responsible for:
-    - turning figure metadata into a Plotly figure
-    - writing figures out as image files
+    Handles rendering and persistence of figures/sessions using an abstract storage backend.
     """
 
     def __init__(
@@ -26,12 +27,11 @@ class ExportService:
             *,
             datasets_by_key: Dict[str, Dataset],
             view_registry: ViewRegistry,
-            output_root: Path,
+            storage: StorageBackend,
     ) -> None:
         self._datasets_by_key = datasets_by_key
         self._view_registry = view_registry
-        self._output_root = output_root
-
+        self._storage = storage
 
     def _get_dataset(self, key: str) -> Dataset:
         try:
@@ -39,79 +39,85 @@ class ExportService:
         except KeyError:
             raise KeyError(f"Dataset with key {key} not found")
 
-
-    def _create_view(self, view_id: str, dataset: Dataset):
-            return self._view_registry.create(view_id, dataset)
-
     def render_figure(self, metadata: FigureMetadata) -> go.Figure:
-        logger.debug(
-            "Rendering figure: figure_id=%s dataset_key=%s view_id=%s",
-            getattr(metadata, "id", None),
-            metadata.dataset_key,
-            metadata.view_id,
-        )
-
+        # ... (Existing render logic remains unchanged) ...
         ds = self._get_dataset(metadata.dataset_key)
-        view = self._create_view(metadata.view_id, ds)
+        view = self._view_registry.create(metadata.view_id, ds)
 
         filter_state = metadata.filter_state
         if isinstance(filter_state, dict):
-            logger.debug("filter_state provided as dict; converting via FilterState.from_dict")
             filter_state = FilterState.from_dict(filter_state)
 
-        try:
-            logger.debug(
-                "Filter summary: clusters=%d conditions=%d samples=%d cell_types=%d genes=%d",
-                len(getattr(filter_state, "clusters", []) or []),
-                len(getattr(filter_state, "conditions", []) or []),
-                len(getattr(filter_state, "samples", []) or []),
-                len(getattr(filter_state, "cell_types", []) or []),
-                len(getattr(filter_state, "genes", []) or []),
-            )
-        except Exception:
-            # Don’t let logging break rendering
-            pass
-
         data = view.compute_data(filter_state)
-        try:
-            logger.debug("Computed data: rows=%s cols=%s", getattr(data, "shape", ("?", "?"))[0],
-                         getattr(data, "shape", ("?", "?"))[1])
-        except Exception:
-            logger.debug("Computed data (shape unknown)")
+        return view.render_figure(data, filter_state)
 
-        figure = view.render_figure(data, filter_state)
-        logger.debug("Render complete: figure_id=%s", getattr(metadata, "id", None))
-        return figure
-
-    def export_single(self, metadata: FigureMetadata, session_id: str, image_format: str = "png") -> Path:
+    def export_single(self, metadata: FigureMetadata, session_id: str, image_format: str = "png") -> str:
+        """
+        Renders and saves a figure image to storage. Returns the relative path.
+        """
         file_stem = metadata.file_stem or f"{metadata.dataset_key}.{metadata.view_id}_{metadata.id}"
+        # We enforce a folder structure: session_id/filename
+        rel_path = f"{session_id}/{file_stem}.{image_format}"
 
-        session_dir = self._output_root / session_id
-        out_path = session_dir / f"{file_stem}.{image_format}"
-
-        logger.info(
-            "Exporting figure: session_id=%s figure_id=%s dataset_key=%s view_id=%s format=%s out_path=%s",
-            session_id,
-            getattr(metadata, "id", None),
-            metadata.dataset_key,
-            metadata.view_id,
-            image_format,
-            out_path,
-        )
+        logger.info("Exporting figure to storage: %s", rel_path)
 
         try:
             figure = self.render_figure(metadata)
-            session_dir.mkdir(parents=True, exist_ok=True)
-            figure.write_image(str(out_path))
+
+            # Plotly write_image writes to bytes if file is str/Path,
+            # but we need to bridge to our storage backend.
+            # We use to_image() to get bytes directly.
+            img_bytes = figure.to_image(format=image_format)
+
+            self._storage.write_bytes(rel_path, img_bytes)
+
         except Exception:
-            logger.exception(
-                "Export failed: session_id=%s figure_id=%s out_path=%s",
-                session_id,
-                getattr(metadata, "id", None),
-                out_path,
-            )
+            logger.exception("Export failed for %s", rel_path)
             raise
 
-        logger.info("Export complete: out_path=%s", out_path)
-        return out_path
+        return rel_path
 
+    def create_session_zip(self, session: SessionMetadata) -> bytes:
+        """
+        Generates the export ZIP bundle for a session.
+        Encapsulates file gathering logic so UI doesn't need to touch storage.
+        """
+        buf = io.BytesIO()
+        session_id = session.session_id
+
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            # 1. Metadata
+            meta_dict = session_to_dict(session)
+            zf.writestr("metadata.json", json.dumps(meta_dict, indent=2).encode("utf-8"))
+
+            # 2. Images
+            # Logic: Scan storage for files belonging to this session
+            # We look in the session_id directory
+
+            # Get list of files in this session folder
+            available_files = self._storage.list_files(prefix=session_id, suffix=".png")
+
+            # Build set of valid stems from current session metadata (ZOMBIE FIX logic)
+            valid_stems = set()
+            for fig in session.figures:
+                if fig.file_stem:
+                    valid_stems.add(fig.file_stem)
+                else:
+                    valid_stems.add(f"{fig.dataset_key}.{fig.view_id}_{fig.id}")
+
+            added_count = 0
+            for file_path in available_files:
+                # file_path is like "session-123/dataset.view_fig-001.png"
+                # extract stem
+                filename = file_path.split("/")[-1]
+                stem = filename.rsplit(".", 1)[0]
+
+                if stem in valid_stems:
+                    img_data = self._storage.read_bytes(file_path)
+                    zf.writestr(f"figures/{filename}", img_data)
+                    added_count += 1
+
+            if added_count == 0 and session.figures:
+                zf.writestr("WARNING.txt", b"No matching images found in storage for this session.")
+
+        return buf.getvalue()

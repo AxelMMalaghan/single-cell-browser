@@ -39,13 +39,36 @@ def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[st
         val = inputs.get(key, {}).get("value")
         return list(val) if val else []
 
-    clusters = get_list("clusters")
-    conditions = get_list("conditions")
-    samples = get_list("samples")
-    cell_types = get_list("cell_types")
-    genes = get_list("genes")
+    # ---------------------------------------------------------
+    # STABILITY FIX: Detect Trigger Source
+    # ---------------------------------------------------------
+    # If the dataset just changed, we MUST ignore the current values of dependent
+    # filters (clusters, genes, etc.) because they are stale artifacts from the
+    # previous dataset. The UI will clear them in a separate callback, but we
+    # need the State to be clean *now* to prevent "ghost" states or name collisions.
+    triggered_id = inputs.get("triggered_id")
 
-    # Validate against dataset
+    dataset_changed = triggered_id == IDs.Control.DATASET_SELECT
+
+    if dataset_changed:
+        # Force reset dependent filters
+        clusters = []
+        conditions = []
+        samples = []
+        cell_types = []
+        genes = []
+        # Embedding: attempt to keep if valid, or reset to default later
+        embedding_val = inputs.get("embedding", {}).get("value")
+    else:
+        # Normal update: trust the inputs
+        clusters = get_list("clusters")
+        conditions = get_list("conditions")
+        samples = get_list("samples")
+        cell_types = get_list("cell_types")
+        genes = get_list("genes")
+        embedding_val = inputs.get("embedding", {}).get("value")
+
+    # Validate against dataset (always safe)
     valid = ds.valid_sets()
     clusters = [str(c) for c in clusters if str(c) in valid.clusters]
     conditions = [str(c) for c in conditions if str(c) in valid.conditions]
@@ -54,9 +77,18 @@ def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[st
     genes = [g for g in genes if g in valid.genes]
 
     # Embedding logic
-    embedding = inputs.get("embedding", {}).get("value")
-    if embedding and embedding not in ds.adata.obsm:
-        embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
+    # If dataset changed, we only keep embedding if it exists in new dataset,
+    # otherwise default to the dataset's main embedding
+    if dataset_changed:
+        if embedding_val and embedding_val in ds.adata.obsm:
+            embedding = embedding_val
+        else:
+            embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
+    else:
+        # Standard validation
+        embedding = embedding_val
+        if embedding and embedding not in ds.adata.obsm:
+            embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
 
     # Options
     options = inputs.get("options", {}).get("value") or []
@@ -65,9 +97,13 @@ def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[st
     is_3d = OPT_IS_3D in opts_set
 
     # Dimensions
-    dim_x = inputs.get("dim_x", {}).get("value")
-    dim_y = inputs.get("dim_y", {}).get("value")
-    dim_z = inputs.get("dim_z", {}).get("value")
+    # If dataset changed, reset dimensions to defaults (0,1,2) unless we want to get fancy
+    if dataset_changed:
+        dim_x, dim_y, dim_z = None, None, None
+    else:
+        dim_x = inputs.get("dim_x", {}).get("value")
+        dim_y = inputs.get("dim_y", {}).get("value")
+        dim_z = inputs.get("dim_z", {}).get("value")
 
     if embedding:
         try:
@@ -129,17 +165,18 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Input(IDs.Control.DIM_Z, "value"),
         Input(IDs.Control.OPTIONS_CHECKLIST, "value"),
         Input(IDs.Control.COLOUR_SCALE_SELECT, "value"),
-        # We DO NOT listen to the Load button here.
-        # The Load button updates the Inputs above, which triggers this.
     )
     def sync_filter_state_from_ui(
             ds_val, view_val, clust_val, cond_val, samp_val, ct_val,
             gene_val, emb_val, dx_val, dy_val, dz_val, opt_val, col_val
     ):
+        # Identify what triggered this callback
+        # dash.ctx.triggered_id handles the ID resolution
+        triggered_id = dash.ctx.triggered_id
+
         # We use ctx.args_grouping to pass named args to our helper
-        # Note: In Dash < 2.4 we'd construct this dict manually.
-        # Assuming modern Dash:
         inputs = {
+            "triggered_id": triggered_id,  # Pass trigger info
             "dataset": {"value": ds_val},
             "view": {"value": view_val},
             "clusters": {"value": clust_val},
