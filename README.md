@@ -159,6 +159,8 @@ The application does not assume specific column names in your `.h5ad` files. You
     "cell_type": "predicted_cell_type"
   }
 }
+```
+
 ## Docker Deployment (Production)
 
 1. Build and Run
