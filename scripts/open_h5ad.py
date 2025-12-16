@@ -4,7 +4,7 @@ import os
 # 1. Setup path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 # Adjusting to go up one level from 'scripts/' to project root, then into 'data/'
-path = os.path.join(script_dir, "../data/Tonsil_Myeloid_sce.h5ad")
+path = os.path.join(script_dir, "../data/FRC_sce.h5ad")
 
 print(f"Loading: {os.path.abspath(path)}")
 adata = ad.read_h5ad(path)
