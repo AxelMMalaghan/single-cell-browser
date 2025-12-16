@@ -131,10 +131,18 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                         children=[
                             html.Label("Dimension X", className="form-label"),
                             dcc.Dropdown(id="dim-x-select", className="mb-2"),
+
                             html.Label("Dimension Y", className="form-label"),
                             dcc.Dropdown(id="dim-y-select", className="mb-2"),
-                            html.Label("Dimension Z", className="form-label"),
-                            dcc.Dropdown(id="dim-z-select", className="mb-2"),
+
+                            # WRAPPER: Group label and dropdown so they hide together
+                            html.Div(
+                                id="dim-z-container",  # New ID to target in your callback
+                                children=[
+                                    html.Label("Dimension Z", className="form-label"),
+                                    dcc.Dropdown(id="dim-z-select", className="mb-2"),
+                                ]
+                            ),
                         ],
                         className="mb-3",
                     ),
@@ -152,26 +160,6 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             ),
                             html.Hr(),
                         ],
-                    ),
-                    html.Div(
-                        [
-                            html.Div(
-                                default_dataset.name,
-                                id="sidebar-dataset-name",
-                                className="fw-semibold",
-                            ),
-                            html.Div(
-                                [
-                                    html.Span(
-                                        f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
-                                        id="sidebar-dataset-meta",
-                                        className="text-muted",
-                                    ),
-                                ],
-                                className="small",
-                            ),
-                        ],
-                        className="scb-dataset-summary mt-1",
                     ),
                 ]
             ),

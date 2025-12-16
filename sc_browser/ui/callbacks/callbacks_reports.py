@@ -234,6 +234,19 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 "Import failed: file format not recognized (must be a valid session JSON or list of figures).",
             )
 
+        # -------------------------------------------------------
+        # VALIDATION: Check if datasets exist in current config
+        # -------------------------------------------------------
+        unknown_datasets = set()
+        for fig in imported_session.figures:
+            # Check key manager first, then name manager (fallback)
+            # Checks existence in config without triggering a load
+            is_known = (fig.dataset_key in ctx.dataset_by_key) or \
+                       (fig.dataset_key in ctx.dataset_by_name)
+
+            if not is_known:
+                unknown_datasets.add(fig.dataset_key)
+
         if len(imported_session.figures) > MAX_IMPORTED_FIGURES:
             logger.warning(
                 "Truncating imported figures: %d > MAX_IMPORTED_FIGURES=%d",
@@ -254,16 +267,22 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         merged_session.figures = merged_figures
         touch_session(merged_session)
 
-        # REFACTOR: Ensure the import is persisted to disk immediately
+        # Persist change
         if ctx.session_service:
             ctx.session_service.persist_session(merged_session)
 
         ids = [f.id for f in merged_session.figures]
         logger.info("Import successful: merged total figures=%d", len(ids))
 
-        banner = (
+        banner_text = (
             f"Imported {len(imported_session.figures)} figure(s). "
             f"Session now has {len(merged_figures)} figure(s)."
         )
 
-        return session_to_dict(merged_session), banner
+        # Append warning if orphans detected
+        if unknown_datasets:
+            missing_str = ", ".join(sorted(unknown_datasets))
+            banner_text += f" Warning: {len(unknown_datasets)} figure(s) reference unknown datasets ({missing_str}) and may not load."
+
+        # Use a simpler styling for the banner text if it contains a warning
+        return session_to_dict(merged_session), banner_text

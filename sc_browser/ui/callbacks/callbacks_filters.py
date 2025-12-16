@@ -184,3 +184,4 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         options = [{"label": labels[i], "value": i} for i in range(len(labels))]
         show_z = {} if len(labels) >= 3 else hide_z
         return options, options, options, show_z
+

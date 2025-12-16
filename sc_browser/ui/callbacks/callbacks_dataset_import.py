@@ -7,13 +7,22 @@ from typing import Optional, TYPE_CHECKING, List
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State
+from dash import Input, Output, State, no_update
 
 from sc_browser.config.dataset_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
 from sc_browser.ui.helpers import dataset_status
 from sc_browser.ui.ids import IDs
 from sc_browser.services.dataset_service import DatasetManager
+
+# IMPORT INFERENCE FUNCTIONS
+from sc_browser.core.inference import (
+    infer_cluster_key,
+    infer_condition_key,
+    infer_sample_key,
+    infer_cell_type_key,
+    infer_embedding_key
+)
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig
@@ -23,17 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 def _list_dataset_names(ctx: AppConfig) -> List[str]:
-    """
-    Return sorted list of available dataset names using the typed context.
-    """
-    # DatasetManager implements Mapping / Iter, so this works directly
     return sorted(list(ctx.dataset_by_name.keys()))
 
 
 def _materialise_dataset(ctx: AppConfig, name: str):
-    """
-    Ensure the dataset is loaded via the manager.
-    """
     return ctx.dataset_by_name.get(name)
 
 
@@ -101,24 +103,33 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         obs_cols = list(ds.adata.obs.columns)
         obs_options = [{"label": c, "value": c} for c in obs_cols]
 
+        # --- CLUSTER ---
         cluster_val = ds.cluster_key if ds.cluster_key in obs_cols else None
-        condition_val = ds.condition_key if ds.condition_key in obs_cols else None
+        if cluster_val is None:
+            cluster_val = infer_cluster_key(ds.adata)
 
+        # --- CONDITION ---
+        condition_val = ds.condition_key if ds.condition_key in obs_cols else None
+        if condition_val is None:
+            condition_val = infer_condition_key(ds.adata)
+
+        # --- SAMPLE ---
         sample_val = ds.obs_columns.get("sample")
         if sample_val not in obs_cols:
-            sample_val = None
+            sample_val = infer_sample_key(ds.adata)
 
+        # --- CELL TYPE ---
         celltype_val = ds.obs_columns.get("cell_type")
         if celltype_val not in obs_cols:
-            celltype_val = None
+            celltype_val = infer_cell_type_key(ds.adata)
 
+        # --- EMBEDDING ---
         emb_keys = list(ds.adata.obsm.keys())
         emb_options = [{"label": k, "value": k} for k in emb_keys]
-        emb_val = (
-            ds.embedding_key
-            if ds.embedding_key in ds.adata.obsm
-            else (emb_keys[0] if emb_keys else None)
-        )
+
+        emb_val = ds.embedding_key
+        if emb_val not in ds.adata.obsm:
+            emb_val = infer_embedding_key(ds.adata)
 
         current_label = f"Current dataset: {ds.name}"
 
@@ -153,13 +164,13 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def save_dataset_mapping(
-        n_clicks: int,
-        dataset_name: str | None,
-        cluster_key: Optional[str],
-        condition_key: Optional[str],
-        sample_key: Optional[str],
-        celltype_key: Optional[str],
-        embedding_key: Optional[str],
+            n_clicks: int,
+            dataset_name: str | None,
+            cluster_key: Optional[str],
+            condition_key: Optional[str],
+            sample_key: Optional[str],
+            celltype_key: Optional[str],
+            embedding_key: Optional[str],
     ):
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
@@ -220,7 +231,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return f"Updated mapping for '{ds.name}' ({changed_str}). Saved to {rel_path}."
 
     # ---------------------------------------------------------
-    # Import dataset upload
+    # Import dataset upload (Robust Version)
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DM_IMPORT_STATUS, "children"),
@@ -286,19 +297,18 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         out_path = data_dir / safe_name
 
-        # FIX: Prevent overwrite logic
-        if out_path.exists():
+        # ATOMIC WRITE / OVERWRITE PROTECTION
+        try:
+            with out_path.open("xb") as f:
+                f.write(decoded)
+        except FileExistsError:
             opts, current = _current_options_and_value()
             return (
                 f"Import failed: A dataset named '{safe_name}' already exists. "
-                "Please rename your file and try again to avoid overwriting existing data.",
+                "Please rename your file and try again.",
                 opts,
                 current,
             )
-
-        try:
-            with out_path.open("wb") as f:
-                f.write(decoded)
         except Exception as e:
             logger.exception("Failed to write uploaded file to disk")
             opts, current = _current_options_and_value()
@@ -322,31 +332,19 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 current,
             )
 
-        # ------------------------------------------------------
-        # REFACTOR: Use DatasetManager logic
-        # ------------------------------------------------------
-        # If ctx.dataset_by_name is our Manager, we can refresh it
         if isinstance(ctx.dataset_by_name, DatasetManager):
-            # reg_or_ds is the new cfg_by_name dict from load_dataset_registry
             ctx.dataset_by_name.refresh_config(reg_or_ds)
-
-            # Since key-manager wraps the name-manager, we might need to refresh it too.
-            # However, keys are derived from config.
-            # Simpler approach: Rebuild name_by_key map for the key manager
             new_name_by_key = {}
             for name, cfg in reg_or_ds.items():
                 key = getattr(cfg, "key", None) or name
                 new_name_by_key[key] = name
 
-            # We assume ctx.dataset_by_key is a DatasetKeyManager and can handle update
-            # (If it doesn't have a public refresh method, we might just hack _name_by_key or add one)
             if hasattr(ctx.dataset_by_key, "_name_by_key"):
                 ctx.dataset_by_key._name_by_key = new_name_by_key
 
         names = _list_dataset_names(ctx)
         opts = [{"label": n, "value": n} for n in names]
 
-        # Best-effort: select imported dataset by filename stem in dataset name
         stem = Path(safe_name).stem.lower()
         imported_ds_name = next((n for n in names if stem in n.lower()), None)
 
@@ -381,8 +379,6 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             badge = dbc.Badge("No dataset selected", color="secondary", className="ms-2")
             return True, "No dataset selected.", "secondary", badge
 
-        # Check if loaded via the Manager
-        # If it's in the _loaded dict, it's materialised
         is_materialised = False
         if hasattr(ctx.dataset_by_name, "is_loaded"):
             is_materialised = ctx.dataset_by_name.is_loaded(dataset_name)

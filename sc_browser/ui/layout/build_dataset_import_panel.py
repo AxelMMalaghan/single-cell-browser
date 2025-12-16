@@ -35,11 +35,18 @@ def build_dataset_import_panel() -> dbc.Container:
             dbc.CardHeader("Current dataset"),
             dbc.CardBody(
                 [
-                    html.Div(id="dm-current-dataset", className="mb-1 fw-semibold"),
-                    html.Div(id="dm-status-text", className="mb-1"),
-                    html.Div(id="dm-summary-text", className="text-muted mb-3"),
+                    # Changed from 'mb-1 fw-semibold' to 'form-label mb-1' to match right side labels
+                    html.Div(id="dm-current-dataset", className="form-label mb-1"),
+
+                    # Added 'small' class to match the font size of the labels (0.78rem)
+                    html.Div(id="dm-status-text", className="mb-1 small"),
+                    html.Div(id="dm-summary-text", className="text-muted mb-3 small"),
+
                     html.Hr(),
-                    html.H6("Import dataset (.h5ad)", className="mt-1"),
+
+                    # Changed from html.H6 to html.Label with 'form-label' class
+                    html.Label("Import dataset (.h5ad)", className="form-label mt-1"),
+
                     dcc.Upload(
                         id="dm-upload",
                         children=html.Div(
@@ -117,7 +124,7 @@ def build_dataset_import_panel() -> dbc.Container:
     html.Span(
         id=IDs.Control.DATASET_STATUS_BADGE,  # create this ID
         className="ms-2",
-    ),
+    )
 
     return dbc.Container(
         fluid=True,

@@ -123,3 +123,9 @@ class DatasetKeyManager(Mapping[str, Dataset]):
             return self[key]
         except KeyError:
             return default
+
+    def refresh(self, name_by_key: Dict[str, str]) -> None:
+        """
+        Update the key-to-name mapping (e.g. after configuration reload).
+        """
+        self._name_by_key = name_by_key

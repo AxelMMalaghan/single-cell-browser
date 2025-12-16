@@ -38,7 +38,6 @@ class FilterState:
     embedding: Optional[str] = None
 
     # Display / plotting options
-    merge_genes: bool = False
     split_by_condition: bool = False
     is_3d: bool = False
 
@@ -62,7 +61,6 @@ class FilterState:
             "samples": list(self.samples),
             "cell_types": list(self.cell_types),
             "embedding": self.embedding,
-            "merge_genes": self.merge_genes,
             "split_by_condition": self.split_by_condition,
             "is_3d": self.is_3d,
             "dim_x": self.dim_x,
@@ -82,7 +80,6 @@ class FilterState:
             samples=list(data.get("samples", [])),
             cell_types=list(data.get("cell_types", [])),
             embedding=data.get("embedding"),
-            merge_genes=bool(data.get("merge_genes", False)),
             split_by_condition=bool(data.get("split_by_condition", False)),
             is_3d=bool(data.get("is_3d", False)),
             dim_x=data.get("dim_x", 0),

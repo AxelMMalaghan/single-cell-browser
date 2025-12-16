@@ -430,8 +430,3 @@ class Dataset:
         """Default embedding using this dataset's embedding_key."""
         return self.get_embedding()
 
-    def get_obs_column(self, key: str) -> Optional[str]:
-        """
-        Backwards-compatible dict-style access to semantic obs columns.
-        """
-        return self.obs_columns.get(key)
