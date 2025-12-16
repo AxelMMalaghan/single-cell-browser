@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,8 @@ class ExpressionView(BaseView):
     """
     Expression plot:
     Embed cells in 2D and colour by log1p(gene expression).
+
+    If multiple genes are selected, colours by the mean expression of those genes.
     """
 
     id = "expression"
@@ -27,7 +29,7 @@ class ExpressionView(BaseView):
         samples=True,
         cell_types=True,
         genes=True,
-        embedding=False,
+        embedding=True,
         split_by_condition=True,
         is_3d=False,
         colour_scale=True,
@@ -37,34 +39,59 @@ class ExpressionView(BaseView):
         ds: Dataset = self.dataset
 
         # --- gene selection ---
-        if not state.genes:
+        # Allow multiple genes
+        genes = state.genes or []
+        if not genes:
             return pd.DataFrame()
 
-        # MVP: only the first gene
-        gene = state.genes[0]
-
-        # Apply filters using Dataset abstraction (hits subset cache)
+        # Apply filters using Dataset abstraction
         ds_sub = self.filtered_dataset(state)
-
         adata = ds_sub.adata
         if adata.n_obs == 0:
             return pd.DataFrame()
 
-        if gene not in adata.var_names:
+        # Validate genes exist in this dataset
+        valid_genes = [g for g in genes if g in adata.var_names]
+        if not valid_genes:
             return pd.DataFrame()
 
         # Use Dataset.expression_matrix for dense extraction + caching
-        expr_df = ds_sub.expression_matrix([gene])
+        expr_df = ds_sub.expression_matrix(valid_genes)
         if expr_df.empty:
             return pd.DataFrame()
 
-        expression = expr_df[gene].to_numpy()
+        # Calculate scalar expression vector for coloring
+        # Single gene -> raw values
+        # Multiple genes -> mean of raw values (simple signature)
+        if len(valid_genes) == 1:
+            expression = expr_df.iloc[:, 0].to_numpy()
+            gene_label = valid_genes[0]
+        else:
+            expression = expr_df.mean(axis=1).to_numpy()
+            # Create a compact label for the aggregate
+            gene_label = f"Mean({', '.join(valid_genes[:3])}{'...' if len(valid_genes) > 3 else ''})"
+
         obs_index = expr_df.index
 
         # --- embedding ---
         emb_key = state.embedding or ds.embedding_key
-        embedding = ds_sub.get_embedding(emb_key).loc[obs_index].copy()
-        embedding = embedding.rename(columns={"dim1": "x", "dim2": "y"})
+
+        # Retrieve full matrix to support arbitrary dimension selection
+        coords = ds_sub.get_embedding_matrix(emb_key)
+        n_dims = coords.shape[1]
+
+        # Determine dimensions to plot (default to 0 vs 1)
+        dim_x = state.dim_x if state.dim_x is not None else 0
+        dim_y = state.dim_y if state.dim_y is not None else 1
+
+        # Safety fallback
+        if dim_x >= n_dims:
+            dim_x = 0
+        if dim_y >= n_dims:
+            dim_y = 1 if n_dims > 1 else 0
+
+        x_coords = coords[:, dim_x]
+        y_coords = coords[:, dim_y]
 
         # --- grouping ---
         clusters = ds_sub.clusters.loc[obs_index] if ds_sub.clusters is not None else pd.Series(
@@ -85,17 +112,22 @@ class ExpressionView(BaseView):
 
         df = pd.DataFrame(
             {
-                "x": embedding["x"],
-                "y": embedding["y"],
+                "x": x_coords,
+                "y": y_coords,
                 "expression": expression,
                 "log_expression": np.log1p(expression),
                 "cluster": clusters.astype(str),
                 "condition": conditions.astype(str),
                 "group": group.astype(str),
-                "gene": gene,
+                "gene": gene_label,
             },
             index=obs_index,
         )
+
+        # Store axis labels for the plot
+        base_label = emb_key.replace("X_", "").upper().replace("_", " ")
+        df.attrs["x_label"] = f"{base_label} {dim_x + 1}"
+        df.attrs["y_label"] = f"{base_label} {dim_y + 1}"
 
         return df
 
@@ -103,7 +135,6 @@ class ExpressionView(BaseView):
 
         if data is None or data.empty:
             return self.empty_figure("No data to show")
-
 
         # Data plotting
         color_scale = getattr(state, "color_scale", "viridis")
@@ -123,10 +154,15 @@ class ExpressionView(BaseView):
             },
         )
 
+        x_label = data.attrs.get("x_label", "Dim X")
+        y_label = data.attrs.get("y_label", "Dim Y")
+
         fig.update_layout(
             height=600,
             margin=dict(l=40, r=40, b=40, t=40),
             coloraxis_colorbar=dict(title="log1p(expression)"),
+            xaxis_title=x_label,
+            yaxis_title=y_label,
         )
 
         return fig
