@@ -195,47 +195,6 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return _validate_and_build_state(ctx, inputs)
 
     # ---------------------------------------------------------
-    # Status Bar (Pure UI reflection of State)
-    # ---------------------------------------------------------
-    @app.callback(
-        Output(IDs.Control.STATUS_BAR, "children"),
-        Input(IDs.Store.FILTER_STATE, "data"),
-    )
-    def update_status_bar(fs_data):
-        if fs_data is None:
-            return html.Span([html.Strong("Status: "), "No dataset selected"])
-
-        try:
-            # Quick parse, no strict object required for display
-            ds_name = fs_data.get("dataset_name", "?")
-            view_id = fs_data.get("view_id", "?")
-            genes = fs_data.get("genes", [])
-        except Exception:
-            return html.Span([html.Strong("Status: "), "Error parsing state"])
-
-        ds = ctx.dataset_by_name.get(ds_name)
-        ds_label = ds.name if ds else ds_name
-
-        # View label lookup
-        view_label = view_id
-        for cls in ctx.registry.all_classes():
-            if cls.id == view_id:
-                view_label = cls.label
-                break
-
-        gene_label = "None"
-        if genes:
-            gene_label = ", ".join(genes[:3]) + (f" (+{len(genes) - 3})" if len(genes) > 3 else "")
-
-        return html.Span(
-            [
-                html.Strong("Dataset: "), ds_label, " \u2022 ",
-                html.Strong("View: "), view_label, " \u2022 ",
-                html.Strong("Genes: "), gene_label,
-            ]
-        )
-
-    # ---------------------------------------------------------
     # Autosave / Restore User State
     # ---------------------------------------------------------
     @app.callback(

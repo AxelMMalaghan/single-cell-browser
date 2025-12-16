@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-from dash import dcc
+from dash import dcc, html
 from typing import List, Optional
 
 from sc_browser.core.dataset import Dataset
@@ -19,11 +19,7 @@ def build_layout(ctx: "AppContext"):
 
     navbar = build_navbar(ctx.datasets, ctx.global_config, default_dataset)
 
-    status_bar = dbc.Alert(
-        id="status-bar",
-        color="light",
-        className="my-2 py-2 scb-status-bar",
-    )
+    # REMOVED: Status bar and Notification Toast
 
     if default_dataset is None:
         filter_panel = dbc.Card(
@@ -48,19 +44,6 @@ def build_layout(ctx: "AppContext"):
         className="scb-root",
         children=[
             navbar,
-            status_bar,
-
-            # --- NEW COMPONENT: Toast for notifications ---
-            dbc.Toast(
-                id="dataset-toast",
-                header="Notification",
-                is_open=False,
-                dismissable=True,
-                duration=4000,
-                icon="primary",
-                style={"position": "fixed", "top": 80, "right": 20, "zIndex": 9999},
-            ),
-            # ----------------------------------------------
 
             # App-level stores
             dcc.Store(id="session-metadata", storage_type="session"),
@@ -118,6 +101,7 @@ def build_layout(ctx: "AppContext"):
         ],
     )
 
+
 def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[Dataset]:
     if not datasets:
         return None
@@ -129,6 +113,3 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
-
-
-

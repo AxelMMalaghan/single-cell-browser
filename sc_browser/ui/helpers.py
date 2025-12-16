@@ -104,7 +104,6 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
         data=df.to_dict("records"),
         columns=[{"name": c, "id": c} for c in df.columns],
 
-        # ---- FONT + LOOK & FEEL ----
         style_table={
             "overflowX": "auto",
         },
@@ -131,7 +130,6 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
             "borderBottom": "1px solid #e5e7eb",
         },
 
-        # optional: small tweaks
         page_size=max_rows,
         sort_action="native",
         filter_action="none",

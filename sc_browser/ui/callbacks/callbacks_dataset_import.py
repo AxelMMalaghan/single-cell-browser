@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Optional, TYPE_CHECKING, List
 
 import dash
-import dash_bootstrap_components as dbc
-from dash import Input, Output, State, no_update
+from dash import Input, Output, State
 
 from sc_browser.config.dataset_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
@@ -15,7 +14,6 @@ from sc_browser.ui.helpers import dataset_status
 from sc_browser.ui.ids import IDs
 from sc_browser.services.dataset_service import DatasetManager
 
-# IMPORT INFERENCE FUNCTIONS
 from sc_browser.core.inference import (
     infer_cluster_key,
     infer_condition_key,
@@ -366,32 +364,3 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         return status_msg, opts, selected
 
-    @app.callback(
-        Output(IDs.Control.DATASET_TOAST, "is_open"),
-        Output(IDs.Control.DATASET_TOAST, "children"),
-        Output(IDs.Control.DATASET_TOAST, "icon"),
-        Output(IDs.Control.DATASET_STATUS_BADGE, "children"),
-        Input(IDs.Control.DATASET_SELECT, "value"),
-        prevent_initial_call=True,
-    )
-    def dataset_ui_feedback(dataset_name: str | None):
-        if not dataset_name:
-            badge = dbc.Badge("No dataset selected", color="secondary", className="ms-2")
-            return True, "No dataset selected.", "secondary", badge
-
-        is_materialised = False
-        if hasattr(ctx.dataset_by_name, "is_loaded"):
-            is_materialised = ctx.dataset_by_name.is_loaded(dataset_name)
-        elif isinstance(ctx.dataset_by_name, dict):
-            is_materialised = dataset_name in ctx.dataset_by_name
-
-        if is_materialised:
-            msg = f"'{dataset_name}' is loaded."
-            icon = "success"
-            badge = dbc.Badge(f"Loaded: {dataset_name}", color="success", className="ms-2")
-        else:
-            msg = f"Selected '{dataset_name}'. (Lazy mode: will load when needed.)"
-            icon = "info"
-            badge = dbc.Badge(f"Selected: {dataset_name}", color="info", className="ms-2")
-
-        return True, msg, icon, badge

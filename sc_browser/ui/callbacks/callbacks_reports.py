@@ -13,6 +13,8 @@ from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.io import normalise_session_dict
 from sc_browser.metadata_io.metadata_model import session_from_dict, touch_session, session_to_dict
 from sc_browser.ui.ids import IDs
+# Import the new table builder
+from sc_browser.ui.layout.build_reports_panel import build_figures_table
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig
@@ -51,48 +53,8 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         n = len(session.figures)
         summary = f"{n} saved figure{'s' if n != 1 else ''} in this session."
 
-        header = html.Thead(
-            html.Tr(
-                [
-                    html.Th("ID"),
-                    html.Th("Label"),
-                    html.Th("Dataset"),
-                    html.Th("View"),
-                    html.Th("Created at"),
-                    html.Th("Actions"),
-                ]
-            )
-        )
-
-        body_rows = [
-            html.Tr(
-                [
-                    html.Td(fig.id),
-                    html.Td(fig.label or html.Span("No label", className="text-muted")),
-                    html.Td(fig.dataset_key),
-                    html.Td(fig.view_id),
-                    html.Td(fig.created_at or ""),
-                    html.Td(
-                        dbc.Button(
-                            "Delete",
-                            id={"type": IDs.Pattern.REPORTS_DELETE, "index": fig.id},
-                            color="danger",
-                            outline=True,
-                            size="sm",
-                        )
-                    ),
-                ]
-            )
-            for fig in session.figures
-        ]
-
-        table = dbc.Table(
-            [header, html.Tbody(body_rows)],
-            bordered=True,
-            hover=True,
-            size="sm",
-            className="mt-2",
-        )
+        # Use the new helper function to build the styled table
+        table = build_figures_table(session.figures)
 
         return summary, table
 

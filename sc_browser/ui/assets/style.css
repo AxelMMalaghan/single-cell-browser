@@ -33,7 +33,7 @@ body {
 
 .scb-navbar {
     margin: 0 -1.5rem 0;
-    padding: 1.25rem 1.5rem;           /* more vertical padding */
+    padding: 1.25rem 1.5rem;
     border-radius: 0;
     color: #F9FAFB;
     box-shadow:
@@ -64,10 +64,9 @@ body {
 .navbar-dataset-block {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
-
     display: flex;
     flex-direction: column;
-    align-items: stretch;   /* dropdown can fill width */
+    align-items: stretch;
 }
 
 .navbar-dataset-title {
@@ -75,7 +74,7 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #e5e7eb; /* light gray */
+    color: #e5e7eb;
     text-align: right;
 }
 
@@ -91,25 +90,6 @@ body {
 }
 
 /* --------------------------------------------------
-   Status bar
--------------------------------------------------- */
-
-.scb-status-bar {
-    margin-top: 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 4px;
-    border: 1px solid #e5e7eb;
-    background: #ffffff;
-    color: #111827;
-    box-shadow:
-        0 4px 12px rgba(15, 23, 42, 0.08);
-    display: flex;
-    align-items: center;
-    padding-inline: 1rem;
-    font-size: 0.8rem;
-}
-
-/* --------------------------------------------------
    Sidebar cards (filters + view/label)
 -------------------------------------------------- */
 
@@ -122,7 +102,6 @@ body {
         0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
-/* Headers in side cards */
 .scb-sidebar .card-header,
 .scb-viewlabel-card .card-header {
     border-bottom: 1px solid #e5e7eb;
@@ -134,7 +113,6 @@ body {
     color: #6b7280;
 }
 
-/* Card bodies */
 .scb-sidebar .card-body,
 .scb-viewlabel-card .card-body {
     padding: 0.85rem 0.9rem 0.9rem;
@@ -153,8 +131,7 @@ body {
 }
 
 /* --------------------------------------------------
-   dcc.Dropdown (react-select v1) — base styling (scoped)
-   Applies to: dataset-select, view-select, filters, etc.
+   dcc.Dropdown (react-select)
 -------------------------------------------------- */
 
 .scb-root .Select-control {
@@ -165,56 +142,56 @@ body {
     font-size: 0.8rem;
     background: #ffffff !important;
     color: #111827;
+    font-family: inherit !important; /* FIX: Inherit system font */
 }
 
-/* selected value + placeholder */
-.scb-root .Select-value-label,
-.scb-root .Select-placeholder {
-    color: #111827 !important;
-}
-
-/* typed/search text */
-.scb-root .Select-input > input {
-    padding: 0.1rem 0 !important;
-    color: #111827 !important;
-}
-
-/* multi-value pills */
-.scb-root .Select--multi .Select-value {
-    border-radius: 999px !important;
-    background: #e5e7eb !important;
-    border: none !important;
-    color: #111827 !important;
-}
-
-/* dropdown menu container */
 .scb-root .Select-menu-outer {
     background: #ffffff !important;
     border: 1px solid #d1d5db !important;
+    font-family: inherit !important; /* FIX: Inherit system font */
 }
 
-/* menu option text (common “white text” culprit) */
-.scb-root .Select-option {
-    color: #111827 !important;
+.scb-root .Select-value-label {
+    font-family: inherit !important; /* FIX: Inherit system font */
+}
+
+.scb-root .Select-input > input {
+    font-family: inherit !important; /* FIX: Inherit system font */
 }
 
 /* --------------------------------------------------
-   Navbar dataset dropdown override
-   (keeps your light control against dark navbar)
+   FIX: Navbar Dropdown Text Color & Size
 -------------------------------------------------- */
 
-.scb-navbar #dataset-select.scb-dataset-dropdown .Select-control {
-    border-radius: 4px !important;
-    border: 1px solid rgba(209, 213, 219, 0.9) !important;
-    background: #f9fafb !important;
-    box-shadow: none !important;
-    color: #111827 !important;
-    min-height: 2.1rem !important;
+.scb-navbar .scb-dataset-dropdown,
+.scb-navbar .scb-dataset-dropdown .Select-control,
+.scb-navbar .scb-dataset-dropdown .Select-value,
+.scb-navbar .scb-dataset-dropdown .Select-value-label,
+.scb-navbar .scb-dataset-dropdown .Select-placeholder,
+.scb-navbar .scb-dataset-dropdown .Select-input > input,
+.scb-navbar .scb-dataset-dropdown .Select-option {
+    color: #111827 !important; /* Force Dark Text */
 }
 
-/* Focus/open state (v1 patterns) */
-.scb-navbar #dataset-select.scb-dataset-dropdown.is-open > .Select-control,
-.scb-navbar #dataset-select.scb-dataset-dropdown .Select-control:focus {
+/* Specific background and SIZE override for the navbar dropdown */
+.scb-navbar .scb-dataset-dropdown .Select-control {
+    background: #f9fafb !important;
+    border-color: rgba(209, 213, 219, 0.9) !important;
+
+    /* Font size and Box height adjustments */
+    font-size: 0.85rem !important;
+    min-height: 36px !important;
+    height: 36px !important;
+}
+
+/* Vertically center the text within the smaller box */
+.scb-navbar #dataset-select .Select-value,
+.scb-navbar #dataset-select .Select-placeholder {
+    line-height: 34px !important;
+}
+
+.scb-navbar .scb-dataset-dropdown.is-open > .Select-control,
+.scb-navbar .scb-dataset-dropdown .Select-control:focus {
     border-color: #e5e7eb !important;
     box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.6) !important;
 }
@@ -239,11 +216,20 @@ input[type="text"].form-control:focus {
     box-shadow: 0 0 0 1px rgba(75, 85, 99, 0.4);
 }
 
-/* Dataset summary in sidebar */
-.scb-dataset-summary {
-    padding-top: 0.4rem;
-    border-top: 1px dashed #e5e7eb;
-    margin-top: 0.8rem;
+/* --------------------------------------------------
+   Sidebar Dataset Summary Sizing (Filter Panel)
+   Overrides default Bootstrap H5/P sizes
+-------------------------------------------------- */
+
+#sidebar-dataset-name {
+    font-size: 0.95rem !important;
+    font-weight: 700;
+    margin-bottom: 0.1rem !important;
+}
+
+#sidebar-dataset-meta {
+    font-size: 0.75rem !important;
+    line-height: 1.4;
 }
 
 /* --------------------------------------------------
@@ -259,38 +245,33 @@ input[type="text"].form-control:focus {
     overflow: hidden;
 }
 
-/* Header */
 .scb-maincard .card-header {
     background: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
     padding: 0.55rem 0.9rem;
 }
 
-/* Body */
 .scb-main-body {
     padding: 0.75rem 0.85rem 0.9rem;
 }
 
-/* Main graph */
 #main-graph {
     border-radius: 4px;
     border: 1px solid #e5e7eb;
     background: #ffffff;
 }
 
-/* Loading spinner colour – neutral gray */
 #main-graph-loading .dash-spinner {
     border-top-color: #4b5563 !important;
     border-right-color: #4b5563 !important;
 }
 
-/* Footer buttons row under graph */
 .scb-maincard .d-flex.align-items-center {
     margin-top: 0.75rem;
 }
 
 /* --------------------------------------------------
-   Buttons (monotone)
+   Buttons
 -------------------------------------------------- */
 
 .btn-primary {
@@ -328,7 +309,6 @@ input[type="text"].form-control:focus {
     border-color: #9ca3af;
 }
 
-/* Outline secondary (Load button) */
 .btn-outline-secondary {
     border-radius: 4px;
     font-size: 0.8rem;
@@ -336,7 +316,6 @@ input[type="text"].form-control:focus {
     border-color: #d1d5db;
 }
 
-/* Small status text near buttons */
 #save-figure-status {
     font-size: 0.75rem;
 }
@@ -351,7 +330,6 @@ input[type="text"].form-control:focus {
     background: transparent;
 }
 
-/* dcc.Tab elements */
 .tab {
     padding: 0.45rem 1rem !important;
     margin-right: 0.3rem;
@@ -399,13 +377,11 @@ input[type="text"].form-control:focus {
     transform: translateY(-1px);
 }
 
-/* Dataset / reports container tweaks */
 .scb-datasets-view,
 .scb-reports-view {
     margin-top: 0.8rem;
 }
 
-/* Reports figure list */
 .scb-reports-figure-list {
     margin-top: 0.5rem;
     border-radius: 4px;
@@ -427,7 +403,7 @@ input[type="text"].form-control:focus {
 }
 
 /* --------------------------------------------------
-   Dash DataTable font
+   Dash DataTable font (Dataset Preview)
 -------------------------------------------------- */
 
 .dash-table-container,
@@ -441,49 +417,21 @@ input[type="text"].form-control:focus {
 }
 
 /* --------------------------------------------------
-   Misc small tweaks
+   Font overrides for system font stack
 -------------------------------------------------- */
-
-.small,
-.small * {
-    font-size: 0.78rem;
+.scb-sidebar h5,
+.scb-sidebar p,
+.scb-sidebar .card-title,
+.scb-sidebar .card-subtitle {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif !important;
 }
 
-hr {
-    border-color: #e5e7eb;
+.scb-reports-figure-list table,
+.scb-reports-figure-list th,
+.scb-reports-figure-list td {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif !important;
 }
 
-/* Responsive spacing */
-@media (max-width: 992px) {
-    .scb-root {
-        padding-inline: 1rem;
-    }
-
-    .scb-sidebar,
-    .scb-viewlabel-card,
-    .scb-maincard {
-        margin-bottom: 1rem;
-    }
-
-    .scb-navbar {
-        margin: 0 -1rem 0;
-        padding-inline: 1rem;
-    }
-}
-
-
-/* --------------------------------------------------
-   FIX: Navbar Dropdown Text Color
-   Forces the selected value and placeholder to be dark
-   (overriding the white text inherited from the Navbar)
--------------------------------------------------- */
-.scb-navbar #dataset-select .Select-value-label,
-.scb-navbar #dataset-select .Select-placeholder,
-.scb-navbar #dataset-select .Select-input > input {
-    color: #111827 !important; /* Dark text */
-}
-
-/* Ensure the single value container itself doesn't force white */
-.scb-navbar #dataset-select .Select-value {
-    color: #111827 !important;
-}
+/* Misc */
+.small, .small * { font-size: 0.78rem; }
+hr { border-color: #e5e7eb; }
