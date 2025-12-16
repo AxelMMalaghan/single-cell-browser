@@ -1,182 +1,239 @@
 # Single-Cell Browser
 
-An in-house, config-driven web application for interactive exploration of single-cell datasets (`.h5ad`), built on **Dash**, **Scanpy**, and **Plotly**.
+![Status](https://img.shields.io/badge/Status-Beta-orange)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)
+![Framework](https://img.shields.io/badge/Framework-Dash%20%7C%20Scanpy-success)
 
-The browser is designed to be:
-- **Dataset-agnostic** (no hard-coded schema assumptions)
-- **Robust to partial or imperfect metadata**
-- **Configurable via JSON**, not code changes
-- **Deployable on an internal server** (Docker + Gunicorn)
-
-This is not a hosted SaaS product. It is intended for **controlled, internal use** in a research environment.
+A high-performance, interactive web application for visualizing and exploring single-cell RNA sequencing (scRNA-seq) data. Built on **Dash** and **Scanpy**, it allows researchers to investigate gene expression, differential expression, and cluster composition without writing code.
 
 ---
 
-## High-Level Architecture
+## 📋 Table of Contents
 
-.h5ad files
-↓
-DatasetConfig (JSON)
-↓
-Dataset Loader
-↓
-Dataset abstraction
-↓
-FilterState
-↓
-Views (cluster, expression, DE, etc.)
-↓
-Dash UI (Plotly figures)
+- [Key Features](#-key-features)
+    - [Visualization](#visualization)
+    - [Data Management](#data-management)
+- [Architecture & Data Flow](#-architecture--data-flow)
+    - [Directory Structure](#directory-structure)
+    - [Data Flow Lifecycle](#data-flow-lifecycle)
+- [Prerequisites](#-prerequisites)
+- [Installation & Local Development](#--installation--local-development)
+    - [Environment Variables](#environment-variables)
+- [Configuration & Data Loading](#-configuration--data-loading)
+    - [Adding a New Dataset](#adding-a-new-dataset)
+- [Docker Deployment (Production)](#-docker-deployment-production)
+- [Security](#-security)
+- [Testing](#-testing)
+- [Code Quality Enforcements](#-code-quality-enforcements)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+---
 
-Key design principles:
-- **All data access flows through the `Dataset` abstraction**
-- **Views never touch AnnData directly**
-- **Filters are declarative and cached**
-- **Failures degrade gracefully** (empty plots, warnings, not crashes)
+## Key Features
+
+### Visualization
+* **Dimensionality Reduction:** Interactive UMAP/t-SNE plots colored by cluster, condition, or gene expression.
+* **Gene Expression:** Visualise expression levels of specific genes across the entire dataset.
+* **Dot Plots:** Compare the percentage of cells expressing genes and their average expression across clusters.
+* **Heat Maps:** High-density expression visualization for gene lists.
+* **Volcano Plots:** Real-time **Differential Expression (DE)** analysis to find markers between selected groups.
+
+### Data Management
+* **"Backed" Mode:** Efficiently handles large datasets using Scanpy's memory-mapping (`backed='r'`), keeping RAM usage low.
+* **Dynamic Filtering:** Filter cells by cluster, sample, metadata, or gene expression thresholds in real-time.
+* **Session Management:** Save and load analysis sessions (selected genes, filters, view settings).
+* **Dataset Import:** Upload new `.h5ad` files directly through the UI (configurable).
 
 ---
 
-## Features
+## Architecture & Data Flow
 
-- Interactive embedding views (2D / 3D)
-- Gene expression visualisation
-- Differential expression (volcano plots)
-- Dataset-aware filtering (cluster, condition, sample, cell type, genes)
-- Deterministic caching of filtered subsets
-- Session metadata import/export
-- Structured logging (JSON in production)
+The application follows a **Hexagonal Architecture** (Ports & Adapters) to separate core logic from the UI.
+
+### Directory Structure
+* `sc_browser/core`: Domain logic (Dataset abstraction, Filtering logic).
+* `sc_browser/ui`: Dash layouts, components, and callbacks.
+* `sc_browser/services`: Data access, file storage, and session persistence.
+* `sc_browser/views`: Visualization logic (factory pattern for different plot types).
+* `config/`: JSON configurations for datasets.
+
+### Data Flow Lifecycle
+
+1.  **Initialization**:
+    * The app reads `config/global.json` and scans `config/datasets/`.
+    * Datasets are loaded in **Read-Only Backed Mode** (`.X` remains on disk).
+    
+2.  **User Interaction** (e.g., Selecting a cluster filter):
+    * **Input:** User clicks a checkbox in the UI.
+    * **Callback:** Dash triggers a callback in `sc_browser/ui/callbacks/`.
+    * **State Update:** The `FilterState` object captures the constraint.
+    
+3.  **Data Processing**:
+    * The `Dataset` core service applies the `FilterState` to the AnnData object.
+    * *Optimization:* Instead of copying data, it creates lightweight "Views" of the AnnData object using boolean masks.
+
+4.  **Rendering**:
+    * The filtered data is passed to a specific `View` (e.g., `VolcanoPlotView`).
+    * The View calculates statistics (if needed) and returns a Plotly Figure.
+    * **Output:** The graph updates in the browser.
 
 ---
 
-## Repository Structure
+## Prerequisites
 
-single-cell-browser/
-├── sc_browser/
-│ ├── config/ # Config loading & validation
-│ ├── core/ # Dataset, filtering, views
-│ ├── metadata_io/ # Session & figure metadata
-│ ├── services/ # Export / persistence logic
-│ ├── ui/ # Dash layout & callbacks
-│ ├── validation/ # Config & session validation
-│ └── logging_config.py
-├── tests/
-├── Dockerfile
-├── requirements.txt
-└── README.md
+* **Python:** 3.9+
+* **Data:** Single-cell data must be in `.h5ad` (AnnData) format.
+* **Memory:** Sufficient RAM to hold the *index* of your largest dataset (actual data is read from disk).
 
 ---
 
-## Configuration
+##  Installation & Local Development
 
-### Global Config
+### 1. Clone the Repository
+```bash
+git clone https://github.com/AxelMMalaghan/single-cell-browser.git
+cd single-cell-browser
+```
 
-The application is driven by a **global config directory**, expected to contain:
+### 2. Create Virtual Environment
 
-config/
-├── global.json
-└── datasets/
-├── dataset_1.json
-└── dataset_2.json
+```
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-`global.json` example:
+### 3. Install Dependencies
+
+```
+pip install -r requirements.txt
+pip install -r requirements-dev.txt  # For testing/linting
+```
+
+### 4. Run the App
+
+```
+# Debug mode can be toggled via environment variables
+export DEBUG=1 
+python app.py
+```
+
+Access the app at http://localhost:8050
+
+
+### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `DEBUG` | `False` | Set to `1` or `True` to enable Dash debug mode (Do not use in production). |
+| `PORT` | `8050` | The port the application binds to. |
+| `HOST` | `0.0.0.0` | The network interface to bind to. |
+
+---
+
+## Configuration & Data Loading
+
+The application does not assume specific column names in your `.h5ad` files. You map them using JSON configurations.
+
+
+### Adding a New Dataset
+
+1.  **Upload Data:** Place your `.h5ad` file in the `data/` directory (or the mounted Docker volume).
+2.  **Create Config:** Create a JSON config file in `config/datasets/` (e.g., `lung_cancer.json`).
+
+**Configuration Schema:**
 
 ```json
 {
-  "app_name": "Single-Cell Browser",
-  "enable_dataset_management": true
-}
-Dataset Config
-Each dataset is defined by a JSON file:
-{
-  "name": "Example Dataset",
-  "h5ad_path": "data/example.h5ad",
-  "embedding_key": "X_umap",
+  "name": "Lung Cancer Study",
+  "path": "data/lung_cancer_v1.h5ad",
+  "raw": {
+    "group": "Oncology",
+    "embedding_key": "X_umap" 
+  },
   "obs_columns": {
-    "cluster": "leiden",
-    "condition": "condition",
-    "sample": "sample_id",
-    "cell_type": "cell_type"
+    "cell_id": "index",        
+    "cluster": "leiden_0.5",   
+    "condition": "treatment",
+    "sample": "patient_id",
+    "cell_type": "predicted_cell_type"
   }
 }
+## Docker Deployment (Production)
+
+1. Build and Run
+
+```
+docker-compose up --build -d
 ```
 
-Notes:
-Only name, h5ad_path, and embedding_key are required
-All obs_columns are optional
-Missing metadata does not crash the app — affected views degrade gracefully
-Dataflow & Robustness
-Dataset Loading
-.h5ad files are loaded once at startup
-Duplicate obs/var names are automatically made unique (with warnings)
-Missing files or invalid configs are logged and skipped
-At least one valid dataset must load, or startup fails
-Filtering
-Filters are represented by a FilterState
-All subsetting goes through Dataset.subset_for_state
-Filtered datasets are cached by filter signature
-Empty subsets are valid and handled safely
-Views
-Views consume filtered datasets, never raw AnnData
-Each view declares what filters it requires
-Missing metadata results in empty or informational figures, not exceptions
+2. Volume Mounting
 
----
+To ensure your data and configurations persist across container restarts, the `docker-compose.yml` mounts the following:
 
-## Running Locally (Development)
+- `./data:/app/data`: Store your `.h5ad` files here
+- `./config:/app/config`: Store your JSON configurations here
 
-### Requirements
+3. Resource Limits
 
-- Python 3.11+
-- pip or virtualenv
-- python -m venv .venv 
-- source .venv/bin/activate
-- pip install -r requirements.txt
+For production, you should set memory limits in `docker-compose.yml` to prevent upload handlers from crashing the host:
 
-- Run the app (example entrypoint):
-- export SC_BROWSER_CONFIG_ROOT=./config
-- python app.py
-- The app will be available at:
-- http://localhost:8050
+```YAML
+services:
+  app:
+    deploy:
+      resources:
+        limits:
+          memory: 4G 
+```
 
-## Running with Docker (Recommended)
+## Security
 
-### Build
+This application does not have built-in authentication, as it is designed to sit behind a reverse-proxy and only for in-house use.
 
-- docker build -t single-cell-browser .
- - Run
- - docker run \
-  -p 8050:8050 \
-  -e SC_BROWSER_CONFIG_ROOT=/config \
-  -v $(pwd)/config:/config \
-  -v $(pwd)/data:/data \
-  single-cell-browser
-
- - Gunicorn is used as the production WSGI server.
-Environment Variables
-Variable	Purpose
-SC_BROWSER_CONFIG_ROOT	Path to config directory
-SC_BROWSER_DATA_ROOT	Optional data root override
-LOG_LEVEL	Logging level (INFO, DEBUG, etc.)
-DEBUG	Enable debug logging
-PORT	Server port (default: 8050)
-
-
-## Logging
-Structured JSON logging in production
-Human-readable logs in development
-All dataset loading, filtering, and view execution is logged
-Errors are surfaced in the UI without crashing the server
 
 ## Testing
 
-### Run tests with:
+This app uses `pytest` for unit and integration testing
 
-- pytest
+```Bash
+# Run all tests
+pytest
 
-Tests cover:
-- Dataset loading & validation
-- Subsetting and caching
-- Metadata round-tripping
-- Failure cases (missing metadata, empty subsets)
+# Run with coverage report
+pytest --cov=sc_browser
+```
 
+## Code Quality Enforcements
+
+Code quality is enforced using `ruff`, `black` and `pyright`.
+
+```Bash
+# Linting
+ruff check . 
+
+# Apply Formatting
+black . 
+
+# Type Checking
+pyright
+```
+
+## Troubleshooting
+
+**1. "Memory" or Container Crash during Upload**
+* **Cause:** The uploaded file exceeds the container's available RAM during the Base64 decoding process.
+* **Solution:** Increase the Docker memory limit in `docker-compose.yml` or manually place large `.h5ad` files into the `./data` folder instead of using the web uploader.
+
+**2. "KeyError: 'X_umap'"**
+* **Cause:** The dataset config specifies `embedding_key: "X_umap"`, but that key does not exist in `adata.obsm`.
+* **Solution:** Check your `.h5ad` file keys or update the JSON config to match your data (e.g., `X_tsne`).
+
+**3. Plots are slow to render**
+* **Cause:** The dataset might be extremely large, and the `backed='r'` mode is limited by disk I/O speed.
+* **Solution:** Ensure the host machine has a fast SSD.
+
+## License 
+
+TBA
 

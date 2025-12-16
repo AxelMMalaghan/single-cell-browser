@@ -21,29 +21,29 @@ class DatasetConfigError(ValueError):
 def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> ad.AnnData:
     """
     Ensure obs_names and var_names are unique, logging what we do.
+
+    In backed mode (read-only), this modifies the index in memory.
+    It does NOT trigger a rewrite of the file, which is exactly what we want.
     """
     # obs_names
     if not adata.obs_names.is_unique:
         logger.warning(
             "Observation names are not unique for dataset '%s' (%s); "
-            "calling .obs_names_make_unique()",
+            "calling .obs_names_make_unique() (in-memory fix)",
             cfg.name,
             path,
         )
-        if adata.is_view:
-            adata = adata.copy()
+        # Note: This is safe on backed objects; it modifies the in-memory pandas Index.
         adata.obs_names_make_unique()
 
     # var_names
     if not adata.var_names.is_unique:
         logger.warning(
             "Variable names are not unique for dataset '%s' (%s); "
-            "calling .var_names_make_unique()",
+            "calling .var_names_make_unique() (in-memory fix)",
             cfg.name,
             path,
         )
-        if adata.is_view:
-            adata = adata.copy()
         adata.var_names_make_unique()
 
     return adata
@@ -90,16 +90,25 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     """
     Materialise an AnnData-backed Dataset from a DatasetConfig.
 
-    - Loads the .h5ad file from cfg.path
-    - Ensures obs_names and var_names are unique
-    - Uses cfg.obs_columns (ObsColumns dataclass) to standardise obs column semantics
-    - Applies per-dataset settings (group, embedding key) from cfg.raw
+    CRITICAL UPDATE:
+    - Loads the .h5ad file in BACKED mode (backed='r').
+    - This relies on the OS page cache rather than loading the full matrix into RAM.
+    - Ensures obs_names and var_names are unique (in-memory).
+    - Uses cfg.obs_columns (ObsColumns dataclass) to standardise obs column semantics.
     """
     path: Path = cfg.path
     if not path.is_file():
         raise DatasetConfigError(f"AnnData file not found at {path}")
 
-    adata = ad.read_h5ad(path)
+    # Use backed='r' to prevent Memory Multiplier in multi-worker environments
+    logger.info(
+        "Loading dataset in BACKED mode (read-only)",
+        extra={"dataset": cfg.name, "path": str(path)}
+    )
+
+    # backed="r" returns an AnnData object where .X and .obsm are lazy
+    adata = ad.read_h5ad(path, backed="r")
+
     adata = _ensure_unique_names(adata, cfg, path)
 
     # Semantic obs mapping from config; may be partially empty for discovered datasets
@@ -123,7 +132,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     )
 
     logger.info(
-        "Loaded dataset",
+        "Loaded dataset (backed)",
         extra={
             "dataset": ds.name,
             "group": ds.group,
