@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Optional, Sequence
 
 import scanpy as sc
@@ -57,6 +58,7 @@ def _maybe_subset_genes(adata, config: DEConfig):
     return adata[:, gene_mask]
 
 
+@lru_cache(maxsize=32)
 def run_de(config: DEConfig) -> DEResult:
     """
     Run a differential expression differential_expression using scanpy.rank_genes_groups.
