@@ -2,7 +2,7 @@
   "schema": "anndata_mapped",
   "name": "Tonsil Myeloid Analysis",
   "group": "Tonsil",
-  "path": "data/Tonsil_Myeloid_sce.h5ad",
+  "path": "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/Tonsil_Myeloid_sce.h5ad",
   "obs_columns": {
     "cluster": "label",
     "condition": "cond",

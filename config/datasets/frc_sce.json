@@ -3,7 +3,7 @@
   "name": "FRC Spleen (Full)",
   "group": "FRC",
 
-  "path": "data/FRC_sce.h5ad",
+  "path": "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/FRC_sce.h5ad",
 
   "obs_columns": {
     "cluster": "label",

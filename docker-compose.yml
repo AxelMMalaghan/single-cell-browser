@@ -1,16 +1,15 @@
-services:
-  scb:
-    build: .
-    ports:
-      - "8050:8050"
-    environment:
-      PORT: "8050"
-      SC_BROWSER_CONFIG_ROOT: /app/config
-      SC_BROWSER_DATA_ROOT: /app/data
-      SC_BROWSER_OUTPUT_ROOT: /output
-    volumes:
-      - .:/app
-      - ./config:/app/config:ro
-      - ./data:/app/data:ro
-      - ./output:/output
+name: "Dashy"
+landing_name: "DASHY"
+repository_uri: "https://github.com/AxelMMalaghan/single-cell-browser"
+code_path: ""
+entrypoint: "app.py"
+data_mounts:
+  - host: "/stornext/DataSAN/Bioinformatics/Applications/dashy/config/"
+    container: "/stornext/DataSAN/Bioinformatics/Applications/dashy/config/"
+  - host: "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/"
+    container: "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/"
+
+
+
+
 

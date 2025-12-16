@@ -2,7 +2,7 @@
   "schema": "anndata_mapped",
   "name": "IMM Analysis",
   "group": "IMM",
-  "path": "data/IMM_sce.h5ad",
+  "path": "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/IMM_sce.h5ad",
   "obs_columns": {
     "cluster": "label",
     "condition": "cond",

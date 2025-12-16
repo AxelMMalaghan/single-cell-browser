@@ -24,7 +24,7 @@ def save_dataset_config(
 
     """
 
-    datasets_dir = config_root / "datasets"
+    datasets_dir = config_root / "datasets"     # TODO:  write to fileshare instead of locally
     datasets_dir.mkdir(parents=True, exist_ok=True)
 
     if filename is None:
