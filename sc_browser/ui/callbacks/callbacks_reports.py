@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import base64
-import io
 import json
 import logging
-import zipfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import dash
@@ -15,7 +12,6 @@ from dash import ALL, Input, Output, State, dcc, html, no_update
 from sc_browser.core.filter_state import FilterState
 from sc_browser.metadata_io.io import normalise_session_dict
 from sc_browser.metadata_io.metadata_model import session_from_dict, touch_session, session_to_dict
-from sc_browser.services.session_service import delete_figure as svc_delete_figure
 from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
@@ -122,14 +118,14 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if session is None:
             raise dash.exceptions.PreventUpdate
 
-        session = svc_delete_figure(session, figure_id=figure_id)
-        touch_session(session)
+        # REFACTOR: Use SessionService (persists deletion to disk)
+        session = ctx.session_service.delete_figure(session, figure_id=figure_id)
+
         return session_to_dict(session)
 
     # ---------------------------------------------------------
-    # Export session (FIXED: No Zombie Files)
+    # Export session
     # ---------------------------------------------------------
-
     @app.callback(
         Output(IDs.Control.REPORTS_DOWNLOAD_SESSION, "data"),
         Input(IDs.Control.REPORTS_EXPORT_BTN, "n_clicks"),
@@ -145,11 +141,10 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if session is None or not session.figures:
             raise dash.exceptions.PreventUpdate
 
-        # Ensure session ID matches the one passed
         if not session.session_id and active_session_id:
             session.session_id = active_session_id
 
-        # Clean, simple delegation to Service layer
+        # REFACTOR: Use ExportService (reads files from storage)
         try:
             zip_bytes = ctx.export_service.create_session_zip(session)
         except Exception:
@@ -157,8 +152,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise dash.exceptions.PreventUpdate
 
         filename = f"{session.session_id}_report.zip"
-
-        # dcc.Download expects base64 or raw bytes
         return dcc.send_bytes(zip_bytes, filename)
 
     # ---------------------------------------------------------
@@ -204,7 +197,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return merged
 
     # ---------------------------------------------------------
-    # Import session metadata (Refactored to use IO Normalizer)
+    # Import session metadata
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Store.SESSION_META, "data", allow_duplicate=True),
@@ -232,7 +225,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 f"Import failed: could not read uploaded file ({e}).",
             )
 
-        # CHANGED: Use robust normalizer instead of strict session_from_dict
         try:
             imported_session = normalise_session_dict(imported_dict)
         except Exception as e:
@@ -261,6 +253,10 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         merged_session = existing_session or imported_session
         merged_session.figures = merged_figures
         touch_session(merged_session)
+
+        # REFACTOR: Ensure the import is persisted to disk immediately
+        if ctx.session_service:
+            ctx.session_service.persist_session(merged_session)
 
         ids = [f.id for f in merged_session.figures]
         logger.info("Import successful: merged total figures=%d", len(ids))

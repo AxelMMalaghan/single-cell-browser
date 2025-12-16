@@ -13,7 +13,6 @@ from sc_browser.metadata_io.metadata_model import (
     session_from_dict,
     session_to_dict,
 )
-from sc_browser.services.session_service import ensure_session, save_figure
 from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
@@ -51,7 +50,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             options.append({"label": display, "value": fig.id})
             ids.append(fig.id)
 
-        # FIXED LOGIC: Prioritize active figure ID if present
+        # Logic: Prioritize active figure ID if present in list
         if active_figure_id in ids:
             value = active_figure_id
         elif current_value in ids:
@@ -62,7 +61,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return options, value
 
     # ---------------------------------------------------------
-    # Load Figure: THE FIX (Output UI only, NOT FilterState)
+    # Load Figure
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DATASET_SELECT, "value", allow_duplicate=True),
@@ -79,7 +78,6 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Output(IDs.Control.OPTIONS_CHECKLIST, "value", allow_duplicate=True),
         Output(IDs.Control.COLOUR_SCALE_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.FIGURE_LABEL_INPUT, "value", allow_duplicate=True),
-        # REMOVED: Output(IDs.Store.FILTER_STATE, "data", allow_duplicate=True),
         Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
         Input(IDs.Control.SAVED_FIGURE_LOAD_BTN, "n_clicks"),
         State(IDs.Control.SAVED_FIGURE_SELECT, "value"),
@@ -91,8 +89,6 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise exceptions.PreventUpdate
 
         if not figure_id or figure_id == NEW_FIGURE_VALUE:
-            # We can't "unload" to defaults easily without knowing default dataset.
-            # Usually 'New View' just means 'Stop tracking ID', not 'Reset UI'.
             return (dash.no_update,) * 14 + (None,)
 
         session = session_from_dict(session_data)
@@ -159,7 +155,6 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             options,
             state.color_scale,
             meta.label or "",
-            # state.to_dict(),  <-- REMOVED to fix double-click bug
             figure_id,
         )
 
@@ -200,7 +195,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if active_session_id is None:
             active_session_id = generate_session_id()
 
-        session = ensure_session(
+        # REFACTOR: Delegate session management to Service (loads from disk or creates new)
+        session = ctx.session_service.ensure_session(
             session_from_dict(session_data),
             session_id=active_session_id,
         )
@@ -208,7 +204,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         # Use the key (stable ID) if available, else name
         ds_key = getattr(ds, "key", ds.name)
 
-        session, new_fig_id, is_overwrite = save_figure(
+        # REFACTOR: Save via Service (automatically persists to disk)
+        session, new_fig_id, is_overwrite = ctx.session_service.save_figure(
             session,
             active_figure_id=active_figure_id,
             dataset_key=ds_key,
@@ -218,6 +215,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         )
 
         status = f"Saved '{figure_label or state.view_id}'" if not is_overwrite else f"Updated '{figure_label or state.view_id}'"
+
         return session_to_dict(session), active_session_id, status, new_fig_id
 
     # ---------------------------------------------------------

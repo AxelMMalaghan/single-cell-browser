@@ -61,13 +61,6 @@ class DEResult:
     config: DEConfig
     table: pd.DataFrame
 
-
-    @property
-    def significant(self) -> pd.DataFrame:
-        """Convenience: adjusted p < 0.05."""
-        return self.table[self.table["adj_pvalue"] < 0.05].copy()
-
-    # Backwards-compatible alias for the old typo, in case anything used it
     @property
     def signifcant(self) -> pd.DataFrame:
         return self.significant
