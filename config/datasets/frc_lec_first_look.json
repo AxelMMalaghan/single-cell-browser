@@ -3,7 +3,7 @@
   "name": "FRC LEC IMM Firstlook",
   "group": "Example",
 
-  "path": "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/FRC_LEC_IMM_FDC_TfH_GCB_sce_firstlook_500cells.h5ad",
+  "path": "data/FRC_LEC_IMM_FDC_TfH_GCB_sce_firstlook_500cells.h5ad",
 
   "obs_columns": {
     "sample": "dataset",

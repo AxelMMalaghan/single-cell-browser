@@ -3,7 +3,7 @@
   "name": "FRC Spleen (Full)",
   "group": "FRC",
 
-  "path": "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/FRC_sce.h5ad",
+  "path": "data/FRC_sce.h5ad",
 
   "obs_columns": {
     "cluster": "label",
@@ -11,5 +11,5 @@
     "sample": "dataset",
     "cell_type": "label"
   },
-  "embedding_key": "X_umap"
+  "embedding_key": "UMAP"
 }

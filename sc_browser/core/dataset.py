@@ -276,10 +276,11 @@ class Dataset:
     def expression_matrix(self, genes: Sequence[str]) -> pd.DataFrame:
         """
         Return an expression matrix (cells × genes) for the given genes.
+        Handles backed AnnData views to avoid 'view of a view' ValueErrors.
         """
         key = tuple(sorted(set(map(str, genes))))
 
-        # LRU Hit
+        # LRU Hit: Move to end to mark as recently used
         if key in self._expr_cache:
             self._expr_cache.move_to_end(key)
             return self._expr_cache[key]
@@ -295,14 +296,24 @@ class Dataset:
             return df
 
         selected_genes = adata.var_names[var_mask]
-        X = adata[:, var_mask].X  # sparse or dense slice
 
+        # --- FIX: Handle backed AnnData views ---
+        if adata.is_view:
+            # Slice the underlying matrix (X) directly to avoid
+            # ValueError: Currently, you cannot index repeatedly into a backed AnnData
+            X = adata.X[:, var_mask]
+        else:
+            X = adata[:, var_mask].X
+
+        # Materialize sparse data to dense for the UI DataFrame
         if hasattr(X, "toarray"):
             X = X.toarray()
+        elif hasattr(X, "todense"):
+            X = X.todense()
 
         df = pd.DataFrame(X, index=adata.obs_names, columns=selected_genes)
 
-        # LRU Miss
+        # LRU Miss: Insert and evict oldest if needed
         self._expr_cache[key] = df
         if len(self._expr_cache) > self.MAX_EXPR_CACHE:
             self._expr_cache.popitem(last=False)

@@ -3,6 +3,11 @@ landing_name: "DASHY"
 repository_uri: "https://github.com/AxelMMalaghan/single-cell-browser"
 code_path: ""
 entrypoint: "app.py"
+env_vars:
+  - name: "SC_BROWSER_CONFIG_ROOT"
+    value: "/stornext/DataSAN/Bioinformatics/Applications/dashy/config/"
+  - name: "SC_BROWSER_DATA_ROOT"
+    value: "/stornext/DataSAN/Bioinformatics/Applications/dashy/data/"
 data_mounts:
   - host: "/stornext/DataSAN/Bioinformatics/Applications/dashy/config/"
     container: "/stornext/DataSAN/Bioinformatics/Applications/dashy/config/"
