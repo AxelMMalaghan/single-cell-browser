@@ -21,9 +21,6 @@ class DatasetConfigError(ValueError):
 def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> ad.AnnData:
     """
     Ensure obs_names and var_names are unique, logging what we do.
-
-    In backed mode (read-only), this modifies the index in memory.
-    It does NOT trigger a rewrite of the file, which is exactly what we want.
     """
     # obs_names
     if not adata.obs_names.is_unique:
@@ -33,7 +30,6 @@ def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> a
             cfg.name,
             path,
         )
-        # Note: This is safe on backed objects; it modifies the in-memory pandas Index.
         adata.obs_names_make_unique()
 
     # var_names
@@ -91,7 +87,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     Materialise an AnnData-backed Dataset from a DatasetConfig.
 
     CRITICAL UPDATE:
-    - Loads the .h5ad file in BACKED mode (backed='r').
+    - Loads the .h5ad file in
     - This relies on the OS page cache rather than loading the full matrix into RAM.
     - Ensures obs_names and var_names are unique (in-memory).
     - Uses cfg.obs_columns (ObsColumns dataclass) to standardise obs column semantics.
@@ -100,15 +96,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     if not path.is_file():
         raise DatasetConfigError(f"AnnData file not found at {path}")
 
-    # Use backed='r' to prevent Memory Multiplier in multi-worker environments
-    logger.info(
-        "Loading dataset in BACKED mode (read-only)",
-        extra={"dataset": cfg.name, "path": str(path)}
-    )
-
-    # backed="r" returns an AnnData object where .X and .obsm are lazy
-    adata = ad.read_h5ad(path, backed="r")
-
+    adata = ad.read_h5ad(path)
     adata = _ensure_unique_names(adata, cfg, path)
 
     # Semantic obs mapping from config; may be partially empty for discovered datasets
@@ -132,7 +120,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     )
 
     logger.info(
-        "Loaded dataset (backed)",
+        "Loaded dataset (loaded)",
         extra={
             "dataset": ds.name,
             "group": ds.group,
@@ -143,3 +131,4 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     )
 
     return ds
+

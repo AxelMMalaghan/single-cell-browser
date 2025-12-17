@@ -68,90 +68,51 @@ class VolcanoPlotView(BaseView):
 
         return groupby, group1, group2
 
-
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        # For DE we must NOT apply the condition filter before running DE,
-        # otherwise we can easily drop one of the comparison groups.
         base_ds = self.dataset
-
-        # Apply only non-condition filters (hits subset cache)
         ds_de = base_ds.subset(
             clusters=state.clusters or None,
             samples=getattr(state, "samples", None) or None,
-            cell_types=(
-                getattr(state, "cell_types", None)
-                or getattr(state, "celltypes", None)
-                or None
-            ),
-            conditions=None,  # <-- crucial: keep all condition groups for DE
+            cell_types=getattr(state, "cell_types", None) or None,
+            conditions=None,
         )
 
         if ds_de.adata.n_obs == 0:
             return pd.DataFrame()
 
-        # Pick groupby / group1 / group2 based on current state *and* DE dataset
         try:
             groupby, group1, group2 = self._choose_groups(state, ds_de)
-        except ValueError:
-            # No valid grouping → no DE to show
-            return pd.DataFrame()
-
-        config = DEConfig(
-            dataset=ds_de,
-            groupby=groupby,
-            group1=group1,
-            group2=group2,
-            method="wilcoxon",
-        )
-
-        # Run DE; if groups are still invalid for some reason, fail gracefully
-        try:
+            config = DEConfig(dataset=ds_de, groupby=groupby, group1=group1, group2=group2)
             de_result = run_de(config)
-        except ValueError:
+            df = de_result.table.copy()
+        except Exception:
             return pd.DataFrame()
 
-        df = de_result.table.copy()
         if df.empty:
             return df
 
-        # ------------------------------------------------------------------
-        # Derive volcano metrics and significance labels
-        # ------------------------------------------------------------------
-        # thresholds (could be later made configurable via UI)
-        log_fc_threshold = 1.0
-        pval_threshold = 0.05
+        # Cap -log10(p-value) to prevent Plotly JS crashes (Infinity -> Finite Max)
+        p_col = "adj_pvalue" if "adj_pvalue" in df.columns else "pvalue"
+        p_values = df[p_col].astype(float)
+        neg_log_p = -np.log10(p_values.replace(0, np.nan))
 
-        # Use adjusted p-value if available, else fall back to raw p-value
-        if "adj_pvalue" in df.columns:
-            p = df["adj_pvalue"].astype(float).copy()
-        else:
-            p = df["pvalue"].astype(float).copy()
+        max_finite = neg_log_p.replace([np.inf, -np.inf], np.nan).max()
+        df["neg_log10_pvalue"] = neg_log_p.fillna((max_finite or 50.0) + 1)
 
-        # Avoid log10(0) -> -inf
-        p = p.replace(0, np.nan)
-        df["neg_log10_pvalue"] = -np.log10(p)
-
-        # Default: not significant
+        # Thresholds and Significance
         df["significance"] = "Not Significant"
+        sig_mask = p_values <= 0.05
+        df.loc[sig_mask & (df["log2FC"] >= 1.0), "significance"] = "Upregulated"
+        df.loc[sig_mask & (df["log2FC"] <= -1.0), "significance"] = "Downregulated"
 
-        # Up / down regulated masks
-        sig_mask = p <= pval_threshold
-        up_mask = (df["log2FC"] >= log_fc_threshold) & sig_mask
-        down_mask = (df["log2FC"] <= -log_fc_threshold) & sig_mask
-
-        df.loc[up_mask, "significance"] = "Upregulated"
-        df.loc[down_mask, "significance"] = "Downregulated"
-
-        # Attach metadata for render_figure
-        df.attrs["log_fc_threshold"] = log_fc_threshold
-        df.attrs["pval_threshold"] = pval_threshold
-        if group2 is None:
-            comparison = f"{group1} vs rest"
-        else:
-            comparison = f"{group1} vs {group2}"
-        df.attrs["comparison"] = comparison
+        # Attach Attributes LAST
+        df.attrs["log_fc_threshold"] = 1.0
+        df.attrs["pval_threshold"] = 0.05
+        df.attrs["comparison"] = f"{group1} vs {'rest' if group2 is None else group2}"
 
         return df
+
+
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
 

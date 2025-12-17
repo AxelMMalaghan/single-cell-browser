@@ -48,6 +48,7 @@ def register_render_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     @app.callback(
         Output(IDs.Control.MAIN_GRAPH, "figure"),
         Input(IDs.Store.FILTER_STATE, "data"),
+        prevent_initial_call=True,
     )
     def update_main_graph_from_state(fs_data: dict[str, Any] | None):
         if fs_data is None:
@@ -123,4 +124,7 @@ def register_render_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             return _error_figure(
                 "The app hit an unexpected error. "
                 "If this keeps happening, grab the logs and open an issue."
+
             )
+
+
