@@ -35,7 +35,7 @@ def _build_view_registry() -> ViewRegistry:
         FeatureCountView,
         DotplotView,
         HeatmapView,
-        VolcanoPlotView,
+        #VolcanoPlotView,
         DatasetSummary,
     )
 
@@ -45,7 +45,7 @@ def _build_view_registry() -> ViewRegistry:
     registry.register(FeatureCountView)
     registry.register(DotplotView)
     registry.register(HeatmapView)
-    registry.register(VolcanoPlotView)
+    #registry.register(VolcanoPlotView)
     registry.register(DatasetSummary)
     return registry
 

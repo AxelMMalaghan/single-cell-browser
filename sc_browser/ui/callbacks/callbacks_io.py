@@ -250,3 +250,4 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             return dcc.send_data_frame(data.to_csv, filename, index=False), False
 
         return dash.no_update, False
+

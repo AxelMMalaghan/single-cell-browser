@@ -15,7 +15,7 @@ def build_navbar(
 ) -> dbc.Navbar:
     navbar_image_src = getattr(global_config, "navbar_image_src", "/assets/hgtc_logo.png")
 
-    title = getattr(global_config, "ui_title", "SC-B++")
+    title = getattr(global_config, "ui_title", "Dashy")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
     if default_dataset is not None:
