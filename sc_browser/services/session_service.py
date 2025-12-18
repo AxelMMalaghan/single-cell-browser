@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import replace
 from typing import Any, Optional, Tuple
 
 from sc_browser.metadata_io.io import normalise_session_dict
@@ -150,3 +149,4 @@ class SessionService:
             self._persist(session)
 
         return session
+

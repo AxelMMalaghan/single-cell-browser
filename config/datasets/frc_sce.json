@@ -1,0 +1,13 @@
+{
+  "schema": "anndata_mapped",
+  "name": "FRC Analysis",
+  "group": "FRC",
+  "path": "data/FRC_sce.h5ad",
+  "obs_columns": {
+    "cluster": "label",
+    "condition": "cond",
+    "sample": "patient",
+    "cell_type": "label"
+  },
+  "embedding_key": "UMAP"
+}

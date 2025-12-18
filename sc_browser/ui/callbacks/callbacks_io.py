@@ -27,16 +27,15 @@ OPT_IS_3D = "is_3d"
 
 def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # ---------------------------------------------------------
-    # Saved figure dropdown (Authoritative)
+    # Saved figure dropdown (User selection is authoritative)
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.SAVED_FIGURE_SELECT, "options"),
         Output(IDs.Control.SAVED_FIGURE_SELECT, "value"),
         Input(IDs.Store.SESSION_META, "data"),
         State(IDs.Control.SAVED_FIGURE_SELECT, "value"),
-        State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
     )
-    def update_saved_figure_dropdown(session_data, current_value, active_figure_id):
+    def update_saved_figure_dropdown(session_data, current_value):
         options = [{"label": "New view (current filters)", "value": NEW_FIGURE_VALUE}]
 
         session = session_from_dict(session_data)
@@ -50,15 +49,26 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             options.append({"label": display, "value": fig.id})
             ids.append(fig.id)
 
-        # Logic: Prioritize active figure ID if present in list
-        if active_figure_id in ids:
-            value = active_figure_id
-        elif current_value in ids:
+        # Keep what the user selected if it's still valid; otherwise default to New.
+        if current_value in ids or current_value == NEW_FIGURE_VALUE:
             value = current_value
         else:
             value = NEW_FIGURE_VALUE
 
         return options, value
+
+    # ---------------------------------------------------------
+    # Sync active figure ID from dropdown selection
+    # - Selecting "__new__" clears edit mode (append on save)
+    # - Selecting a saved figure enables edit mode (overwrite on save)
+    # ---------------------------------------------------------
+    @app.callback(
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
+        Input(IDs.Control.SAVED_FIGURE_SELECT, "value"),
+        prevent_initial_call=True,
+    )
+    def sync_active_figure_id(selected):
+        return None if (not selected or selected == NEW_FIGURE_VALUE) else selected
 
     # ---------------------------------------------------------
     # Clear active figure when dataset changes
@@ -101,6 +111,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise exceptions.PreventUpdate
 
         if not figure_id or figure_id == NEW_FIGURE_VALUE:
+            # user hit load while on "New" -> don't change anything, ensure not editing
             return (dash.no_update,) * 14 + (None,)
 
         session = session_from_dict(session_data)
@@ -167,7 +178,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             options,
             state.color_scale,
             meta.label or "",
-            figure_id,
+            figure_id,  # set active figure id to enable overwrite mode
         )
 
     # ---------------------------------------------------------
@@ -177,7 +188,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Output(IDs.Store.SESSION_META, "data"),
         Output(IDs.Store.ACTIVE_SESSION_ID, "data"),
         Output(IDs.Control.SAVE_FIGURE_STATUS, "children"),
-        Output(IDs.Store.ACTIVE_FIGURE_ID, "data"),
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
         Input(IDs.Control.SAVE_FIGURE_BTN, "n_clicks"),
         State(IDs.Store.FILTER_STATE, "data"),
         State(IDs.Control.FIGURE_LABEL_INPUT, "value"),
@@ -187,7 +198,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def save_current_figure(
-            n_clicks, fs_data, figure_label, session_data, active_session_id, active_figure_id
+        n_clicks, fs_data, figure_label, session_data, active_session_id, active_figure_id
     ):
         if not n_clicks:
             raise exceptions.PreventUpdate
@@ -214,24 +225,24 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         ds_key = getattr(ds, "key", ds.name)
 
-        # Save via Service (using the new dataset-aware logic)
-        session, new_fig_id, is_overwrite = ctx.session_service.save_figure(
+        # Overwrite only when editing a selected saved figure
+        session, saved_id, is_overwrite = ctx.session_service.save_figure(
             session,
-            active_figure_id=new_fig_id,
+            active_figure_id=active_figure_id,
             dataset_key=ds_key,
             view_id=state.view_id,
             filter_state=state.to_dict(),
             label=figure_label,
         )
 
-        status = f"Saved '{figure_label or state.view_id}'" if not is_overwrite else f"Updated '{figure_label or state.view_id}'"
+        action = "Updated" if is_overwrite else "Saved"
+        status = f"{action} '{figure_label or state.view_id}' to report"
 
-        # FIX: We reset the active figure ID to None after a save.
-        # This prevents the app from "staying" on the figure you just saved,
-        # allowing you to save multiple unique figures in a row.
-        next_active_id = None
+        # Keep edit mode if we overwrote; otherwise stay in "new" mode.
+        next_active = saved_id if is_overwrite else None
 
-        return session_to_dict(session), active_session_id, status, next_active_id
+        return session_to_dict(session), active_session_id, status, next_active
+
     # ---------------------------------------------------------
     # Download CSV
     # ---------------------------------------------------------
@@ -258,10 +269,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         view = ctx.registry.create(state.view_id, ds)
         data = view.compute_data(state)
 
-        # re-enable button (return False for disabled)
         if hasattr(data, "to_csv"):
             filename = f"{state.view_id}_{state.dataset_name}.csv"
             return dcc.send_data_frame(data.to_csv, filename, index=False), False
 
         return dash.no_update, False
-

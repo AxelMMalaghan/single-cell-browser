@@ -248,3 +248,5 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         # Use a simpler styling for the banner text if it contains a warning
         return session_to_dict(merged_session), banner_text
+
+
