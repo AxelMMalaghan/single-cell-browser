@@ -9,10 +9,7 @@ import pandas as pd
 from dash import Input, Output, State, exceptions, dcc, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.metadata_model import (
-    FigureMetadata,
-    generate_figure_id,
-)
+from sc_browser.metadata_io.metadata_model import generate_figure_id, now_iso
 from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
@@ -223,12 +220,20 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             label_clean = str(figure_label).strip() if figure_label else None
             new_id = active_figure_id if is_overwrite else generate_figure_id()
 
+            # Preserve created_at for overwrites, set it for new figures
+            existing_created_at = None
+            if is_overwrite and existing_idx is not None:
+                existing_fig = figures[existing_idx]
+                if isinstance(existing_fig, dict):
+                    existing_created_at = existing_fig.get("created_at")
+
             fig_dict = {
                 "id": new_id,
                 "dataset_key": getattr(ds, "key", ds.name),
                 "view_id": state.view_id,
                 "filter_state": state.to_dict(),
                 "label": label_clean,
+                "created_at": existing_created_at or now_iso(),
             }
 
             # Update or append
