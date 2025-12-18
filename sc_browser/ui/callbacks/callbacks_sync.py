@@ -220,3 +220,4 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise exceptions.PreventUpdate
 
         return state
+

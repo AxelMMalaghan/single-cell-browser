@@ -61,6 +61,18 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return options, value
 
     # ---------------------------------------------------------
+    # Clear active figure when dataset changes
+    # ---------------------------------------------------------
+    @app.callback(
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
+        Input(IDs.Control.DATASET_SELECT, "value"),
+        prevent_initial_call=True,
+    )
+    def clear_active_figure_on_dataset_change(_ds_val):
+        """Resets the 'edit' mode when switching datasets to prevent cross-dataset overwrites."""
+        return None
+
+    # ---------------------------------------------------------
     # Load Figure
     # ---------------------------------------------------------
     @app.callback(
@@ -195,19 +207,17 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if active_session_id is None:
             active_session_id = generate_session_id()
 
-        # REFACTOR: Delegate session management to Service (loads from disk or creates new)
         session = ctx.session_service.ensure_session(
             session_from_dict(session_data),
             session_id=active_session_id,
         )
 
-        # Use the key (stable ID) if available, else name
         ds_key = getattr(ds, "key", ds.name)
 
-        # REFACTOR: Save via Service (automatically persists to disk)
+        # Save via Service (using the new dataset-aware logic)
         session, new_fig_id, is_overwrite = ctx.session_service.save_figure(
             session,
-            active_figure_id=active_figure_id,
+            active_figure_id=new_fig_id,
             dataset_key=ds_key,
             view_id=state.view_id,
             filter_state=state.to_dict(),
@@ -216,8 +226,12 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         status = f"Saved '{figure_label or state.view_id}'" if not is_overwrite else f"Updated '{figure_label or state.view_id}'"
 
-        return session_to_dict(session), active_session_id, status, new_fig_id
+        # FIX: We reset the active figure ID to None after a save.
+        # This prevents the app from "staying" on the figure you just saved,
+        # allowing you to save multiple unique figures in a row.
+        next_active_id = None
 
+        return session_to_dict(session), active_session_id, status, next_active_id
     # ---------------------------------------------------------
     # Download CSV
     # ---------------------------------------------------------

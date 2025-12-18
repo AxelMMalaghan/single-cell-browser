@@ -12,9 +12,25 @@ from datetime import datetime, timezone
 def generate_session_id() -> str:
     return f"session-{uuid.uuid4().hex[:8]}"
 
+
 def generate_figure_id(session: SessionMetadata) -> str:
-    # cheap sequential id per session
-    return f"fig-{len(session.figures)+1:04d}"
+    """
+    Generate a unique ID by finding the maximum current index and incrementing.
+    This prevents collisions if figures are deleted from the middle of the list.
+    """
+    if not session.figures:
+        return "fig-0001"
+
+    # Extract numeric parts from IDs like 'fig-0005'
+    indices = []
+    for f in session.figures:
+        try:
+            indices.append(int(f.id.split('-')[-1]))
+        except (ValueError, IndexError):
+            continue
+
+    next_num = max(indices) + 1 if indices else 1
+    return f"fig-{next_num:04d}"
 
 def now_iso() -> str:
     """Return a current UTC timestamp in ISO-8601 format."""

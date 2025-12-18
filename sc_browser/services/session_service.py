@@ -102,16 +102,18 @@ class SessionService:
         if active_figure_id:
             existing_fig = next((f for f in session.figures if f.id == active_figure_id), None)
 
-        same_label_as_existing = (
-                existing_fig is not None and (label_clean or "") == (existing_fig.label or "")
-        )
+        # CRITICAL FIX: Only allow overwrite if the figure exists AND belongs to the same dataset.
+        is_same_dataset = existing_fig is not None and existing_fig.dataset_key == dataset_key
 
-        if existing_fig is not None and same_label_as_existing:
+        # Determine if we should update or create new
+        same_label = existing_fig is not None and (label_clean or "") == (existing_fig.label or "")
+        is_overwrite = is_same_dataset and same_label
+
+        if is_overwrite:
             figure_id = existing_fig.id
-            is_overwrite = True
         else:
+            # Use the new robust generator
             figure_id = generate_figure_id(session)
-            is_overwrite = False
 
         meta = FigureMetadata.from_runtime(
             figure_id=figure_id,
@@ -123,17 +125,15 @@ class SessionService:
             file_stem=None,
         )
 
-        if is_overwrite and existing_fig is not None:
+        if is_overwrite:
             for idx, f in enumerate(session.figures):
-                if f.id == existing_fig.id:
+                if f.id == figure_id:
                     session.figures[idx] = meta
                     break
         else:
             session.figures.append(meta)
 
         session.updated_at = now_iso()
-
-        # PERSIST CHANGE
         self._persist(session)
 
         return session, figure_id, is_overwrite
