@@ -136,27 +136,6 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         return json.dumps(fs, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
-    def _merge_and_normalise_figures(existing_figures, imported_figures):
-        existing = list(existing_figures or [])
-        imported = list(imported_figures or [])
-
-        seen = {
-            (getattr(f, "dataset_key", None), getattr(f, "view_id", None), _fs_json(f), getattr(f, "label", None))
-            for f in existing
-        }
-        merged = list(existing)
-
-        for f in imported:
-            key = (getattr(f, "dataset_key", None), getattr(f, "view_id", None), _fs_json(f), getattr(f, "label", None))
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(f)
-
-        for i, f in enumerate(merged, start=1):
-            f.id = f"fig-{i:04d}"
-
-        return merged
 
     # ---------------------------------------------------------
     # Import session metadata
@@ -220,13 +199,10 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         existing_session = session_from_dict(session_data)
         existing_figures = existing_session.figures if existing_session else []
 
-        merged_figures = _merge_and_normalise_figures(
-            existing_figures,
-            imported_session.figures,
-        )
+
 
         merged_session = existing_session or imported_session
-        merged_session.figures = merged_figures
+
         touch_session(merged_session)
 
         # Persist change
@@ -238,7 +214,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         banner_text = (
             f"Imported {len(imported_session.figures)} figure(s). "
-            f"Session now has {len(merged_figures)} figure(s)."
+            f"Session now has {len(existing_figures)} figure(s)."
         )
 
         # Append warning if orphans detected

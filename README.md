@@ -145,19 +145,17 @@ The application does not assume specific column names in your `.h5ad` files. You
 
 ```json
 {
-  "name": "Lung Cancer Study",
-  "path": "data/lung_cancer_v1.h5ad",
-  "raw": {
-    "group": "Oncology",
-    "embedding_key": "X_umap" 
-  },
+  "schema": "anndata_mapped",
+  "name": "IMM Analysis",
+  "group": "IMM",
+  "path": "data/IMM_sce.h5ad",
   "obs_columns": {
-    "cell_id": "index",        
-    "cluster": "leiden_0.5",   
-    "condition": "treatment",
-    "sample": "patient_id",
-    "cell_type": "predicted_cell_type"
-  }
+    "cluster": "label",
+    "condition": "cond",
+    "sample": "patient",
+    "cell_type": "label"
+  },
+  "embedding_key": "UMAP"
 }
 ```
 
