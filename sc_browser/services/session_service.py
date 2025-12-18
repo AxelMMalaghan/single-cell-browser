@@ -82,6 +82,7 @@ class SessionService:
         self._persist(new_sess)
         return new_sess
 
+
     def save_figure(
             self,
             session: SessionMetadata,
@@ -92,50 +93,33 @@ class SessionService:
             filter_state: dict[str, Any],
             label: Any,
     ) -> Tuple[SessionMetadata, str, bool]:
-        """
-        Save current view state into session.figures and persist to disk.
-        """
+
         label_clean = str(label).strip() or None if label else None
 
-        existing_fig: Optional[FigureMetadata] = None
+        # Intent: If the UI provides an ID, we try to update that specific figure.
+        existing_idx = None
         if active_figure_id:
-            existing_fig = next((f for f in session.figures if f.id == active_figure_id), None)
+            existing_idx = next((i for i, f in enumerate(session.figures) if f.id == active_figure_id), None)
 
-        # CRITICAL FIX: Only allow overwrite if the figure exists AND belongs to the same dataset.
-        is_same_dataset = existing_fig is not None and existing_fig.dataset_key == dataset_key
-
-        # Determine if we should update or create new
-        same_label = existing_fig is not None and (label_clean or "") == (existing_fig.label or "")
-        is_overwrite = is_same_dataset and same_label
-
-        if is_overwrite:
-            figure_id = existing_fig.id
-        else:
-            # Use the new robust generator
-            figure_id = generate_figure_id(session)
+        is_overwrite = existing_idx is not None
 
         meta = FigureMetadata.from_runtime(
-            figure_id=figure_id,
+            figure_id=active_figure_id if is_overwrite else generate_figure_id(),
             dataset_key=dataset_key,
             view_id=view_id,
             state=filter_state,
             view_params={},
             label=label_clean,
-            file_stem=None,
         )
 
         if is_overwrite:
-            for idx, f in enumerate(session.figures):
-                if f.id == figure_id:
-                    session.figures[idx] = meta
-                    break
+            session.figures[existing_idx] = meta
         else:
             session.figures.append(meta)
 
         session.updated_at = now_iso()
         self._persist(session)
-
-        return session, figure_id, is_overwrite
+        return session, meta.id, is_overwrite
 
     def delete_figure(self, session: SessionMetadata, *, figure_id: str) -> SessionMetadata:
         """

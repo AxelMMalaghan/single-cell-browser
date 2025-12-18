@@ -23,14 +23,6 @@ def load_session_metadata_from_file(path: Path) -> SessionMetadata:
         raise
 
 
-def _renumber_figures_sequentially(figures: List[FigureMetadata]) -> None:
-    """
-    Enforce unique, purely sequential ids: fig-0001, fig-0002, ...
-    This intentionally discards imported ids to avoid collisions.
-    """
-    for i, fig in enumerate(figures, start=1):
-        fig.id = f"fig-{i:04d}"
-
 
 def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
     """
@@ -48,7 +40,6 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
             logger.error("session_from_dict returned None for seemingly valid session structure")
             raise ValueError("Invalid session metadata JSON")
 
-        _renumber_figures_sequentially(session.figures)
         return session
 
     figures: List[FigureMetadata] = []
@@ -93,8 +84,6 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
     if not figures and not ("figures" in raw and isinstance(raw["figures"], list) and not raw["figures"]):
          # If we didn't find anything AND it wasn't just an empty list
          pass
-
-    _renumber_figures_sequentially(figures)
 
     # Create a synthetic wrapper session
     session = new_session_metadata(

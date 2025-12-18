@@ -9,31 +9,22 @@ from datetime import datetime, timezone
 # Helpers
 # -------------------------------------------------------------------------
 
+def generate_figure_id() -> str:
+    """
+    Generate a globally unique, immutable ID for figures
+    """
+    return f"fig-{uuid.uuid4().hex[:12]}"
+
 def generate_session_id() -> str:
-    return f"session-{uuid.uuid4().hex[:8]}"
-
-
-def generate_figure_id(session: SessionMetadata) -> str:
     """
-    Generate a unique ID by finding the maximum current index and incrementing.
-    This prevents collisions if figures are deleted from the middle of the list.
+    Generate a globally unique, immutable ID for sessions
     """
-    if not session.figures:
-        return "fig-0001"
-
-    # Extract numeric parts from IDs like 'fig-0005'
-    indices = []
-    for f in session.figures:
-        try:
-            indices.append(int(f.id.split('-')[-1]))
-        except (ValueError, IndexError):
-            continue
-
-    next_num = max(indices) + 1 if indices else 1
-    return f"fig-{next_num:04d}"
+    return f"fig-{uuid.uuid4().hex[:8]}"
 
 def now_iso() -> str:
-    """Return a current UTC timestamp in ISO-8601 format."""
+    """
+    Return a current UTC timestamp in ISO-8601 format.
+    """
     return datetime.now(timezone.utc).isoformat()
 
 # -------------------------------------------------------------------------
