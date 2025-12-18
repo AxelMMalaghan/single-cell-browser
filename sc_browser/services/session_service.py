@@ -49,7 +49,12 @@ class SessionService:
             return None
         try:
             data = json.loads(self.storage.read_bytes(path))
-            return normalise_session_dict(data)
+            logger.info(
+                f"LOAD SESSION: session_id={session_id}, figures in file={len(data.get('figures', []))}, IDs={[f['id'] for f in data.get('figures', [])]}")
+            result = normalise_session_dict(data)
+            logger.info(
+                f"LOAD SESSION AFTER NORMALISE: figures={len(result.figures) if result else 0}, IDs={[f.id for f in result.figures] if result else []}")
+            return result
         except Exception:
             logger.exception("Failed to load session %s", session_id)
             return None
@@ -119,6 +124,12 @@ class SessionService:
 
         session.updated_at = now_iso()
         self._persist(session)
+
+        logger.info(f"SERVICE SAVE: active_figure_id={active_figure_id}, existing figures={len(session.figures)}")
+        logger.info(f"SERVICE SAVE: existing figure IDs={[f.id for f in session.figures]}")
+        logger.info(f"SERVICE SAVE: is_overwrite={is_overwrite}, new_id={meta.id}")
+        logger.info(f"SERVICE SAVE: after save figures={len(session.figures)}")
+
         return session, meta.id, is_overwrite
 
     def delete_figure(self, session: SessionMetadata, *, figure_id: str) -> SessionMetadata:

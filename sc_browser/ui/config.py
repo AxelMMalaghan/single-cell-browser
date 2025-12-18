@@ -8,26 +8,19 @@ from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.services.metadata_export_service import ExportService
 from sc_browser.services.session_service import SessionService
 
-
 @dataclass
 class AppConfig:
     config_root: Path
     global_config: GlobalConfig
-
-    # Lazy registry / config listing (no materialisation)
     dataset_names: List[str] = field(default_factory=list)
-
-    # Materialised datasets ONLY
     datasets: List[Dataset] = field(default_factory=list)
     dataset_by_name: Dict[str, Dataset] = field(default_factory=dict)
     dataset_by_key: Dict[str, Dataset] = field(default_factory=dict)
     default_dataset: Optional[Dataset] = None
 
-    # Services - Initialized as None but expected to be set during app factory
     registry: Optional[ViewRegistry] = None
     export_service: Optional[ExportService] = None
     session_service: Optional[SessionService] = None
-
     enable_dataset_management: bool = False
 
     def validate(self) -> None:
@@ -36,3 +29,5 @@ class AppConfig:
             raise RuntimeError("AppConfig.registry must be initialized.")
         if self.session_service is None:
             raise RuntimeError("AppConfig.session_service must be initialized.")
+        if self.export_service is None:
+            raise RuntimeError("AppConfig.export_service must be initialized.")

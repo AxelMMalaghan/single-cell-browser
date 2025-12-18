@@ -103,6 +103,22 @@ def build_reports_panel() -> dbc.Container:
     )
 
 
+def build_empty_figures_message() -> html.Div:
+    """
+    Returns a styled 'no figures yet' placeholder for the reports panel.
+    """
+    return html.Div(
+        [
+            html.Div("You haven't saved any figures yet.", className="fw-semibold"),
+            html.Div(
+                'Go to the Explore tab, configure a plot, and click "Save figure" to start building a report.',
+                className="text-muted small mt-1",
+            ),
+        ],
+        className="mt-2",
+    )
+
+
 def build_figures_table(figures: List[Any]) -> dbc.Table:
     """
     Builds a styled dbc.Table for the reports list.
@@ -151,21 +167,35 @@ def build_figures_table(figures: List[Any]) -> dbc.Table:
     # -- Body --
     rows = []
     for fig in figures:
+        # Support both dict and object access
+        if isinstance(fig, dict):
+            fig_id = fig.get("id", "")
+            fig_label = fig.get("label")
+            fig_dataset = fig.get("dataset_key", "")
+            fig_view = fig.get("view_id", "")
+            fig_created = fig.get("created_at", "")
+        else:
+            fig_id = getattr(fig, "id", "")
+            fig_label = getattr(fig, "label", None)
+            fig_dataset = getattr(fig, "dataset_key", "")
+            fig_view = getattr(fig, "view_id", "")
+            fig_created = getattr(fig, "created_at", "")
+
         rows.append(
             html.Tr(
                 [
-                    html.Td(fig.id, style=cell_style),
+                    html.Td(fig_id, style=cell_style),
                     html.Td(
-                        fig.label or html.Span("No label", className="text-muted italic"),
+                        fig_label or html.Span("No label", className="text-muted italic"),
                         style={**cell_style, "whiteSpace": "normal", "maxWidth": "200px"}
                     ),
-                    html.Td(fig.dataset_key, style=cell_style),
-                    html.Td(fig.view_id, style=cell_style),
-                    html.Td(fig.created_at or "", style=cell_style),
+                    html.Td(fig_dataset, style=cell_style),
+                    html.Td(fig_view, style=cell_style),
+                    html.Td(fig_created or "", style=cell_style),
                     html.Td(
                         dbc.Button(
                             "Delete",
-                            id={"type": IDs.Pattern.REPORTS_DELETE, "index": fig.id},
+                            id={"type": IDs.Pattern.REPORTS_DELETE, "index": fig_id},
                             color="danger",
                             outline=True,
                             size="sm",

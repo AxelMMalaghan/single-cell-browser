@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import List, Tuple
 
 import numpy as np
@@ -13,10 +14,11 @@ from sc_browser.core.filter_state import FilterState
 from sc_browser.core.filter_profile import FilterProfile
 from sc_browser.core.dataset import Dataset
 
+logger = logging.getLogger(__name__)
 
 class VolcanoPlotView(BaseView):
     """
-    Volcano plot for differential expression differential_expression.
+    Volcano plot for differential expression.
 
     X: log2 fold change
     Y: -log10(p-value)
@@ -38,26 +40,17 @@ class VolcanoPlotView(BaseView):
     )
 
     def _choose_groups(self, state: FilterState, ds: Dataset) -> Tuple[str, str, str | None]:
-        """
-        Decide which obs column and groups to compare.
-
-        MVP behaviour:
-        - use condition_key as groupby
-        - if user has picked ≥1 conditions: first = group1
-        - if user has picked ≥2 conditions: second = group2
-        - else: group1 = first condition in dataset, group2 = None (vs rest)
-        """
         groupby = ds.condition_key
         if groupby is None:
-            raise ValueError("No condition_key configured for DE")
+            raise ValueError("No 'condition_key' configured for this dataset. Differential expression cannot run.")
 
         conditions = ds.conditions
         if conditions is None:
-            raise ValueError("No condition values available for DE")
+            raise ValueError("No condition values found in the dataset.")
 
         unique_conds: List[str] = sorted(conditions.astype(str).unique().tolist())
         if not unique_conds:
-            raise ValueError("No condition values available for DE")
+            raise ValueError("No condition values available for comparison.")
 
         if state.conditions:
             group1 = state.conditions[0]
@@ -85,17 +78,24 @@ class VolcanoPlotView(BaseView):
             config = DEConfig(dataset=ds_de, groupby=groupby, group1=group1, group2=group2)
             de_result = run_de(config)
             df = de_result.table.copy()
+        except ValueError as e:
+            # Handle expected configuration/data errors and log them
+            logger.warning("VolcanoPlotView DE failed: %s", e)
+            df = pd.DataFrame()
+            df.attrs["error"] = str(e)
+            return df
         except Exception:
+            # Catch-all for unexpected engine failures
+            logger.exception("Unexpected error in DE engine for VolcanoPlotView")
             return pd.DataFrame()
 
         if df.empty:
             return df
 
-        # Cap -log10(p-value) to prevent Plotly JS crashes (Infinity -> Finite Max)
+        # Cap -log10(p-value)
         p_col = "adj_pvalue" if "adj_pvalue" in df.columns else "pvalue"
         p_values = df[p_col].astype(float)
         neg_log_p = -np.log10(p_values.replace(0, np.nan))
-
         max_finite = neg_log_p.replace([np.inf, -np.inf], np.nan).max()
         df["neg_log10_pvalue"] = neg_log_p.fillna((max_finite or 50.0) + 1)
 
@@ -105,19 +105,16 @@ class VolcanoPlotView(BaseView):
         df.loc[sig_mask & (df["log2FC"] >= 1.0), "significance"] = "Upregulated"
         df.loc[sig_mask & (df["log2FC"] <= -1.0), "significance"] = "Downregulated"
 
-        # Attach Attributes LAST
         df.attrs["log_fc_threshold"] = 1.0
         df.attrs["pval_threshold"] = 0.05
         df.attrs["comparison"] = f"{group1} vs {'rest' if group2 is None else group2}"
 
         return df
 
-
-
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
-
         if data is None or data.empty:
-            return self.empty_figure("No data to show")
+            msg = data.attrs.get("error", "No data to show") if data is not None else "No data to show"
+            return self.empty_figure(msg)
 
         log_fc_threshold = data.attrs.get("log_fc_threshold", 1.0)
         pval_threshold = data.attrs.get("pval_threshold", 0.05)
@@ -142,25 +139,9 @@ class VolcanoPlotView(BaseView):
             },
         )
 
-        # Threshold lines
-        fig.add_hline(
-            y=-np.log10(pval_threshold),
-            line_dash="dash",
-            line_color="black",
-            opacity=0.6,
-        )
-        fig.add_vline(
-            x=log_fc_threshold,
-            line_dash="dash",
-            line_color="black",
-            opacity=0.6,
-        )
-        fig.add_vline(
-            x=-log_fc_threshold,
-            line_dash="dash",
-            line_color="black",
-            opacity=0.6,
-        )
+        fig.add_hline(y=-np.log10(pval_threshold), line_dash="dash", line_color="black", opacity=0.6)
+        fig.add_vline(x=log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6)
+        fig.add_vline(x=-log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6)
 
         fig.update_layout(
             height=600,
