@@ -62,8 +62,16 @@ class DEResult:
     table: pd.DataFrame
 
     @property
-    def signifcant(self) -> pd.DataFrame:
-        return self.significant
+    def significant(self) -> pd.DataFrame:
+        """
+        Return subset of results meeting significance thresholds.
+        Thresholds: Adjusted P-value <= 0.05 and |log2FC| >= 1.0.
+        """
+        if self.table.empty:
+            return self.table
+
+        mask = (self.table["adj_pvalue"] <= 0.05) & (self.table["log2FC"].abs() >= 1.0)
+        return self.table[mask]
 
     def head(self, n: int = 10) -> pd.DataFrame:
         """Shortcut for quick inspection."""

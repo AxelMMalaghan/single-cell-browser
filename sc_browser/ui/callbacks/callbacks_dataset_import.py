@@ -10,6 +10,7 @@ from dash import Input, Output, State
 
 from sc_browser.config.dataset_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
+from sc_browser.config.save_ds_config import write_dataset_config_for_uploaded_file
 from sc_browser.ui.helpers import dataset_status
 from sc_browser.ui.ids import IDs
 from sc_browser.services.dataset_service import DatasetManager
@@ -318,14 +319,23 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             )
 
         try:
+            # FIX: Create the JSON configuration so the registry can see the new file
+            write_dataset_config_for_uploaded_file(
+                config_root=ctx.config_root,
+                dataset_name=Path(safe_name).stem,
+                file_path=out_path,
+                group="Imported"
+            )
+
+            # Reload the global config and registry now that the new JSON exists
             ctx.global_config, reg_or_ds = load_dataset_registry(ctx.config_root)
         except Exception as e:
-            logger.exception("Reloading datasets after import failed")
+            logger.exception("Registering or reloading datasets after import failed")
             opts, current = _current_options_and_value()
             return (
                 f"File '{safe_name}' was saved to {out_path}, "
-                f"but reloading datasets failed: {e}. "
-                "Fix the config or datasets and restart the app.",
+                f"but registering the dataset failed: {e}. "
+                "Check logs and restart the app if necessary.",
                 opts,
                 current,
             )
@@ -363,4 +373,3 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             )
 
         return status_msg, opts, selected
-

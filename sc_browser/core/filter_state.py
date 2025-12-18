@@ -84,7 +84,7 @@ class FilterState:
             is_3d=bool(data.get("is_3d", False)),
             dim_x=data.get("dim_x", 0),
             dim_y=data.get("dim_y", 1),
-            dim_z=data.get("dim_z", 2),
+            dim_z=data.get("dim_z", None),
             color_scale=data.get("color_scale", "viridis"),
         )
 
