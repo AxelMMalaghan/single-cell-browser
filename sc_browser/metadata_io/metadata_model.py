@@ -1,31 +1,35 @@
 from __future__ import annotations
 
 import uuid
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional, Dict, List
 from datetime import datetime, timezone
+
+# Re-import FilterState for proper reconstruction
+from sc_browser.core.filter_state import FilterState
+
+logger = logging.getLogger(__name__)
+
 
 # -------------------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------------------
 
 def generate_figure_id() -> str:
-    """
-    Generate a globally unique, immutable ID for figures
-    """
+    """Generate a globally unique, immutable ID for figures."""
     return f"fig-{uuid.uuid4().hex[:12]}"
 
+
 def generate_session_id() -> str:
-    """
-    Generate a globally unique, immutable ID for sessions
-    """
-    return f"fig-{uuid.uuid4().hex[:8]}"
+    """Generate a globally unique, immutable ID for sessions."""
+    return f"session-{uuid.uuid4().hex[:8]}"
+
 
 def now_iso() -> str:
-    """
-    Return a current UTC timestamp in ISO-8601 format.
-    """
+    """Return a current UTC timestamp in ISO-8601 format."""
     return datetime.now(timezone.utc).isoformat()
+
 
 # -------------------------------------------------------------------------
 # Per-figure metadata
@@ -34,174 +38,112 @@ def now_iso() -> str:
 @dataclass
 class FigureMetadata:
     """
-    Immutable description of a single saved figure.
-
-    - id: stable identifier within a session (e.g. "fig-0001")
-    - dataset_key: key/name used to look up Dataset from AppContext
-    - view_id: BaseView.id ("cluster", "expression", etc.)
-    - filter_state: serialized FilterState (as dict)
-    - view_params: extra per-view knobs (embedding_key, color_by, etc.)
-    - label: optional human-readable label shown in the Reports UI
-    - file_stem: base filename used when exporting image/JSON
-    - created_at: ISO8601 timestamp (UTC) when this figure was first saved
+    Description of a single saved figure.
+    Ensures filter_state is a FilterState object, not just a dict.
     """
-
     id: str
     dataset_key: str
     view_id: str
-    filter_state: Dict[str, Any]
+    filter_state: FilterState
     view_params: Dict[str, Any] = field(default_factory=dict)
-
     label: Optional[str] = None
     file_stem: Optional[str] = None
     created_at: str = field(default_factory=now_iso)
 
     @classmethod
-    def from_runtime(
-        cls,
-        *,
-        figure_id: str,
-        dataset_key: str,
-        view_id: str,
-        state: Dict[str, Any],
-        view_params: Dict[str, Any],
-        label: Optional[str] = None,
-        file_stem: Optional[str] = None,
-    ) -> "FigureMetadata":
-        """
-        Build a FigureMetadata from the current runtime state.
-        """
+    def from_dict(cls, data: Dict[str, Any]) -> FigureMetadata:
+        """Reconstructs FigureMetadata, ensuring FilterState is an object."""
+        fs_raw = data.get("filter_state") or {}
+        # FIX: Reconstitute FilterState if it is a dictionary
+        fs_obj = fs_raw if isinstance(fs_raw, FilterState) else FilterState.from_dict(fs_raw)
+
         return cls(
-            id=figure_id,
-            dataset_key=dataset_key,
-            view_id=view_id,
-            filter_state=state or {},
-            view_params=view_params or {},
-            label=label,
-            file_stem=file_stem,
+            id=data.get("id", generate_figure_id()),
+            dataset_key=data["dataset_key"],
+            view_id=data["view_id"],
+            filter_state=fs_obj,
+            view_params=data.get("view_params", {}),
+            label=data.get("label"),
+            file_stem=data.get("file_stem"),
+            created_at=data.get("created_at", now_iso()),
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes the figure for dcc.Store or JSON export."""
+        return {
+            "id": self.id,
+            "dataset_key": self.dataset_key,
+            "view_id": self.view_id,
+            "filter_state": self.filter_state.to_dict(),
+            "view_params": self.view_params,
+            "label": self.label,
+            "file_stem": self.file_stem,
+            "created_at": self.created_at,
+        }
 
 
 # -------------------------------------------------------------------------
-# Session-level metadata (bundle of figures)
+# Session Metadata (Overarching Container)
 # -------------------------------------------------------------------------
 
 @dataclass
 class SessionMetadata:
     """
-    Describes a reporting/metadata_io session.
-
-    - session_id: stable identifier (can be random UUID or timestamp-based)
-    - schema_version: version of this metadata schema (start at 1)
-    - app_version: app version string
-    - datasets_config_hash: hash of the datasets config used for this session
-    - created_at: when the session was first created
-    - updated_at: last time the session was modified (figure added/removed, etc.)
-    - figures: list of FigureMetadata entries
+    Overarching container for a session, matching your metadata 6.json structure.
     """
-
     session_id: str
     schema_version: int
     app_version: str
     datasets_config_hash: str
-
     created_at: str = field(default_factory=now_iso)
     updated_at: str = field(default_factory=now_iso)
-
     figures: List[FigureMetadata] = field(default_factory=list)
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> SessionMetadata:
+        """Reconstructs a full session from a dictionary."""
+        figures = [FigureMetadata.from_dict(f) for f in data.get("figures", [])]
 
+        return cls(
+            session_id=data.get("session_id", generate_session_id()),
+            schema_version=data.get("schema_version", 1),
+            app_version=data.get("app_version", "0.0.0-dev"),
+            datasets_config_hash=data.get("datasets_config_hash", "unknown"),
+            created_at=data.get("created_at", now_iso()),
+            updated_at=data.get("updated_at", now_iso()),
+            figures=figures,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes the full session to a dictionary."""
+        return {
+            "session_id": self.session_id,
+            "schema_version": self.schema_version,
+            "app_version": self.app_version,
+            "datasets_config_hash": self.datasets_config_hash,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "figures": [f.to_dict() for f in self.figures],
+        }
 
 
 # -------------------------------------------------------------------------
-# Helpers
+# Creation Helper
 # -------------------------------------------------------------------------
 
 def new_session_metadata(
-    *,
-    session_id: str,
-    app_version: str,
-    datasets_config_hash: str,
-    schema_version: int = 1,
+        session_id: Optional[str] = None,
+        app_version: str = "0.0.0-dev",
+        datasets_config_hash: str = "unknown",
 ) -> SessionMetadata:
-    """
-    Create a fresh SessionMetadata with no figures.
-    """
+    """Create a fresh SessionMetadata container."""
     now = now_iso()
     return SessionMetadata(
-        session_id=session_id,
-        schema_version=schema_version,
+        session_id=session_id or generate_session_id(),
+        schema_version=1,
         app_version=app_version,
         datasets_config_hash=datasets_config_hash,
         created_at=now,
         updated_at=now,
         figures=[],
     )
-
-
-def touch_session(session: SessionMetadata) -> None:
-    """
-    Update the 'updated_at' timestamp after mutating the session.
-    """
-    session.updated_at = now_iso()
-
-
-def session_to_dict(session: SessionMetadata) -> Dict[str, Any]:
-    return {
-        "session_id": session.session_id,
-        "schema_version": session.schema_version,
-        "app_version": session.app_version,
-        "datasets_config_hash": session.datasets_config_hash,
-        "created_at": session.created_at,
-        "updated_at": session.updated_at,
-        "figures": [
-            {
-                "id": f.id,
-                "dataset_key": f.dataset_key,
-                "view_id": f.view_id,
-                "filter_state": f.filter_state or {},
-                "view_params": f.view_params or {},
-                "label": f.label,
-                "file_stem": f.file_stem,
-                "created_at": f.created_at,
-            }
-            for f in session.figures
-        ],
-    }
-
-
-def session_from_dict(
-    data: Dict[str, Any] | None,
-) -> SessionMetadata | None:
-    """
-    Rebuild SessionMetadata from a dict produced by session_to_dict.
-    Returns None if data is None.
-    """
-    if data is None:
-        return None
-
-    figures = [
-        FigureMetadata(
-            id=f["id"],
-            dataset_key=f["dataset_key"],
-            view_id=f["view_id"],
-            filter_state=f.get("filter_state") or {},
-            view_params=f.get("view_params", {}),
-            label=f.get("label"),
-            file_stem=f.get("file_stem"),
-            created_at=f.get("created_at", now_iso()),
-        )
-        for f in data.get("figures", [])
-    ]
-
-    return SessionMetadata(
-        session_id=data["session_id"],
-        schema_version=data["schema_version"],
-        app_version=data["app_version"],
-        datasets_config_hash=data["datasets_config_hash"],
-        created_at=data.get("created_at", now_iso()),
-        updated_at=data.get("updated_at", now_iso()),
-        figures=figures,
-    )
-
-

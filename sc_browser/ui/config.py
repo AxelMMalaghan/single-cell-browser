@@ -6,7 +6,7 @@ from sc_browser.config.model import GlobalConfig
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.services.metadata_export_service import ExportService
-from sc_browser.services.session_service import SessionService
+
 
 @dataclass
 class AppConfig:
@@ -20,7 +20,6 @@ class AppConfig:
 
     registry: Optional[ViewRegistry] = None
     export_service: Optional[ExportService] = None
-    session_service: Optional[SessionService] = None
     enable_dataset_management: bool = False
 
     def validate(self) -> None:

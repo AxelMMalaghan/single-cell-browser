@@ -14,7 +14,6 @@ from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
 from sc_browser.services.metadata_export_service import ExportService
 from sc_browser.services.dataset_service import DatasetManager, DatasetKeyManager
-from sc_browser.services.session_service import SessionService
 from sc_browser.services.storage import LocalFileSystemStorage
 from sc_browser.ui.layout.build_layout import build_layout
 from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks
@@ -96,10 +95,8 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
         view_registry=registry,
-        storage=storage_backend,
-    )
 
-    session_service = SessionService(storage=storage_backend)
+    )
 
     # 5) App Context
     ctx = AppConfig(
@@ -112,7 +109,6 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         default_dataset=default_dataset,
         registry=registry,
         export_service=export_service,
-        session_service=session_service,
         enable_dataset_management=bool(os.getenv("ENABLE_DATASET_MANAGEMENT", "0") == "1"),
     )
 

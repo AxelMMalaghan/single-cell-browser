@@ -9,7 +9,8 @@ import pandas as pd
 from dash import Input, Output, State, exceptions, dcc, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.metadata_model import generate_figure_id, now_iso
+from sc_browser.metadata_io.metadata_model import generate_figure_id, now_iso, SessionMetadata, new_session_metadata, \
+    FigureMetadata
 from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
@@ -176,10 +177,10 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # ---------------------------------------------------------
     # 4) Save fig - stores a simple list of figure dicts
     # ---------------------------------------------------------
+
     @app.callback(
         Output(IDs.Store.SESSION_META, "data", allow_duplicate=True),
         Output(IDs.Control.SAVE_FIGURE_STATUS, "children"),
-        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
         Input(IDs.Control.SAVE_FIGURE_BTN, "n_clicks"),
         State(IDs.Store.FILTER_STATE, "data"),
         State(IDs.Control.FIGURE_LABEL_INPUT, "value"),
@@ -187,73 +188,42 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
         prevent_initial_call=True,
     )
-    def save_current_figure(
-            n_clicks: int | None,
-            fs_data: dict[str, Any] | None,
-            figure_label: str | None,
-            figures_data: list | None,
-            active_figure_id: str | None,
-    ):
+    def save_current_figure(n_clicks, fs_data, figure_label, session_data, active_figure_id):
         if not n_clicks or not fs_data:
             raise exceptions.PreventUpdate
 
-        try:
-            state = FilterState.from_dict(fs_data)
-            ds = ctx.dataset_by_name.get(state.dataset_name)
-            if not ds:
-                return no_update, "Dataset unavailable.", no_update
+        # Reconstruct session metadata container
+        session = SessionMetadata.from_dict(session_data) if session_data else \
+            new_session_metadata(app_version=ctx.global_config.get("version", "0.0.0"))
 
-            # Simple list of figures - no session wrapper
-            figures = list(figures_data) if isinstance(figures_data, list) else []
-            logger.info(f"SAVE INPUT: {len(figures)} figures")
+        # Determine if overwriting
+        existing_idx = None
+        if active_figure_id:
+            existing_idx = next((i for i, f in enumerate(session.figures) if f.id == active_figure_id), None)
 
-            # Determine if we're overwriting an existing figure
-            existing_idx = None
-            if active_figure_id:
-                existing_idx = next(
-                    (i for i, f in enumerate(figures) if isinstance(f, dict) and f.get("id") == active_figure_id),
-                    None
-                )
-            is_overwrite = existing_idx is not None
+        is_overwrite = existing_idx is not None
+        new_id = active_figure_id if is_overwrite else generate_figure_id()
 
-            # Create the figure as a simple dict
-            label_clean = str(figure_label).strip() if figure_label else None
-            new_id = active_figure_id if is_overwrite else generate_figure_id()
+        # Create new FigureMetadata object
+        state = FilterState.from_dict(fs_data)
+        new_fig = FigureMetadata(
+            id=new_id,
+            dataset_key=state.dataset_name,
+            view_id=state.view_id,
+            filter_state=state,
+            label=str(figure_label).strip() if figure_label else None,
+            created_at=session.figures[existing_idx].created_at if is_overwrite else now_iso()
+        )
 
-            # Preserve created_at for overwrites, set it for new figures
-            existing_created_at = None
-            if is_overwrite and existing_idx is not None:
-                existing_fig = figures[existing_idx]
-                if isinstance(existing_fig, dict):
-                    existing_created_at = existing_fig.get("created_at")
+        if is_overwrite:
+            session.figures[existing_idx] = new_fig
+        else:
+            session.figures.append(new_fig)
 
-            fig_dict = {
-                "id": new_id,
-                "dataset_key": getattr(ds, "key", ds.name),
-                "view_id": state.view_id,
-                "filter_state": state.to_dict(),
-                "label": label_clean,
-                "created_at": existing_created_at or now_iso(),
-            }
+        session.updated_at = now_iso()
+        status = f"{'Updated' if is_overwrite else 'Saved'} '{new_fig.label or state.view_id}'"
 
-            # Update or append
-            if is_overwrite:
-                figures[existing_idx] = fig_dict
-            else:
-                figures.append(fig_dict)
-
-            logger.info(f"SAVE OUTPUT: {len(figures)} figures, is_overwrite={is_overwrite}")
-
-            status = f"{'Updated' if is_overwrite else 'Saved'} '{label_clean or state.view_id}' to report"
-
-            if is_overwrite:
-                return figures, status, new_id
-
-            return figures, status, None
-
-        except Exception as e:
-            logger.exception("Save failed")
-            return no_update, f"Save Error: {e}", no_update
+        return session.to_dict(), status, new_id
 
     # ---------------------------------------------------------
     # 5) Export Logic
