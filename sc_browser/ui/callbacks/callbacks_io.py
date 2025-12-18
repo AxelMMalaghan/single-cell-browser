@@ -9,8 +9,13 @@ import pandas as pd
 from dash import Input, Output, State, exceptions, dcc, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.metadata_model import generate_figure_id, now_iso, SessionMetadata, new_session_metadata, \
-    FigureMetadata
+from sc_browser.metadata_io.metadata_model import (
+    FigureMetadata,
+    SessionMetadata,
+    new_session_metadata,
+    generate_figure_id,
+    now_iso
+)
 from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
@@ -24,12 +29,9 @@ OPT_IS_3D = "is_3d"
 
 
 def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
-
     # ---------------------------------------------------------
     # 1) Saved-figure dropdown options/value
     # ---------------------------------------------------------
-    from dash import no_update
-
     @app.callback(
         Output(IDs.Control.SAVED_FIGURE_SELECT, "options"),
         Output(IDs.Control.SAVED_FIGURE_SELECT, "value"),
@@ -37,55 +39,38 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Input(IDs.Control.DATASET_SELECT, "value"),
         State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
     )
-    def update_saved_figure_dropdown(figures_data, dataset_value, active_figure_id):
+    def update_saved_figure_dropdown(session_data, dataset_value, active_figure_id):
         """
-        Update dropdown options and value based on saved figures.
+        Update dropdown based on the structured SessionMetadata container.
+        """
+        # FIX: Handle structured dict instead of raw list
+        figures = session_data.get("figures", []) if isinstance(session_data, dict) else []
 
-        figures_data is a simple list of figure dicts.
-        Resets to "New view" when dataset changes.
-        """
-        figures = figures_data if isinstance(figures_data, list) else []
         triggered = dash.ctx.triggered_id
-        logger.info(f"DROPDOWN: {len(figures)} figures, active_figure_id={active_figure_id}, triggered={triggered}")
-
         options = [{"label": "New view (current filters)", "value": NEW_FIGURE_VALUE}]
+
+        # Build options for all figures in the session
+        figure_ids = set()
+        for fig in figures:
+            fig_id = fig.get("id", "")
+            label = fig.get("label") or fig.get("view_id", "unknown")
+            dataset = fig.get("dataset_key", "")
+            options.append({"label": f"{label} ({dataset})", "value": fig_id})
+            figure_ids.add(fig_id)
 
         # Reset to "New view" when dataset changes
         if triggered == IDs.Control.DATASET_SELECT:
-            # Build options but reset selection
-            for fig in figures:
-                if isinstance(fig, dict):
-                    fig_id = fig.get("id", "")
-                    label = fig.get("label") or fig.get("view_id", "unknown")
-                    dataset = fig.get("dataset_key", "")
-                    options.append({"label": f"{label} ({dataset})", "value": fig_id})
             return options, NEW_FIGURE_VALUE
 
-        if not figures:
-            return options, NEW_FIGURE_VALUE
-
-        ids: set[str] = set()
-        for fig in figures:
-            if isinstance(fig, dict):
-                fig_id = fig.get("id", "")
-                label = fig.get("label") or fig.get("view_id", "unknown")
-                dataset = fig.get("dataset_key", "")
-                display = f"{label} ({dataset})"
-                options.append({"label": display, "value": fig_id})
-                ids.add(fig_id)
-
-        # Use ACTIVE_FIGURE_ID as the source of truth
-        if active_figure_id and active_figure_id in ids:
+        # Use ACTIVE_FIGURE_ID as source of truth if it exists in the current session
+        if active_figure_id and active_figure_id in figure_ids:
             return options, active_figure_id
 
         return options, NEW_FIGURE_VALUE
 
     # ---------------------------------------------------------
-    # 2) Clear ACTIVE_FIGURE_ID when user selects "New view" from dropdown
+    # 2) Manage ACTIVE_FIGURE_ID lifecycle
     # ---------------------------------------------------------
-    # Note: We intentionally do NOT sync ACTIVE_FIGURE_ID when user selects
-    # an existing figure from the dropdown. The user must click "Load" to
-    # actually load the figure. This prevents circular callback issues.
     @app.callback(
         Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
         Input(IDs.Control.SAVED_FIGURE_SELECT, "value"),
@@ -93,11 +78,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def clear_active_figure_on_new_selection(selected: str | None, current_active: str | None):
-        # Only clear ACTIVE_FIGURE_ID if user explicitly selects "New view"
-        # Don't change it when selecting an existing figure (user must click Load)
         if selected == NEW_FIGURE_VALUE and current_active is not None:
             return None
-        # For all other cases, don't change ACTIVE_FIGURE_ID
         raise exceptions.PreventUpdate
 
     @app.callback(
@@ -109,7 +91,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         return None
 
     # ---------------------------------------------------------
-    # 3) Load fig from dropdown
+    # 3) Load figure filters from the session store
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DATASET_SELECT, "value", allow_duplicate=True),
@@ -132,23 +114,18 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.SESSION_META, "data"),
         prevent_initial_call=True,
     )
-    def load_figure_from_dropdown(n_clicks: int | None, figure_id: str | None, figures_data: list | None):
-        if not n_clicks or not figure_id or figure_id == NEW_FIGURE_VALUE:
+    def load_figure_from_session(n_clicks: int | None, figure_id: str | None, session_data: dict | None):
+        if not n_clicks or not figure_id or figure_id == NEW_FIGURE_VALUE or not session_data:
             return (no_update,) * 14 + (None,)
 
-        figures = figures_data if isinstance(figures_data, list) else []
-        meta = next((f for f in figures if isinstance(f, dict) and f.get("id") == figure_id), None)
-        if not meta:
+        figures = session_data.get("figures", [])
+        fig_dict = next((f for f in figures if f.get("id") == figure_id), None)
+        if not fig_dict:
             raise exceptions.PreventUpdate
 
-        dataset_key = meta.get("dataset_key", "")
-        ds = ctx.dataset_by_key.get(dataset_key) or ctx.dataset_by_name.get(dataset_key)
-        if not ds:
-            raise exceptions.PreventUpdate
-
-        filter_state = meta.get("filter_state") or {}
-        state = FilterState.from_dict(filter_state)
-        state = replace(state, dataset_name=ds.name, view_id=meta.get("view_id", ""))
+        # Reconstruct typed FigureMetadata to ensure FilterState logic works
+        meta = FigureMetadata.from_dict(fig_dict)
+        state = meta.filter_state
 
         options: list[str] = []
         if state.split_by_condition:
@@ -170,17 +147,17 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             state.dim_z,
             options,
             state.color_scale,
-            meta.get("label") or "",
+            meta.label or "",
             figure_id,
         )
 
     # ---------------------------------------------------------
-    # 4) Save fig - stores a simple list of figure dicts
+    # 4) Save Current Figure to SessionMetadata
     # ---------------------------------------------------------
-
     @app.callback(
         Output(IDs.Store.SESSION_META, "data", allow_duplicate=True),
         Output(IDs.Control.SAVE_FIGURE_STATUS, "children"),
+        Output(IDs.Store.ACTIVE_FIGURE_ID, "data", allow_duplicate=True),
         Input(IDs.Control.SAVE_FIGURE_BTN, "n_clicks"),
         State(IDs.Store.FILTER_STATE, "data"),
         State(IDs.Control.FIGURE_LABEL_INPUT, "value"),
@@ -188,45 +165,61 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
         prevent_initial_call=True,
     )
-    def save_current_figure(n_clicks, fs_data, figure_label, session_data, active_figure_id):
+    def save_current_figure(
+            n_clicks: int | None,
+            fs_data: dict[str, Any] | None,
+            figure_label: str | None,
+            session_data: dict | None,
+            active_figure_id: str | None,
+    ):
         if not n_clicks or not fs_data:
             raise exceptions.PreventUpdate
 
-        # Reconstruct session metadata container
-        session = SessionMetadata.from_dict(session_data) if session_data else \
-            new_session_metadata(app_version=ctx.global_config.get("version", "0.0.0"))
+        try:
+            # FIX: Properly access version from GlobalConfig dataclass (avoids AttributeError)
+            app_ver = getattr(ctx.global_config, "app_version", "0.0.0-dev")
 
-        # Determine if overwriting
-        existing_idx = None
-        if active_figure_id:
-            existing_idx = next((i for i, f in enumerate(session.figures) if f.id == active_figure_id), None)
+            # Reconstruct session metadata container
+            session = SessionMetadata.from_dict(session_data) if session_data else \
+                new_session_metadata(app_version=app_ver)
 
-        is_overwrite = existing_idx is not None
-        new_id = active_figure_id if is_overwrite else generate_figure_id()
+            # Determine if overwriting
+            existing_idx = None
+            if active_figure_id:
+                existing_idx = next((i for i, f in enumerate(session.figures) if f.id == active_figure_id), None)
 
-        # Create new FigureMetadata object
-        state = FilterState.from_dict(fs_data)
-        new_fig = FigureMetadata(
-            id=new_id,
-            dataset_key=state.dataset_name,
-            view_id=state.view_id,
-            filter_state=state,
-            label=str(figure_label).strip() if figure_label else None,
-            created_at=session.figures[existing_idx].created_at if is_overwrite else now_iso()
-        )
+            is_overwrite = existing_idx is not None
+            new_id = active_figure_id if is_overwrite else generate_figure_id()
 
-        if is_overwrite:
-            session.figures[existing_idx] = new_fig
-        else:
-            session.figures.append(new_fig)
+            # Create new FigureMetadata object
+            state = FilterState.from_dict(fs_data)
+            label_clean = str(figure_label).strip() if figure_label else None
 
-        session.updated_at = now_iso()
-        status = f"{'Updated' if is_overwrite else 'Saved'} '{new_fig.label or state.view_id}'"
+            new_fig = FigureMetadata(
+                id=new_id,
+                dataset_key=state.dataset_name,
+                view_id=state.view_id,
+                filter_state=state,
+                label=label_clean,
+                created_at=session.figures[existing_idx].created_at if is_overwrite else now_iso()
+            )
 
-        return session.to_dict(), status, new_id
+            if is_overwrite:
+                session.figures[existing_idx] = new_fig
+            else:
+                session.figures.append(new_fig)
+
+            session.updated_at = now_iso()
+            status = f"{'Updated' if is_overwrite else 'Saved'} '{label_clean or state.view_id}' to report"
+
+            return session.to_dict(), status, new_id
+
+        except Exception as e:
+            logger.exception("Save failed")
+            return no_update, f"Save Error: {e}", no_update
 
     # ---------------------------------------------------------
-    # 5) Export Logic
+    # 5) Data Export (CSV)
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DOWNLOAD_DATA, "data"),
@@ -249,17 +242,4 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if isinstance(data, pd.DataFrame):
             return dcc.send_data_frame(data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False)
 
-        if isinstance(data, dict) and state.view_id == "dataset_summary":
-            c_counts = data.get("cluster_counts", pd.DataFrame())
-            cond_counts = data.get("condition_counts", pd.DataFrame())
-
-            combined = pd.concat(
-                [
-                    c_counts.assign(type="cluster").rename(columns={"cluster": "label"}),
-                    cond_counts.assign(type="condition").rename(columns={"condition": "label"}),
-                ]
-            )
-            return dcc.send_data_frame(combined.to_csv, f"summary_{ds.name}.csv", index=False)
-
-        logger.warning("Unsupported download type for view=%s type=%s", state.view_id, type(data))
         raise exceptions.PreventUpdate

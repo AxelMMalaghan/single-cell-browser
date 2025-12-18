@@ -26,7 +26,5 @@ class AppConfig:
         """Ensure all required services are attached before the app starts."""
         if self.registry is None:
             raise RuntimeError("AppConfig.registry must be initialized.")
-        if self.session_service is None:
-            raise RuntimeError("AppConfig.session_service must be initialized.")
         if self.export_service is None:
             raise RuntimeError("AppConfig.export_service must be initialized.")
