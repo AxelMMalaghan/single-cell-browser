@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import binascii
+import errno
 import logging
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING, List
@@ -227,10 +229,11 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         rel_path = path.relative_to(ctx.config_root.parent)
 
         changed_str = ", ".join(changed_fields)
+
         return f"Updated mapping for '{ds.name}' ({changed_str}). Saved to {rel_path}."
 
     # ---------------------------------------------------------
-    # Import dataset upload (Robust Version)
+    # Import dataset upload
     # ---------------------------------------------------------
     @app.callback(
         Output(IDs.Control.DM_IMPORT_STATUS, "children"),
@@ -253,123 +256,72 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if not filename.endswith(".h5ad"):
             opts, current = _current_options_and_value()
             return (
-                f"Unsupported file type for '{filename}'. "
-                "Please upload a single-cell dataset in .h5ad format.",
+                f"Unsupported file type for '{filename}'. Please upload a .h5ad file.",
                 opts,
                 current,
             )
 
+        # 1. DECODING
         try:
             _content_type, content_string = contents.split(",", 1)
             decoded = base64.b64decode(content_string)
-        except Exception as e:
-            logger.exception("Failed to decode uploaded file")
+        except (ValueError, binascii.Error) as e:
+            logger.error("Corrupted upload data for %s: %s", filename, e)
             opts, current = _current_options_and_value()
-            return (
-                f"Failed to read uploaded file '{filename}': {e}. "
-                "Try re-uploading the .h5ad file.",
-                opts,
-                current,
-            )
+            return f"The uploaded file '{filename}' appears to be corrupted.", opts, current
 
         if len(decoded) > MAX_UPLOAD_BYTES:
-            logger.warning(
-                "Rejecting uploaded file %r: size %d bytes exceeds MAX_UPLOAD_BYTES=%d",
-                filename,
-                len(decoded),
-                MAX_UPLOAD_BYTES,
-            )
             opts, current = _current_options_and_value()
-            return (
-                f"Upload too large for '{filename}' "
-                f"({len(decoded) / (1024 ** 2):.1f} MB; limit is {MAX_UPLOAD_BYTES / (1024 ** 2):.0f} MB).",
-                opts,
-                current,
-            )
+            return f"File '{filename}' exceeds the 1GB limit.", opts, current
 
+        # 2. PREPARE PATHS
         data_dir = ctx.config_root.parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
-
         safe_name = Path(filename).name
-        if not safe_name.endswith(".h5ad"):
-            safe_name = safe_name + ".h5ad"
-
+        if not safe_name.endswith(".h5ad"): safe_name += ".h5ad"
         out_path = data_dir / safe_name
 
-        # ATOMIC WRITE / OVERWRITE PROTECTION
+        # 3. ATOMIC WRITE
         try:
             with out_path.open("xb") as f:
                 f.write(decoded)
         except FileExistsError:
             opts, current = _current_options_and_value()
-            return (
-                f"Import failed: A dataset named '{safe_name}' already exists. "
-                "Please rename your file and try again.",
-                opts,
-                current,
-            )
-        except Exception as e:
-            logger.exception("Failed to write uploaded file to disk")
+            return f"A dataset named '{safe_name}' already exists on the server.", opts, current
+        except PermissionError:
+            logger.error("Permission denied writing to %s", out_path)
             opts, current = _current_options_and_value()
-            return (
-                f"Failed to save file to {out_path}: {e}. "
-                "Check that the server has write permissions to the data directory.",
-                opts,
-                current,
-            )
+            return "Server Error: Permission denied when saving the file.", opts, current
+        except OSError as e:
+            opts, current = _current_options_and_value()
+            if e.errno == errno.ENOSPC:
+                return "Server Error: The disk is full. Cannot save dataset.", opts, current
+            logger.exception("Disk I/O error during import")
+            return f"Server Error: Failed to save file ({e.strerror})", opts, current
 
+        # 4. REGISTRATION & RELOAD
         try:
-            # FIX: Create the JSON configuration so the registry can see the new file
             write_dataset_config_for_uploaded_file(
                 config_root=ctx.config_root,
                 dataset_name=Path(safe_name).stem,
                 file_path=out_path,
                 group="Imported"
             )
-
-            # Reload the global config and registry now that the new JSON exists
             ctx.global_config, reg_or_ds = load_dataset_registry(ctx.config_root)
         except Exception as e:
-            logger.exception("Registering or reloading datasets after import failed")
+            logger.exception("Post-upload registration failed")
             opts, current = _current_options_and_value()
-            return (
-                f"File '{safe_name}' was saved to {out_path}, "
-                f"but registering the dataset failed: {e}. "
-                "Check logs and restart the app if necessary.",
-                opts,
-                current,
-            )
+            return f"File saved, but failed to register dataset: {e}", opts, current
 
+        # Refresh Manager
         if isinstance(ctx.dataset_by_name, DatasetManager):
             ctx.dataset_by_name.refresh_config(reg_or_ds)
-            new_name_by_key = {}
-            for name, cfg in reg_or_ds.items():
-                key = getattr(cfg, "key", None) or name
-                new_name_by_key[key] = name
-
-            if hasattr(ctx.dataset_by_key, "_name_by_key"):
-                ctx.dataset_by_key._name_by_key = new_name_by_key
 
         names = _list_dataset_names(ctx)
         opts = [{"label": n, "value": n} for n in names]
-
         stem = Path(safe_name).stem.lower()
         imported_ds_name = next((n for n in names if stem in n.lower()), None)
-
         selected = imported_ds_name or (
-            current_dataset_name if current_dataset_name in names else (names[-1] if names else None)
-        )
+            current_dataset_name if current_dataset_name in names else (names[-1] if names else None))
 
-        if imported_ds_name:
-            status_msg = (
-                f"Imported '{safe_name}'. "
-                f"Dataset list reloaded and '{imported_ds_name}' is now selected."
-            )
-        else:
-            status_msg = (
-                f"Imported '{safe_name}' and reloaded the dataset list, "
-                "but could not confidently match it to a specific dataset entry. "
-                "Select it from the dataset dropdown."
-            )
-
-        return status_msg, opts, selected
+        return f"Successfully imported '{safe_name}'.", opts, selected

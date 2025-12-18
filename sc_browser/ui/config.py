@@ -23,7 +23,16 @@ class AppConfig:
     dataset_by_key: Dict[str, Dataset] = field(default_factory=dict)
     default_dataset: Optional[Dataset] = None
 
-    registry: ViewRegistry = None  # or keep your existing init pattern
-    export_service: ExportService = None
-    session_service: SessionService = None
+    # Services - Initialized as None but expected to be set during app factory
+    registry: Optional[ViewRegistry] = None
+    export_service: Optional[ExportService] = None
+    session_service: Optional[SessionService] = None
+
     enable_dataset_management: bool = False
+
+    def validate(self) -> None:
+        """Ensure all required services are attached before the app starts."""
+        if self.registry is None:
+            raise RuntimeError("AppConfig.registry must be initialized.")
+        if self.session_service is None:
+            raise RuntimeError("AppConfig.session_service must be initialized.")

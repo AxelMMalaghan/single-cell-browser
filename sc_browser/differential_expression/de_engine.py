@@ -5,6 +5,7 @@ from functools import lru_cache
 from typing import Optional, Sequence
 
 import scanpy as sc
+import numpy as np
 
 from sc_browser.differential_expression.de_model import DEConfig, DEResult
 
@@ -55,7 +56,7 @@ def run_de(config: DEConfig) -> DEResult:
     """
     Run differential expression analysis using scanpy.rank_genes_groups.
 
-    Includes automatic log-transformation check to ensure valid Fold Change calculation.
+    Includes heuristic check to prevent redundant log-transformation.
     """
     _validate_config(config)
 
@@ -79,9 +80,21 @@ def run_de(config: DEConfig) -> DEResult:
         comparison_label = f"{group1} v. {group2}"
         ref = group2
 
-    # CRITICAL: Ensure data is logarithmized. rank_genes_groups requires log data
-    # for Wilcoxon/t-test to calculate valid logfoldchanges.
-    if 'log1p' not in work.uns:
+    # FIX: Use a heuristic to detect if data is already log-transformed
+    # even if 'log1p' is missing from .uns
+    already_logged = 'log1p' in work.uns
+    if not already_logged:
+        # Check max value in the first 100 cells/genes as a quick heuristic
+        # If max value is > 50, it's likely raw counts.
+        try:
+            sample_max = work.X[:100, :100].max()
+            if sample_max < 50:
+                logger.info("Data appears already log-transformed (max < 50). Skipping sc.pp.log1p.")
+                already_logged = True
+        except Exception:
+            pass
+
+    if not already_logged:
         logger.info(f"Logarithmizing data for comparison: {comparison_label}")
         sc.pp.log1p(work)
 
