@@ -10,7 +10,7 @@ from typing import Optional, TYPE_CHECKING, List
 import dash
 from dash import Input, Output, State
 
-from sc_browser.config.dataset_loader import load_dataset_registry
+from sc_browser.config.config_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
 from sc_browser.config.save_ds_config import write_dataset_config_for_uploaded_file
 from sc_browser.ui.helpers import dataset_status

@@ -9,7 +9,7 @@ import dash_bootstrap_components as dbc
 from dash import Dash
 
 from .config import AppConfig
-from sc_browser.config.dataset_loader import load_dataset_registry
+from sc_browser.config.config_loader import load_dataset_registry
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
 from sc_browser.services.metadata_export_service import ExportService
