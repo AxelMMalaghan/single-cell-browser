@@ -20,7 +20,7 @@ class DatasetManager(Mapping[str, Dataset]):
 
     # Default to keeping 5 large datasets in memory.
     # Can be tuned via env var SC_BROWSER_MAX_LOADED_DATASETS
-    DEFAULT_MAX_LOADED = 5
+    DEFAULT_MAX_LOADED = 7
 
     def __init__(self, cfg_by_name: Dict[str, DatasetConfig]):
         self._cfg_by_name = cfg_by_name
