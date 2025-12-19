@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import anndata as ad
@@ -22,7 +23,6 @@ def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> a
     """
     Ensure obs_names and var_names are unique, logging what we do.
     """
-    # obs_names
     if not adata.obs_names.is_unique:
         logger.warning(
             "Observation names are not unique for dataset '%s' (%s); "
@@ -32,7 +32,6 @@ def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> a
         )
         adata.obs_names_make_unique()
 
-    # var_names
     if not adata.var_names.is_unique:
         logger.warning(
             "Variable names are not unique for dataset '%s' (%s); "
@@ -47,11 +46,7 @@ def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> a
 
 def _validate_obs_columns(adata: ad.AnnData, cfg: DatasetConfig, obs_cols: ObsColumns, path: Path) -> None:
     """
-    Validate obs-column mappings **only if** they are explicitly configured.
-
-    - cell_id: optional; if missing, we fall back to obs_names.
-    - cluster / condition / sample / cell_type: optional; if provided but
-      missing from .obs, that's a config error for curated datasets.
+    Validate obs-column mappings only if they are explicitly configured.
     """
 
     def check_optional(col_name: str | None, logical_name: str) -> None:
@@ -72,13 +67,11 @@ def _validate_obs_columns(adata: ad.AnnData, cfg: DatasetConfig, obs_cols: ObsCo
             )
             raise DatasetConfigError(msg)
 
-    # cell_id is OPTIONAL – only complain if explicitly configured and wrong
     check_optional(obs_cols.cell_id, "cell_id")
     check_optional(obs_cols.cluster, "cluster")
     check_optional(obs_cols.condition, "condition")
     check_optional(obs_cols.sample, "sample")
     check_optional(obs_cols.cell_type, "cell_type")
-    # batch is usually for integration / QC; also optional
     check_optional(obs_cols.batch, "batch")
 
 
@@ -86,23 +79,38 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     """
     Materialise an AnnData-backed Dataset from a DatasetConfig.
 
-    CRITICAL UPDATE:
-    - Loads the .h5ad file in
-    - This relies on the OS page cache rather than loading the full matrix into RAM.
-    - Ensures obs_names and var_names are unique (in-memory).
-    - Uses cfg.obs_columns (ObsColumns dataclass) to standardise obs column semantics.
+    Includes logic to resolve relative paths against SC_BROWSER_DATA_ROOT.
     """
     path: Path = cfg.path
+
+    # RESOLUTION LOGIC: Use SC_BROWSER_DATA_ROOT for relative paths
+    if not path.is_absolute():
+        data_root = os.environ.get("SC_BROWSER_DATA_ROOT")
+        if data_root:
+            root_path = Path(data_root)
+
+            # Strategy 1: Join directly (e.g. root/data/file.h5ad)
+            resolved_path = root_path / path
+
+            # Strategy 2: If Strategy 1 fails and both root and path contain 'data',
+            # try stripping the redundant 'data/' prefix from the config path.
+            if not resolved_path.is_file() and path.parts[0] == "data":
+                alt_path = root_path / Path(*path.parts[1:])
+                if alt_path.is_file():
+                    resolved_path = alt_path
+
+            path = resolved_path
+
     if not path.is_file():
-        raise DatasetConfigError(f"AnnData file not found at {path}")
+        raise DatasetConfigError(
+            f"AnnData file not found at {path}. "
+            f"Check your SC_BROWSER_DATA_ROOT env var and dataset JSON paths."
+        )
 
     adata = ad.read_h5ad(path)
     adata = _ensure_unique_names(adata, cfg, path)
 
-    # Semantic obs mapping from config; may be partially empty for discovered datasets
     obs_cols: ObsColumns = cfg.obs_columns
-
-    # Only enforce columns that were *actually* specified in config
     _validate_obs_columns(adata, cfg, obs_cols, path)
 
     group = cfg.raw.get("group", "Default")
@@ -120,7 +128,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     )
 
     logger.info(
-        "Loaded dataset (loaded)",
+        "Loaded dataset",
         extra={
             "dataset": ds.name,
             "group": ds.group,
