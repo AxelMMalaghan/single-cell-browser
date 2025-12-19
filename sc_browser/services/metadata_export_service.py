@@ -11,7 +11,6 @@ import plotly.graph_objs as go
 from sc_browser.core import Dataset
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.view_registry import ViewRegistry
-# FIX: Removed session_to_dict import
 from sc_browser.metadata_io.metadata_model import FigureMetadata, SessionMetadata
 
 logger = logging.getLogger(__name__)

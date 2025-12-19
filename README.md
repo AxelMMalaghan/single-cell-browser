@@ -40,7 +40,7 @@ A high-performance, interactive web application for visualizing and exploring si
 * **Volcano Plots:** Real-time **Differential Expression (DE)** analysis to find markers between selected groups.
 
 ### Data Management
-* **"Backed" Mode:** Efficiently handles large datasets using Scanpy's memory-mapping (`backed='r'`), keeping RAM usage low.
+* **"Backed" Mode:** Efficiently handles large datasets using Scanpy's memory-mapping, keeping RAM usage low.
 * **Dynamic Filtering:** Filter cells by cluster, sample, metadata, or gene expression thresholds in real-time.
 * **Session Management:** Save and load analysis sessions (selected genes, filters, view settings).
 * **Dataset Import:** Upload new `.h5ad` files directly through the UI (configurable).
@@ -54,7 +54,7 @@ The application follows a **Hexagonal Architecture** (Ports & Adapters) to separ
 ### Directory Structure
 * `sc_browser/core`: Domain logic (Dataset abstraction, Filtering logic).
 * `sc_browser/ui`: Dash layouts, components, and callbacks.
-* `sc_browser/services`: Data access, file storage, and session persistence.
+* `sc_browser/services`: Data access, file storage
 * `sc_browser/views`: Visualization logic (factory pattern for different plot types).
 * `config/`: JSON configurations for datasets.
 
@@ -62,7 +62,7 @@ The application follows a **Hexagonal Architecture** (Ports & Adapters) to separ
 
 1.  **Initialization**:
     * The app reads `config/global.json` and scans `config/datasets/`.
-    * Datasets are loaded in **Read-Only Backed Mode** (`.X` remains on disk).
+    * The datasets are loaded in
     
 2.  **User Interaction** (e.g., Selecting a cluster filter):
     * **Input:** User clicks a checkbox in the UI.
@@ -230,7 +230,7 @@ pyright
 * **Solution:** Check your `.h5ad` file keys or update the JSON config to match your data (e.g., `X_tsne`).
 
 **3. Plots are slow to render**
-* **Cause:** The dataset might be extremely large, and the `backed='r'` mode is limited by disk I/O speed.
+* **Cause:** The dataset might be extremely large
 * **Solution:** Ensure the host machine has a fast SSD.
 
 ## License 

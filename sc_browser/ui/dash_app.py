@@ -14,7 +14,6 @@ from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
 from sc_browser.services.metadata_export_service import ExportService
 from sc_browser.services.dataset_service import DatasetManager, DatasetKeyManager
-from sc_browser.services.storage import LocalFileSystemStorage
 from sc_browser.ui.layout.build_layout import build_layout
 from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks
 from sc_browser.ui.callbacks.callbacks_sync import register_sync_callbacks
@@ -89,8 +88,6 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
 
     # 4) Export & Session Services
     export_root = config_root / "exports"
-    # LocalFileSystemStorage creates the directory if needed
-    storage_backend = LocalFileSystemStorage(export_root)
 
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
