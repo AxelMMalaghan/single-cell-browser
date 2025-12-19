@@ -20,7 +20,6 @@ class ClusterView(BaseView):
         embedding=True,
         split_by_condition=True,
         is_3d=True,
-        colour_scale=True
     )
 
     # -----------------------------------------------------------
