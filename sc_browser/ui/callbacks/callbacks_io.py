@@ -162,7 +162,6 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.FILTER_STATE, "data"),
         State(IDs.Control.FIGURE_LABEL_INPUT, "value"),
         State(IDs.Store.SESSION_META, "data"),
-        State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
         prevent_initial_call=True,
     )
     def save_current_figure(
@@ -170,49 +169,54 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             fs_data: dict[str, Any] | None,
             figure_label: str | None,
             session_data: dict | None,
-            active_figure_id: str | None,
     ):
         if not n_clicks or not fs_data:
             raise exceptions.PreventUpdate
 
         try:
-            # FIX: Properly access version from GlobalConfig dataclass (avoids AttributeError)
             app_ver = getattr(ctx.global_config, "app_version", "0.0.0-dev")
 
-            # Reconstruct session metadata container
-            session = SessionMetadata.from_dict(session_data) if session_data else \
-                new_session_metadata(app_version=app_ver)
+            # FIX: Create a deep copy of session_data to avoid mutation issues
+            # and properly handle the figures list
+            if session_data:
+                # Get existing figures list
+                existing_figures = session_data.get("figures", [])
+                # Reconstruct session from dict
+                session = SessionMetadata.from_dict(session_data)
+            else:
+                # Create new session if none exists
+                existing_figures = []
+                session = new_session_metadata(app_version=app_ver)
 
-            # Determine if overwriting
-            existing_idx = None
-            if active_figure_id:
-                existing_idx = next((i for i, f in enumerate(session.figures) if f.id == active_figure_id), None)
+            # 1. Always generate a fresh ID
+            new_id = generate_figure_id()
 
-            is_overwrite = existing_idx is not None
-            new_id = active_figure_id if is_overwrite else generate_figure_id()
-
-            # Create new FigureMetadata object
+            # 2. Reconstruct the state and label
             state = FilterState.from_dict(fs_data)
             label_clean = str(figure_label).strip() if figure_label else None
 
+            # 3. Create the new figure metadata
             new_fig = FigureMetadata(
                 id=new_id,
                 dataset_key=state.dataset_name,
                 view_id=state.view_id,
                 filter_state=state,
                 label=label_clean,
-                created_at=session.figures[existing_idx].created_at if is_overwrite else now_iso()
+                created_at=now_iso()
             )
 
-            if is_overwrite:
-                session.figures[existing_idx] = new_fig
-            else:
-                session.figures.append(new_fig)
-
+            # 4. FIX: Explicitly create a new list with all existing figures plus the new one
+            # This ensures we don't have reference issues
+            session.figures = [FigureMetadata.from_dict(f) if isinstance(f, dict) else f
+                              for f in existing_figures] + [new_fig]
             session.updated_at = now_iso()
-            status = f"{'Updated' if is_overwrite else 'Saved'} '{label_clean or state.view_id}' to report"
 
-            return session.to_dict(), status, new_id
+            status = f"Saved '{label_clean or state.view_id}' to report"
+
+            # 5. Return dash.no_update for ACTIVE_FIGURE_ID.
+            # This keeps the UI dropdown on "New view", allowing the user
+            # to click Save again immediately to append another figure.
+            return session.to_dict(), status, None
 
         except Exception as e:
             logger.exception("Save failed")
@@ -243,3 +247,4 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             return dcc.send_data_frame(data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False)
 
         raise exceptions.PreventUpdate
+

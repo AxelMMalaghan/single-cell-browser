@@ -10,7 +10,6 @@ from dash import ALL, Input, Output, State, dcc, no_update
 
 from sc_browser.ui.ids import IDs
 from sc_browser.metadata_io.metadata_model import SessionMetadata, now_iso
-# Import layout builders
 from sc_browser.ui.layout.build_reports_panel import build_empty_figures_message, build_figures_table
 
 if TYPE_CHECKING:
@@ -61,6 +60,16 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def delete_figure(_n_clicks_list, session_data):
+        logger.info(
+            "delete_figure fired: triggered=%s value=%s",
+            dash.ctx.triggered_id,
+            dash.ctx.triggered[0].get("value") if dash.ctx.triggered else None,
+        )
+
+        # Only act on a real click (not re-render / remount)
+        if not _n_clicks_list or max((n or 0) for n in _n_clicks_list) == 0:
+            raise dash.exceptions.PreventUpdate
+
         triggered = dash.ctx.triggered_id
         if not triggered or not isinstance(triggered, dict):
             raise dash.exceptions.PreventUpdate
@@ -69,18 +78,13 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if not figure_id or not session_data:
             raise dash.exceptions.PreventUpdate
 
-        # Reconstruct session metadata to use helper methods
         session = SessionMetadata.from_dict(session_data)
-
-        # Remove the figure
         new_figures = [f for f in session.figures if f.id != figure_id]
-
         if len(new_figures) == len(session.figures):
             raise dash.exceptions.PreventUpdate
 
         session.figures = new_figures
         session.updated_at = now_iso()
-
         return session.to_dict()
 
     # ---------------------------------------------------------
@@ -162,3 +166,5 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             banner_text += f" Warning: some figures reference unknown datasets ({missing_str})."
 
         return new_session.to_dict(), banner_text
+
+
