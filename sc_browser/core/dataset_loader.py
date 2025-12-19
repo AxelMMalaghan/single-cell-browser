@@ -57,7 +57,14 @@ def _validate_obs_columns(adata: ad.AnnData, cfg: DatasetConfig, obs_cols: ObsCo
                 f"Dataset '{cfg.name}': obs_columns.{logical_name}='{col_name}' "
                 f"not found in .obs"
             )
-            logger.error(msg, extra={"dataset": cfg.name, "path": str(path), logical_name: col_name})
+            logger.error(
+                msg,
+                extra={
+                    "dataset": cfg.name,
+                    "path": str(path),
+                    logical_name: col_name,
+                },
+            )
             raise DatasetConfigError(msg)
 
     check_optional(obs_cols.cell_id, "cell_id")
@@ -71,6 +78,8 @@ def _validate_obs_columns(adata: ad.AnnData, cfg: DatasetConfig, obs_cols: ObsCo
 def from_config(cfg: DatasetConfig) -> Dataset:
     """
     Materialise an AnnData-backed Dataset from a DatasetConfig.
+
+    Includes logic to resolve relative paths against SC_BROWSER_DATA_ROOT.
     """
     path: Path = cfg.path
 
@@ -79,17 +88,24 @@ def from_config(cfg: DatasetConfig) -> Dataset:
         data_root = os.environ.get("SC_BROWSER_DATA_ROOT")
         if data_root:
             root_path = Path(data_root)
+
+            # Strategy 1: Join directly (e.g. root/data/file.h5ad)
             resolved_path = root_path / path
 
-            # Fallback for redundant 'data/' prefix
+            # Strategy 2: If Strategy 1 fails and both root and path contain 'data',
+            # try stripping the redundant 'data/' prefix from the config path.
             if not resolved_path.is_file() and path.parts[0] == "data":
                 alt_path = root_path / Path(*path.parts[1:])
                 if alt_path.is_file():
                     resolved_path = alt_path
+
             path = resolved_path
 
     if not path.is_file():
-        raise DatasetConfigError(f"AnnData file not found at {path}.")
+        raise DatasetConfigError(
+            f"AnnData file not found at {path}. "
+            f"Check your SC_BROWSER_DATA_ROOT env var and dataset JSON paths."
+        )
 
     adata = ad.read_h5ad(path)
     adata = _ensure_unique_names(adata, cfg, path)
@@ -100,7 +116,7 @@ def from_config(cfg: DatasetConfig) -> Dataset:
     group = cfg.raw.get("group", "Default")
     embedding_key = cfg.raw.get("embedding_key", "X_umap")
 
-    return Dataset(
+    ds = Dataset(
         name=cfg.name,
         group=group,
         adata=adata,
@@ -110,3 +126,17 @@ def from_config(cfg: DatasetConfig) -> Dataset:
         obs_columns=obs_cols,
         file_path=path,
     )
+
+    logger.info(
+        "Loaded dataset",
+        extra={
+            "dataset": ds.name,
+            "group": ds.group,
+            "n_cells": ds.adata.n_obs,
+            "n_genes": ds.adata.n_vars,
+            "path": str(path),
+        },
+    )
+
+
+

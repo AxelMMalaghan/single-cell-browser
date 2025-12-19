@@ -103,4 +103,4 @@ def load_dataset_registry(path: Path) -> tuple[GlobalConfig, Dict[str, DatasetCo
         },
     )
 
-    return global_config,
+    return global_config, cfg_by_name

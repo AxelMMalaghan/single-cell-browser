@@ -88,6 +88,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
 
     # 4) Export & Session Services
     export_root = config_root / "exports"
+    # LocalFileSystemStorage creates the directory if needed
 
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
