@@ -160,7 +160,7 @@ pip install -r requirements-dev.txt
 python app.py
 ```
 
-Dash runs on `http://localhost:8050` by default.
+Dash runs on `http://localhost:8051` by default.
 
 ---
 
@@ -201,7 +201,7 @@ docker build -t sc-browser .
 ### Run
 
 ```bash
-docker run -p 8050:8050 sc-browser
+docker run -p 8051:8051 sc-browser
 ```
 
 Docker is the **reference deployment path** for in‑house use.
