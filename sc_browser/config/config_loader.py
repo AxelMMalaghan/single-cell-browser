@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
 
-from sc_browser.config.model import DatasetConfig, GlobalConfig
+from sc_browser.core.configs import DatasetConfig, GlobalConfig
 
 logger = logging.getLogger(__name__)
 

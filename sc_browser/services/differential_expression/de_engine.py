@@ -5,9 +5,8 @@ from functools import lru_cache
 from typing import Optional, Sequence
 
 import scanpy as sc
-import numpy as np
 
-from sc_browser.differential_expression.de_model import DEConfig, DEResult
+from sc_browser.services.differential_expression.de_model import DEConfig, DEResult
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import anndata as ad
 import pytest
 
 from sc_browser.core.dataset import Dataset
-from sc_browser.core.dataset_loader import from_config
+from sc_browser.config.dataset_loader import from_config
 from sc_browser.core.filter_state import FilterState
 from sc_browser.config.config_loader import load_dataset_registry
 

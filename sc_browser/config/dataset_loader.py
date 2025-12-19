@@ -6,7 +6,7 @@ from pathlib import Path
 
 import anndata as ad
 
-from sc_browser.config.model import DatasetConfig, ObsColumns
+from sc_browser.core.configs import DatasetConfig
 from sc_browser.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)

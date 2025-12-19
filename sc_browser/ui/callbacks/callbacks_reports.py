@@ -9,7 +9,7 @@ import dash
 from dash import ALL, Input, Output, State, dcc, no_update
 
 from sc_browser.ui.ids import IDs
-from sc_browser.metadata_io.metadata_model import SessionMetadata, now_iso
+from sc_browser.core.metadata_model import SessionMetadata, now_iso
 from sc_browser.ui.layout.build_reports_panel import build_empty_figures_message, build_figures_table
 
 if TYPE_CHECKING:

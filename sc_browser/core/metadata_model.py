@@ -147,3 +147,5 @@ def new_session_metadata(
         updated_at=now,
         figures=[],
     )
+
+

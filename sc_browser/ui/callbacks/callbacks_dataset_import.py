@@ -17,7 +17,7 @@ from sc_browser.ui.helpers import dataset_status
 from sc_browser.ui.ids import IDs
 from sc_browser.services.dataset_service import DatasetManager
 
-from sc_browser.core.inference import (
+from sc_browser.services.inference_service import (
     infer_cluster_key,
     infer_condition_key,
     infer_sample_key,

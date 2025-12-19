@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .metadata_model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
+from sc_browser.core.metadata_model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
 
 logger = logging.getLogger(__name__)
 

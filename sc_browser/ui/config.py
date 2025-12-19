@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from sc_browser.config.model import GlobalConfig
+from sc_browser.core.configs import GlobalConfig
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.services.metadata_export_service import ExportService

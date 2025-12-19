@@ -9,7 +9,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-from sc_browser.config.model import ObsColumns
+from sc_browser.core.configs import ObsColumns
 
 if TYPE_CHECKING:
     from sc_browser.core.filter_state import FilterState

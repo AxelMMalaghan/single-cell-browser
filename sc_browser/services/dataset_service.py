@@ -5,9 +5,9 @@ import os
 from collections import OrderedDict
 from typing import Dict, Iterator, Mapping
 
-from sc_browser.config.model import DatasetConfig
+from sc_browser.core.configs import DatasetConfig
 from sc_browser.core.dataset import Dataset
-from sc_browser.core.dataset_loader import from_config, DatasetConfigError
+from sc_browser.config.dataset_loader import from_config, DatasetConfigError
 
 logger = logging.getLogger(__name__)
 

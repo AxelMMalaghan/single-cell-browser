@@ -1,10 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# 1. Export the platform-assigned port so the app can see it
-export PORT={{service_port}}
+APP_DIR="{{ app_dir | default('/opt/app') }}"
+DASHY_PORT="{{ service_port | default('8000') }}"
+APP_PATH="${APP_DIR}/{{entrypoint}}"
 
-echo "Starting application on port: $PORT"
-
-# 2. Start the server using Gunicorn (matching the Dockerfile behavior)
-# This binds to the dynamic port and identifies 'server' from 'app.py'
-exec gunicorn -b 0.0.0.0:${PORT} app:server --access-logfile - --error-logfile -
+exec $APP_PATH

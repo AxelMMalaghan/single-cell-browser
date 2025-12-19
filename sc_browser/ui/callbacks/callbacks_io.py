@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import dash
@@ -9,7 +8,7 @@ import pandas as pd
 from dash import Input, Output, State, exceptions, dcc, no_update
 
 from sc_browser.core.filter_state import FilterState
-from sc_browser.metadata_io.metadata_model import (
+from sc_browser.core.metadata_model import (
     FigureMetadata,
     SessionMetadata,
     new_session_metadata,
