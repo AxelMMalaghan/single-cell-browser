@@ -23,7 +23,6 @@ def load_session_metadata_from_file(path: Path) -> SessionMetadata:
         raise
 
 
-
 def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
     """
     Normalises the session metadata from a raw file.

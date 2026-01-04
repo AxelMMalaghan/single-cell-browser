@@ -12,7 +12,7 @@ from .config import AppConfig
 from sc_browser.config.config_loader import load_dataset_registry
 from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
-from sc_browser.services.metadata_export_service import ExportService
+from sc_browser.services.metadata.metadata_export_service import ExportService
 from sc_browser.services.dataset_service import DatasetManager, DatasetKeyManager
 from sc_browser.ui.layout.build_layout import build_layout
 from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks

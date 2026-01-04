@@ -8,7 +8,7 @@ import plotly.graph_objs as go
 
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.metadata_model import FigureMetadata
-from sc_browser.services.metadata_export_service import ExportService
+from sc_browser.services.metadata.metadata_export_service import ExportService
 
 
 class _DummyView:
