@@ -27,14 +27,28 @@ def build_dataset_import_panel(
     status_card = dbc.Card(
         [
 
-            dbc.CardHeader("Current dataset"),
             dbc.CardBody(
                 [
+                    html.Label("Active dataset", className="form-label"),
+                    html.Div(
+                        "Selects the current dataset",
+                        className="text-muted small mb-1",
+                    ),
+                    dcc.Dropdown(
+                        id="dataset-select",
+                        options=dataset_options,
+                        value=default_name,
+                        clearable=False,
+                        placeholder="Select dataset",
+                        className="scb-dataset-dropdown mb-3",
+                    ),
+
+                    html.Hr(),
+
+                    html.Div("Current dataset", className="form-label mb-1"),
                     html.Div(id="dm-current-dataset", className="form-label mb-1"),
                     html.Div(id="dm-status-text", className="mb-1 small"),
                     html.Div(id="dm-summary-text", className="text-muted mb-3 small"),
-
-                    html.Hr(),
 
                     html.Label("Import dataset (.h5ad)", className="form-label mt-1"),
 
@@ -50,33 +64,6 @@ def build_dataset_import_panel(
                 ]
             ),
 
-            html.Div(
-                [
-                    html.Div(
-                        "Active Dataset",
-                        className="navbar-dataset-title",
-                    ),
-                    html.Div(
-                        "Selects the current dataset",
-                        className="navbar-dataset-subtitle",
-                    ),
-                    dcc.Dropdown(
-                        id="dataset-select",
-                        options=dataset_options,
-                        value=default_name,
-                        clearable=False,
-                        placeholder="Select dataset",
-                        className="scb-dataset-dropdown mt-1",
-                    ),
-
-                ],
-                className="ms-auto navbar-dataset-block",
-                style={
-                    "minWidth": "280px",
-                    "maxWidth": "380px",
-                    "marginRight": "24px",
-                },
-            )
         ],
         className="h-100",
     )

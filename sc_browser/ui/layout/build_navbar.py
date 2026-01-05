@@ -18,13 +18,6 @@ def build_navbar(
     title = getattr(global_config, "ui_title", "Dashy")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
 
-    if default_dataset is not None:
-        default_name = default_dataset.name
-    else:
-        default_name = datasets[0].name if datasets else None
-
-    dataset_options = [{"label": ds.name, "value": ds.name} for ds in datasets]
-
     return dbc.Navbar(
         dbc.Container(
             fluid=True,
@@ -53,37 +46,8 @@ def build_navbar(
                     ],
                 ),
 
-                html.Div(
-                    [
-                        html.Div(
-                            "Active Dataset",
-                            className="navbar-dataset-title",
-                        ),
-                        html.Div(
-                            "Selects the current dataset",
-                            className="navbar-dataset-subtitle",
-                        ),
-                        dcc.Dropdown(
-                            id="dataset-select",
-                            options=dataset_options,
-                            value=default_name,
-                            clearable=False,
-                            placeholder="Select dataset",
-                            className="scb-dataset-dropdown mt-1",
-                        ),
-
-                    ],
-                    className="ms-auto navbar-dataset-block",
-                    style={
-                        "minWidth": "280px",
-                        "maxWidth": "380px",
-                        "marginRight": "24px",
-                    },
-                )
-
             ],
         ),
         dark=False,
         className="shadow-sm scb-navbar",
     )
-

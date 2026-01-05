@@ -22,7 +22,7 @@ def register_dataset_preview_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if not dataset_name:
             return (
                 "No dataset selected. "
-                "Choose a dataset from the navbar dropdown to preview its .obs table."
+                "Choose a dataset from the Datasets tab dropdown to preview its .obs table."
             )
 
         ds = ctx.dataset_by_name.get(dataset_name)
