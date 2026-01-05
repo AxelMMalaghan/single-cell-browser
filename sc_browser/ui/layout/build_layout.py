@@ -33,7 +33,7 @@ def build_layout(ctx: "AppContext"):
         view_panel = build_view_and_label_panel(ctx.registry)
 
     plot_panel = build_plot_panel()
-    dataset_import_panel = build_dataset_import_panel()
+    dataset_import_panel = build_dataset_import_panel(ctx.datasets, default_dataset)
     dataset_preview_panel = build_dataset_preview_panel()
     reports_panel = build_reports_panel()
 
@@ -106,5 +106,4 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
-
 

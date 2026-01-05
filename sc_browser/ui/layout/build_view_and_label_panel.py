@@ -24,7 +24,7 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                     # ------------------------------
                     html.Div(
                         [
-                            html.Label("Saved view", className="form-label"),
+                            html.Label("Selected view", className="form-label"),
                             dbc.Select(
                                 id="saved-figure-select",
                                 options=[],  # populated from session-metadata
