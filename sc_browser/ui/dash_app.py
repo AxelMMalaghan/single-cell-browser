@@ -135,3 +135,4 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     register_dataset_preview_callbacks(app, ctx)
 
     return app
+

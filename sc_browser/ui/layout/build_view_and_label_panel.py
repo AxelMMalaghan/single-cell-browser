@@ -25,13 +25,11 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                     html.Div(
                         [
                             html.Label("Saved view", className="form-label"),
-                            dcc.Dropdown(
+                            dbc.Select(
                                 id="saved-figure-select",
                                 options=[],  # populated from session-metadata
                                 value="__new__",  # "New view" sentinel
-                                placeholder="New view (start from current filters)",
-                                clearable=False,
-                                className="mb-1",
+                                className="scb-saved-view-select mb-1",
                             ),
                             html.Small(
                                 "Pick 'New view' to work from your current filters, or choose a saved view "

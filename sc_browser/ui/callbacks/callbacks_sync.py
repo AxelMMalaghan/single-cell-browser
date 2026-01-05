@@ -47,8 +47,13 @@ def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[st
     # previous dataset. The UI will clear them in a separate callback, but we
     # need the State to be clean *now* to prevent "ghost" states or name collisions.
     triggered_id = inputs.get("triggered_id")
+    num_triggers = inputs.get("num_triggers", 1)
 
-    dataset_changed = triggered_id == IDs.Control.DATASET_SELECT
+    # Only treat as "dataset changed" if the user manually changed the dataset
+    # (single trigger). If multiple inputs changed at once (num_triggers > 1),
+    # this is from a programmatic update like load_figure_from_session, and we
+    # should trust the incoming filter values.
+    dataset_changed = triggered_id == IDs.Control.DATASET_SELECT and num_triggers == 1
 
     if dataset_changed:
         # Force reset dependent filters
@@ -173,10 +178,12 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         # Identify what triggered this callback
         # dash.ctx.triggered_id handles the ID resolution
         triggered_id = dash.ctx.triggered_id
+        num_triggers = len(dash.ctx.triggered)
 
         # We use ctx.args_grouping to pass named args to our helper
         inputs = {
             "triggered_id": triggered_id,  # Pass trigger info
+            "num_triggers": num_triggers,  # Number of inputs that changed
             "dataset": {"value": ds_val},
             "view": {"value": view_val},
             "clusters": {"value": clust_val},

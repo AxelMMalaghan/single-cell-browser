@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dash_bootstrap_components as dbc
-from dash import dcc, html
+from dash import dcc
 from typing import List, Optional
 
 from sc_browser.core.dataset import Dataset
@@ -18,8 +18,6 @@ def build_layout(ctx: "AppContext"):
     default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
 
     navbar = build_navbar(ctx.datasets, ctx.global_config, default_dataset)
-
-    # REMOVED: Status bar and Notification Toast
 
     if default_dataset is None:
         filter_panel = dbc.Card(
@@ -91,8 +89,8 @@ def build_layout(ctx: "AppContext"):
                         ],
                     ),
                     dcc.Tab(
-                        label="Reports",
-                        value="reports",
+                        label="Summary",
+                        value="Summary",        #summary
                         children=[reports_panel],
                     ),
                 ],
@@ -113,3 +111,4 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
+

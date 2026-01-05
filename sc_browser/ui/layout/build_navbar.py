@@ -86,3 +86,4 @@ def build_navbar(
         dark=False,
         className="shadow-sm scb-navbar",
     )
+

@@ -34,16 +34,35 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     @app.callback(
         Output(IDs.Control.SAVED_FIGURE_SELECT, "options"),
         Output(IDs.Control.SAVED_FIGURE_SELECT, "value"),
+        Output(IDs.Store.SESSION_META, "data", allow_duplicate=True),
         Input(IDs.Store.SESSION_META, "data"),
         Input(IDs.Control.DATASET_SELECT, "value"),
         State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
+        prevent_initial_call="initial_duplicate",
     )
     def update_saved_figure_dropdown(session_data, dataset_value, active_figure_id):
         """
         Update dropdown based on the structured SessionMetadata container.
         """
-        # FIX: Handle structured dict instead of raw list
-        figures = session_data.get("figures", []) if isinstance(session_data, dict) else []
+        session_update = no_update
+        figures: list[FigureMetadata] = []
+        if isinstance(session_data, dict):
+            raw_figures = session_data.get("figures", [])
+            needs_update = any(
+                (not isinstance(fig, dict)) or (not fig.get("id"))
+                for fig in raw_figures
+            )
+            session = SessionMetadata.from_dict(session_data)
+            seen_ids: set[str] = set()
+            for fig in session.figures:
+                if fig.id in seen_ids:
+                    fig.id = generate_figure_id()
+                    needs_update = True
+                seen_ids.add(fig.id)
+            if needs_update:
+                session.updated_at = now_iso()
+                session_update = session.to_dict()
+            figures = session.figures
 
         triggered = dash.ctx.triggered_id
         options = [{"label": "New view (current filters)", "value": NEW_FIGURE_VALUE}]
@@ -51,21 +70,21 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         # Build options for all figures in the session
         figure_ids = set()
         for fig in figures:
-            fig_id = fig.get("id", "")
-            label = fig.get("label") or fig.get("view_id", "unknown")
-            dataset = fig.get("dataset_key", "")
+            fig_id = fig.id
+            label = fig.label or fig.view_id or "unknown"
+            dataset = fig.dataset_key or ""
             options.append({"label": f"{label} ({dataset})", "value": fig_id})
             figure_ids.add(fig_id)
 
         # Reset to "New view" when dataset changes
         if triggered == IDs.Control.DATASET_SELECT:
-            return options, NEW_FIGURE_VALUE
+            return options, NEW_FIGURE_VALUE, session_update
 
         # Use ACTIVE_FIGURE_ID as source of truth if it exists in the current session
         if active_figure_id and active_figure_id in figure_ids:
-            return options, active_figure_id
+            return options, active_figure_id, session_update
 
-        return options, NEW_FIGURE_VALUE
+        return options, NEW_FIGURE_VALUE, session_update
 
     # ---------------------------------------------------------
     # 2) Manage ACTIVE_FIGURE_ID lifecycle
@@ -93,6 +112,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # 3) Load figure filters from the session store
     # ---------------------------------------------------------
     @app.callback(
+        Output(IDs.Store.FILTER_STATE, "data", allow_duplicate=True),
         Output(IDs.Control.DATASET_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.VIEW_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.CLUSTER_SELECT, "value", allow_duplicate=True),
@@ -115,7 +135,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     )
     def load_figure_from_session(n_clicks: int | None, figure_id: str | None, session_data: dict | None):
         if not n_clicks or not figure_id or figure_id == NEW_FIGURE_VALUE or not session_data:
-            return (no_update,) * 14 + (None,)
+            return (no_update,) * 15 + (None,)
 
         figures = session_data.get("figures", [])
         fig_dict = next((f for f in figures if f.get("id") == figure_id), None)
@@ -133,6 +153,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             options.append(OPT_IS_3D)
 
         return (
+            state.to_dict(),  # Directly update FILTER_STATE to trigger plot render
             state.dataset_name,
             state.view_id,
             state.clusters,
@@ -246,4 +267,3 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             return dcc.send_data_frame(data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False)
 
         raise exceptions.PreventUpdate
-
