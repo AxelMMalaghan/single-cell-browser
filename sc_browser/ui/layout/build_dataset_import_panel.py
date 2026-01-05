@@ -1,17 +1,31 @@
 from __future__ import annotations
 
+from typing import List
+
 import dash_bootstrap_components as dbc
+
 from dash import dcc, html
-from sc_browser.ui.ids import IDs
+from sc_browser.core.dataset import Dataset
 
 
-def build_dataset_import_panel() -> dbc.Container:
+
+def build_dataset_import_panel(
+    datasets: List[Dataset],
+    default_dataset: Dataset | None,
+) -> dbc.Container:
     """
     Datasets → Import & mapping page.
     """
+
+    dataset_options = [{"label": ds.name, "value": ds.name} for ds in datasets]
+
+    if default_dataset is not None:
+        default_name = default_dataset.name
+    else:
+        default_name = datasets[0].name if datasets else None
+
     status_card = dbc.Card(
         [
-            # --- REMOVED dbc.Toast HERE (It is now in build_layout.py) ---
 
             dbc.CardHeader("Current dataset"),
             dbc.CardBody(
@@ -35,6 +49,34 @@ def build_dataset_import_panel() -> dbc.Container:
                     html.Div(id="dm-import-status", className="small text-muted mt-2"),
                 ]
             ),
+
+            html.Div(
+                [
+                    html.Div(
+                        "Active Dataset",
+                        className="navbar-dataset-title",
+                    ),
+                    html.Div(
+                        "Selects the current dataset",
+                        className="navbar-dataset-subtitle",
+                    ),
+                    dcc.Dropdown(
+                        id="dataset-select",
+                        options=dataset_options,
+                        value=default_name,
+                        clearable=False,
+                        placeholder="Select dataset",
+                        className="scb-dataset-dropdown mt-1",
+                    ),
+
+                ],
+                className="ms-auto navbar-dataset-block",
+                style={
+                    "minWidth": "280px",
+                    "maxWidth": "380px",
+                    "marginRight": "24px",
+                },
+            )
         ],
         className="h-100",
     )

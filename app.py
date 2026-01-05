@@ -14,7 +14,7 @@ def parse_args():
 
     parser.add_argument('--server.port', dest='port', type=int,
 
-                        default=int(os.getenv("PORT", "8051")))
+                        default=int(os.getenv("PORT", "8052")))
 
     parser.add_argument('--host', default="0.0.0.0")
 

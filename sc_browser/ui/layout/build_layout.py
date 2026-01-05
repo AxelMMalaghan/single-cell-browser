@@ -57,12 +57,7 @@ def build_layout(ctx: "AppContext"):
                     dcc.Tab(
                         label="Dataset Importer",
                         value="datasets",
-                        children=[dataset_import_panel],
-                    ),
-                    dcc.Tab(
-                        label="Dataset Preview",
-                        value="dataset-preview",
-                        children=[dataset_preview_panel],
+                        children=[dataset_import_panel, dataset_preview_panel],
                     ),
                     dcc.Tab(
                         label="Explore",
@@ -111,4 +106,5 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
+
 
