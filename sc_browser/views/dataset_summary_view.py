@@ -64,18 +64,14 @@ class DatasetSummary(BaseView):
             cluster_counts = ds.clusters.value_counts().reset_index()
             cluster_counts.columns = ["cluster", "count"]
         else:
-            cluster_counts = pd.DataFrame(
-                columns=pd.Index(["cluster", "count"])
-            )
+            cluster_counts = pd.DataFrame(columns=pd.Index(["cluster", "count"]))
 
         # Condition counts – only if a condition_key is configured
         if ds.condition_key is not None and ds.conditions is not None:
             condition_counts = ds.conditions.value_counts().reset_index()
             condition_counts.columns = ["condition", "count"]
         else:
-            condition_counts = pd.DataFrame(
-                columns=pd.Index(["condition", "count"])
-            )
+            condition_counts = pd.DataFrame(columns=pd.Index(["condition", "count"]))
 
         return {
             "n_cells": n_cells,

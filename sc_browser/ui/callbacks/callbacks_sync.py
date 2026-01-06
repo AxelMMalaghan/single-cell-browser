@@ -92,8 +92,7 @@ def _validate_and_build_state(
         else:
             embedding = (
                 ds.embedding_key
-                if ds.embedding_key is not None
-                and ds.embedding_key in ds.adata.obsm
+                if ds.embedding_key is not None and ds.embedding_key in ds.adata.obsm
                 else None
             )
     else:
@@ -102,8 +101,7 @@ def _validate_and_build_state(
         if embedding and embedding not in ds.adata.obsm:
             embedding = (
                 ds.embedding_key
-                if ds.embedding_key is not None
-                and ds.embedding_key in ds.adata.obsm
+                if ds.embedding_key is not None and ds.embedding_key in ds.adata.obsm
                 else None
             )
 

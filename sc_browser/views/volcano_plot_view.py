@@ -106,9 +106,7 @@ class VolcanoPlotView(BaseView):
         neg_log_p = -np.log10(safe_p)
         neg_log_p_series = pd.Series(neg_log_p, index=p_values.index)
         max_finite = neg_log_p_series.replace([np.inf, -np.inf], np.nan).max()
-        df["neg_log10_pvalue"] = neg_log_p_series.fillna(
-            (max_finite or 50.0) + 1
-        )
+        df["neg_log10_pvalue"] = neg_log_p_series.fillna((max_finite or 50.0) + 1)
 
         # Thresholds and Significance
         df["significance"] = "Not Significant"

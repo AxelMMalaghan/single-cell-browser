@@ -96,9 +96,7 @@ def run_de(config: DEConfig) -> DEResult:
             if X is None:
                 sample_max = 0
             else:
-                sample_max = float(
-                    np.asarray(X[:100, :100]).max()
-                )
+                sample_max = float(np.asarray(X[:100, :100]).max())
             if sample_max < 50:
                 logger.info(
                     "Data appears already log-transformed (max < 50). Skipping sc.pp.log1p."

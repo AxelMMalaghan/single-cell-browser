@@ -443,9 +443,7 @@ class Dataset:
             raise ValueError(f"Embedding '{emb_key}' must be 2D, got shape {arr.shape}")
 
         cols = [f"dim{i + 1}" for i in range(arr.shape[1])]
-        return pd.DataFrame(
-            arr, index=self.adata.obs.index, columns=pd.Index(cols)
-        )
+        return pd.DataFrame(arr, index=self.adata.obs.index, columns=pd.Index(cols))
 
     def get_embedding_matrix(self, key: str) -> np.ndarray:
         """Return embedding matrix as a numpy array."""
