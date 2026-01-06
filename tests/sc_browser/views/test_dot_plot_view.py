@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -28,10 +29,10 @@ def _make_dataset_for_dotplot():
             "cluster": ["A", "A", "B", "B"],
             "condition": ["x", "y", "x", "y"],
         },
-        index=["c1", "c2", "c3", "c4"],
+        index=pd.Index(["c1", "c2", "c3", "c4"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2"]))
     X = np.array(
         [
             [1, 0],  # c1
@@ -158,11 +159,12 @@ def test_dotplot_render_figure_basic():
     state = _make_state_for_dotplot(genes=["g1", "g2"])
 
     df = view.compute_data(state)
-    fig = view.render_figure(df, state)
+    fig = cast(go.Figure, view.render_figure(df, state))
 
     assert isinstance(fig, go.Figure)
     # at least one trace in the figure
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1
 
     # axes titles should match implementation
     assert fig.layout.xaxis.title.text == "Gene"

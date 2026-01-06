@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -24,10 +25,10 @@ def _make_dataset_for_heatmap():
             "condition": ["x", "y", "x", "y"],
             "sample": ["s1", "s1", "s2", "s2"],
         },
-        index=["c1", "c2", "c3", "c4"],
+        index=pd.Index(["c1", "c2", "c3", "c4"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2", "g3"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2", "g3"]))
 
     # rows: cells, cols: genes
     # g1: [1, 3, 5, 7]
@@ -139,7 +140,7 @@ def test_heatmap_compute_data_split_by_condition_groups_correctly():
     assert len(df) == 8
 
     # Check one concrete value: A_x, g1 mean = 1 -> log1p(1)
-    row = df[(df["group"] == "A_x") & (df["gene"] == "g1")]
+    row = cast(pd.DataFrame, df[(df["group"] == "A_x") & (df["gene"] == "g1")])
     assert len(row) == 1
     assert float(row["mean_expression"].iloc[0]) == 1.0
     assert np.isclose(float(row["log_mean_expression"].iloc[0]), np.log1p(1.0))
@@ -159,7 +160,7 @@ def test_heatmap_compute_data_no_split_groups_by_cluster_only():
     assert len(df) == 4
 
     # Check mean for group A, gene g1: cells c1=1, c2=3 => mean 2
-    row = df[(df["group"] == "A") & (df["gene"] == "g1")]
+    row = cast(pd.DataFrame, df[(df["group"] == "A") & (df["gene"] == "g1")])
     assert len(row) == 1
     assert float(row["mean_expression"].iloc[0]) == 2.0
     assert np.isclose(float(row["log_mean_expression"].iloc[0]), np.log1p(2.0))
@@ -177,7 +178,7 @@ def test_heatmap_compute_data_with_filtering_clusters():
     assert set(df["group"].unique()) == {"B"}
 
     # Mean for B, g1: c3=5, c4=7 => mean 6
-    row = df[(df["group"] == "B") & (df["gene"] == "g1")]
+    row = cast(pd.DataFrame, df[(df["group"] == "B") & (df["gene"] == "g1")])
     assert float(row["mean_expression"].iloc[0]) == 6.0
     assert np.isclose(float(row["log_mean_expression"].iloc[0]), np.log1p(6.0))
 
@@ -190,10 +191,11 @@ def test_heatmap_render_figure_basic():
     )
 
     df = view.compute_data(state)
-    fig = view.render_figure(df, state)
+    fig = cast(go.Figure, view.render_figure(df, state))
 
     assert isinstance(fig, go.Figure)
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1
 
     # px.imshow sets a coloraxis title via colorbar title; check it exists
     # (plotly can store it in different places depending on version)

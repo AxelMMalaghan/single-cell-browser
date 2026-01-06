@@ -4,7 +4,7 @@ import io
 import json
 import logging
 import zipfile
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 import plotly.graph_objs as go
 
@@ -25,7 +25,7 @@ class ExportService:
     def __init__(
         self,
         *,
-        datasets_by_key: Dict[str, Dataset],
+        datasets_by_key: Mapping[str, Dataset],
         view_registry: ViewRegistry,
     ) -> None:
         self._datasets_by_key = datasets_by_key

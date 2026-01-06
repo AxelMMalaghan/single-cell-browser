@@ -83,17 +83,17 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         for cfg in cfg_by_name.values():
             if getattr(cfg, "group", None) == default_group:
                 # Trigger lazy load for the default
-                default_dataset = dataset_manager.get(cfg.name)
+                default_dataset = dataset_manager[cfg.name]
                 break
 
     if default_dataset is None:
         # Fallback: first available
         first_name = sorted(cfg_by_name.keys())[0]
-        default_dataset = dataset_manager.get(first_name)
+        default_dataset = dataset_manager[first_name]
 
     # 4) Export & Session Services
-    config_root / "exports"
-    # LocalFileSystemStorage creates the directory if needed
+    exports_path = config_root / "exports"
+    exports_path.mkdir(parents=True, exist_ok=True)
 
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
@@ -105,7 +105,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         config_root=config_root,
         global_config=global_config,
         # Pass ALL datasets (as lazy wrappers) so the UI dropdown sees them all.
-        datasets=[dataset_manager.get(n) for n in sorted(cfg_by_name.keys())],
+        datasets=[dataset_manager[n] for n in sorted(cfg_by_name.keys())],
         dataset_by_name=dataset_manager,
         dataset_by_key=dataset_key_manager,
         default_dataset=default_dataset,

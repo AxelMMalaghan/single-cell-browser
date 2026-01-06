@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -23,10 +24,10 @@ def _make_dataset_for_feature_count():
             "condition": ["x", "y", "x"],
             "sample": ["s1", "s1", "s2"],
         },
-        index=["c1", "c2", "c3"],
+        index=pd.Index(["c1", "c2", "c3"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2", "g3"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2", "g3"]))
     # rows: cells, cols: genes
     X = np.array(
         [
@@ -134,12 +135,13 @@ def test_feature_count_render_figure_basic():
     state = _make_state()
 
     df = view.compute_data(state)
-    fig = view.render_figure(df, state)
+    fig = cast(go.Figure, view.render_figure(df, state))
 
     assert isinstance(fig, go.Figure)
 
     # expect at least one trace
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1
 
     # axis titles should be set
     assert fig.layout.xaxis.title.text == "Total counts per cell"

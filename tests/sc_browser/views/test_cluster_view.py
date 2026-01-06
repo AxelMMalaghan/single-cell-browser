@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -22,10 +23,10 @@ def _make_dataset_with_embedding():
             "cluster": ["A", "A", "B"],
             "condition": ["x", "y", "x"],
         },
-        index=["c1", "c2", "c3"],
+        index=pd.Index(["c1", "c2", "c3"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2"]))
     X = np.array(
         [
             [1.0, 2.0],
@@ -120,17 +121,19 @@ def test_cluster_view_render_figure_2d():
     state = _make_default_state()
 
     data = view.compute_data(state)
-    fig = view.render_figure(data, state)
+    fig = cast(go.Figure, view.render_figure(data, state))
 
     assert isinstance(fig, go.Figure)
 
     # One trace per cluster (A, B) -> 2 traces
     clusters = sorted(data["cluster"].unique())
-    assert len(fig.data) == len(clusters)
+    traces = list(fig.data)
+    assert len(traces) == len(clusters)
 
     # Expect scattergl traces for 2D mode
-    for trace in fig.data:
-        assert trace.type.lower() in ("scattergl", "scatter")
+    for trace in traces:
+        trace_type = str(getattr(trace, "type", "")).lower()
+        assert trace_type in ("scattergl", "scatter")
 
     # Axis titles from attrs
     layout = fig.layout

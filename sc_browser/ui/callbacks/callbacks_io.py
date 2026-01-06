@@ -274,11 +274,15 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if not ds:
             raise exceptions.PreventUpdate
 
-        view = ctx.registry.create(state.view_id, ds)
+        registry = ctx.registry
+        if registry is None:
+            raise exceptions.PreventUpdate
+        view = registry.create(state.view_id, ds)
         data = view.compute_data(state)
 
         if isinstance(data, pd.DataFrame):
-            return dcc.send_data_frame(
+            send_data_frame = getattr(dcc, "send_data_frame")
+            return send_data_frame(
                 data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False
             )
 

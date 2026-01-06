@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 import anndata as ad
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
 from sc_browser.core.configs import ObsColumns
 
@@ -76,31 +77,31 @@ class Dataset:
         # ---------------------------------------------------------------------
         obs = adata.obs
 
-        self._cluster_series: Optional[pd.Series] = (
-            obs[cluster_key].astype(str).copy()
-            if cluster_key is not None and cluster_key in obs.columns
-            else None
-        )
+        if cluster_key is not None and cluster_key in obs.columns:
+            cluster_col = cluster_key
+            self._cluster_series = obs[cluster_col].astype(str).copy()
+        else:
+            self._cluster_series = None
 
-        self._condition_series: Optional[pd.Series] = (
-            obs[condition_key].astype(str).copy()
-            if condition_key is not None and condition_key in obs.columns
-            else None
-        )
+        if condition_key is not None and condition_key in obs.columns:
+            condition_col = condition_key
+            self._condition_series = obs[condition_col].astype(str).copy()
+        else:
+            self._condition_series = None
 
         sample_key = self.obs_columns.get("sample")
-        self._sample_series: Optional[pd.Series] = (
-            obs[sample_key].astype(str).copy()
-            if sample_key and sample_key in obs.columns
-            else None
-        )
+        if sample_key is not None and sample_key in obs.columns:
+            sample_col = sample_key
+            self._sample_series = obs[sample_col].astype(str).copy()
+        else:
+            self._sample_series = None
 
         cell_type_key = self.obs_columns.get("cell_type")
-        self._cell_type_series: Optional[pd.Series] = (
-            obs[cell_type_key].astype(str).copy()
-            if cell_type_key and cell_type_key in obs.columns
-            else None
-        )
+        if cell_type_key is not None and cell_type_key in obs.columns:
+            cell_type_col = cell_type_key
+            self._cell_type_series = obs[cell_type_col].astype(str).copy()
+        else:
+            self._cell_type_series = None
 
         # ---------------------------------------------------------------------
         # Caches (Updated to OrderedDict for LRU behavior)
@@ -316,6 +317,13 @@ class Dataset:
 
         selected_genes = adata.var_names[var_mask]
 
+        if adata.X is None:
+            df = pd.DataFrame(index=adata.obs_names)
+            self._expr_cache[key] = df
+            if len(self._expr_cache) > self.MAX_EXPR_CACHE:
+                self._expr_cache.popitem(last=False)
+            return df
+
         # --- FIX: Handle backed AnnData views ---
         if adata.is_view:
             # Slice the underlying matrix (X) directly to avoid
@@ -325,10 +333,10 @@ class Dataset:
             X = adata[:, var_mask].X
 
         # Materialize sparse data to dense for the UI DataFrame
-        if hasattr(X, "toarray"):
+        if sparse.issparse(X):
             X = X.toarray()
-        elif hasattr(X, "todense"):
-            X = X.todense()
+        else:
+            X = np.asarray(X)
 
         df = pd.DataFrame(X, index=adata.obs_names, columns=selected_genes)
 
@@ -354,31 +362,31 @@ class Dataset:
         """
         obs = self.adata.obs
 
-        self._cluster_series = (
-            obs[self.cluster_key].astype(str).copy()
-            if self.cluster_key and self.cluster_key in obs.columns
-            else None
-        )
+        if self.cluster_key and self.cluster_key in obs.columns:
+            cluster_col = self.cluster_key
+            self._cluster_series = obs[cluster_col].astype(str).copy()
+        else:
+            self._cluster_series = None
 
-        self._condition_series = (
-            obs[self.condition_key].astype(str).copy()
-            if self.condition_key and self.condition_key in obs.columns
-            else None
-        )
+        if self.condition_key and self.condition_key in obs.columns:
+            condition_col = self.condition_key
+            self._condition_series = obs[condition_col].astype(str).copy()
+        else:
+            self._condition_series = None
 
         sample_key = self.obs_columns.get("sample")
-        self._sample_series = (
-            obs[sample_key].astype(str).copy()
-            if sample_key and sample_key in obs.columns
-            else None
-        )
+        if sample_key and sample_key in obs.columns:
+            sample_col = sample_key
+            self._sample_series = obs[sample_col].astype(str).copy()
+        else:
+            self._sample_series = None
 
         cell_type_key = self.obs_columns.get("cell_type")
-        self._cell_type_series = (
-            obs[cell_type_key].astype(str).copy()
-            if cell_type_key and cell_type_key in obs.columns
-            else None
-        )
+        if cell_type_key and cell_type_key in obs.columns:
+            cell_type_col = cell_type_key
+            self._cell_type_series = obs[cell_type_col].astype(str).copy()
+        else:
+            self._cell_type_series = None
 
         self.clear_caches()
 
@@ -435,7 +443,9 @@ class Dataset:
             raise ValueError(f"Embedding '{emb_key}' must be 2D, got shape {arr.shape}")
 
         cols = [f"dim{i + 1}" for i in range(arr.shape[1])]
-        return pd.DataFrame(arr, index=self.adata.obs.index, columns=cols)
+        return pd.DataFrame(
+            arr, index=self.adata.obs.index, columns=pd.Index(cols)
+        )
 
     def get_embedding_matrix(self, key: str) -> np.ndarray:
         """Return embedding matrix as a numpy array."""

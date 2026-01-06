@@ -14,10 +14,10 @@ def _make_dataset():
             "condition": ["x", "y", "x", "y"],
             "sample": ["s1", "s1", "s2", "s2"],
         },
-        index=["c1", "c2", "c3", "c4"],
+        index=pd.Index(["c1", "c2", "c3", "c4"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2"]))
     X = np.arange(obs.shape[0] * var.shape[0]).reshape(obs.shape[0], var.shape[0])
 
     adata = ad.AnnData(X=X, obs=obs, var=var)
@@ -58,6 +58,8 @@ def test_subset_for_state_filters_correctly():
 
     assert list(sub.adata.obs_names) == ["c1"]
     assert sub.adata.n_obs == 1
+    assert sub.clusters is not None
+    assert sub.conditions is not None
     assert list(sub.clusters) == ["A"]
     assert list(sub.conditions) == ["x"]
 
@@ -78,4 +80,5 @@ def test_sub_for_state_filters_samples():
     sub = ds.subset_for_state(state)
 
     assert list(sub.adata.obs_names) == ["c3", "c4"]
+    assert sub.clusters is not None
     assert list(sub.clusters) == ["B", "B"]

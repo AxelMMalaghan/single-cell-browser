@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -23,10 +24,10 @@ def _make_dataset_for_expression():
             "cluster": ["A", "A", "B"],
             "condition": ["x", "y", "x"],
         },
-        index=["c1", "c2", "c3"],
+        index=pd.Index(["c1", "c2", "c3"]),
     )
 
-    var = pd.DataFrame(index=["G1"])
+    var = pd.DataFrame(index=pd.Index(["G1"]))
     X = np.array([[1.0], [2.0], [0.0]])  # simple expression for G1
 
     adata = ad.AnnData(X=X, obs=obs, var=var)
@@ -152,7 +153,7 @@ def test_expression_view_render_figure_basic():
     state = _make_state_for_expression(genes=["G1"])
 
     df = view.compute_data(state)
-    fig = view.render_figure(df, state)
+    fig = cast(go.Figure, view.render_figure(df, state))
 
     assert isinstance(fig, go.Figure)
 
@@ -160,4 +161,5 @@ def test_expression_view_render_figure_basic():
     assert fig.layout.xaxis.title.text is not None
     assert fig.layout.yaxis.title.text is not None
     # Some data points should be present
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1

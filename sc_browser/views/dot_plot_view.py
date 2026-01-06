@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import List, cast
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objs as go
 
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.dataset import Dataset
@@ -43,6 +44,9 @@ class DotplotView(BaseView):
         clusters = ds.clusters  # pre-normalised in Dataset
         conditions = ds.conditions
 
+        if clusters is None:
+            return pd.Series([], dtype=str)
+
         # If split_by_condition is enabled and conditions exist, combine them
         if getattr(state, "split_by_condition", False) and conditions is not None:
             return clusters.astype(str) + " | " + conditions.astype(str)
@@ -64,6 +68,9 @@ class DotplotView(BaseView):
         if adata.n_obs == 0:
             return pd.DataFrame()
 
+        if ds_sub.clusters is None:
+            return pd.DataFrame()
+
         # Expression matrix for selected genes (uses expression cache)
         expr = ds_sub.expression_matrix(genes)  # cells × genes, dense
 
@@ -71,11 +78,15 @@ class DotplotView(BaseView):
             return pd.DataFrame()
 
         # Build long-form table: cell, gene, expr
-        expr_long = expr.stack().rename("expr").reset_index()
+        expr_series = expr.stack()
+        expr_series.name = "expr"
+        expr_long = expr_series.reset_index()
+        expr_long = cast(pd.DataFrame, expr_long)
         expr_long.columns = ["cell", "gene", "expr"]
 
         # Attach group labels
-        expr_long["cluster"] = ds_sub.clusters.loc[expr_long["cell"]].values
+        cluster_series = ds_sub.clusters
+        expr_long["cluster"] = cluster_series.loc[expr_long["cell"]].values
         cell_identity = self._cell_identities(ds_sub, state)
         expr_long["cell_identity"] = cell_identity.loc[expr_long["cell"]].values
 
@@ -92,6 +103,7 @@ class DotplotView(BaseView):
             n_expressing=("expr", lambda x: (x > 0).sum()),
             meanExpr=("expr", "mean"),
         )
+        grouped = cast(pd.DataFrame, grouped)
 
         # Percent expressing
         grouped["pctExpressed"] = (
@@ -108,7 +120,8 @@ class DotplotView(BaseView):
         )
 
         # Log mean expression for hover info
-        grouped["logMeanExpression"] = np.log1p(grouped["meanExpr"].clip(lower=0))
+        mean_expr = grouped["meanExpr"].clip(lower=0)
+        grouped["logMeanExpression"] = np.log1p(mean_expr)
 
         # Keep only the columns used by render_figure
         cols = [
@@ -121,9 +134,9 @@ class DotplotView(BaseView):
             "cluster",
             "condition",
         ]
-        return grouped[cols]
+        return cast(pd.DataFrame, grouped[cols])
 
-    def render_figure(self, data: pd.DataFrame, state: FilterState) -> Any:
+    def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
 
         if data is None or data.empty:
             return self.empty_figure("No data to show")

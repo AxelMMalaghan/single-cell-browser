@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from importlib import import_module
-from typing import Dict, Tuple
+from typing import Dict, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sc_browser.views.cluster_view import ClusterView
+    from sc_browser.views.dataset_summary_view import DatasetSummary
+    from sc_browser.views.dot_plot_view import DotplotView
+    from sc_browser.views.feature_count_view import FeatureCountView
+    from sc_browser.views.gene_expression_view import ExpressionView
+    from sc_browser.views.heat_map_view import HeatmapView
+    from sc_browser.views.volcano_plot_view import VolcanoPlotView
 
 _VIEW_IMPORTS: Dict[str, Tuple[str, str]] = {
     "ClusterView": ("sc_browser.views.cluster_view", "ClusterView"),
@@ -13,7 +22,15 @@ _VIEW_IMPORTS: Dict[str, Tuple[str, str]] = {
     "DatasetSummary": ("sc_browser.views.dataset_summary_view", "DatasetSummary"),
 }
 
-__all__ = list(_VIEW_IMPORTS.keys())
+__all__ = [
+    "ClusterView",
+    "ExpressionView",
+    "FeatureCountView",
+    "DotplotView",
+    "HeatmapView",
+    "VolcanoPlotView",
+    "DatasetSummary",
+]
 
 
 def __getattr__(name: str):

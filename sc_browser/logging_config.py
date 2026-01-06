@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.jsonlogger import JsonFormatter
 
 
 def _env_bool(name: str, default: str = "0") -> bool:
@@ -38,7 +38,7 @@ def configure_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
 
     if fmt == "json":
-        formatter = jsonlogger.JsonFormatter(
+        formatter = JsonFormatter(
             "%(asctime)s %(levelname)s %(name)s %(message)s"
         )
     else:

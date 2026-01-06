@@ -124,7 +124,10 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 style(False),
             )
 
-        view = ctx.registry.create(view_id, ds)
+        registry = ctx.registry
+        if registry is None:
+            raise dash.exceptions.PreventUpdate
+        view = registry.create(view_id, ds)
         profile = getattr(view, "filter_profile", None)
         if profile is None:
             options = default_options()

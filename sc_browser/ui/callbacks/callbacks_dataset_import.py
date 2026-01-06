@@ -115,12 +115,12 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         # --- SAMPLE ---
         sample_val = ds.obs_columns.get("sample")
-        if sample_val not in obs_cols:
+        if sample_val is None or sample_val not in obs_cols:
             sample_val = infer_sample_key(ds.adata)
 
         # --- CELL TYPE ---
         celltype_val = ds.obs_columns.get("cell_type")
-        if celltype_val not in obs_cols:
+        if celltype_val is None or celltype_val not in obs_cols:
             celltype_val = infer_cell_type_key(ds.adata)
 
         # --- EMBEDDING ---
@@ -207,8 +207,14 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             changed_fields.append(f"cell_type → {celltype_key}")
 
         # Keep semantic keys aligned
-        obs_cols["cluster"] = ds.cluster_key
-        obs_cols["condition"] = ds.condition_key
+        if ds.cluster_key is not None:
+            obs_cols["cluster"] = ds.cluster_key
+        else:
+            obs_cols.pop("cluster", None)
+        if ds.condition_key is not None:
+            obs_cols["condition"] = ds.condition_key
+        else:
+            obs_cols.pop("condition", None)
         ds.obs_columns = obs_cols
 
         refresh = getattr(ds, "refresh_obs_indexes", None)

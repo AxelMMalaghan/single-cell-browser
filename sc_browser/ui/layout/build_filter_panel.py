@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
@@ -15,6 +17,11 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
         celltype_options,
         emb_options,
     ) = get_filter_dropdown_options(default_dataset)
+    cluster_options_any = cast(Any, cluster_options)
+    condition_options_any = cast(Any, condition_options)
+    sample_options_any = cast(Any, sample_options)
+    celltype_options_any = cast(Any, celltype_options)
+    emb_options_any = cast(Any, emb_options)
 
     return dbc.Card(
         [
@@ -44,7 +51,7 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Filter clusters", className="form-label"),
                             dcc.Dropdown(
                                 id="cluster-select",
-                                options=cluster_options,
+                                options=cluster_options_any,
                                 multi=True,
                                 placeholder="All clusters",
                                 className="mb-3",
@@ -57,7 +64,7 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Filter conditions", className="form-label"),
                             dcc.Dropdown(
                                 id="condition-select",
-                                options=condition_options,
+                                options=condition_options_any,
                                 multi=True,
                                 placeholder="All conditions",
                                 className="mb-3",
@@ -70,7 +77,7 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Filter samples", className="form-label"),
                             dcc.Dropdown(
                                 id="sample-select",
-                                options=sample_options,
+                                options=sample_options_any,
                                 multi=True,
                                 placeholder="All samples",
                                 className="mb-3",
@@ -83,7 +90,7 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Filter cell types", className="form-label"),
                             dcc.Dropdown(
                                 id="celltype-select",
-                                options=celltype_options,
+                                options=celltype_options_any,
                                 multi=True,
                                 placeholder="All cell types",
                                 className="mb-3",
@@ -109,10 +116,11 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             html.Label("Embedding", className="form-label"),
                             dcc.Dropdown(
                                 id="embedding-select",
-                                options=emb_options,
+                                options=emb_options_any,
                                 value=(
                                     default_dataset.embedding_key
                                     if default_dataset.embedding_key
+                                    and default_dataset.embedding_key
                                     in default_dataset.adata.obsm
                                     else None
                                 ),

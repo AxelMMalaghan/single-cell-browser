@@ -45,6 +45,8 @@ class ClusterView(BaseView):
 
         # Choose embedding: per-state override or dataset default
         emb_key = state.embedding or ds.embedding_key
+        if emb_key is None:
+            raise ValueError("No embedding key specified for this dataset")
         if emb_key not in ds.adata.obsm:
             raise ValueError(f"Embedding '{emb_key}' not found in .obsm")
 

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence, cast
+
+import numpy as np
+import pandas as pd
 
 from sc_browser.services.differential_expression.de_model import DEConfig, DEResult
 
@@ -63,7 +66,10 @@ def run_de(config: DEConfig) -> DEResult:
     groupby = config.groupby
     group1 = str(config.group1)
     group2: Optional[str] = str(config.group2) if config.group2 is not None else None
-    method = config.method
+    method = cast(
+        Literal["logreg", "t-test", "wilcoxon", "t-test_overestim_var"],
+        config.method,
+    )
 
     adata = _maybe_subset_genes(base_adata, config)
 
@@ -86,7 +92,13 @@ def run_de(config: DEConfig) -> DEResult:
         # Check max value in the first 100 cells/genes as a quick heuristic
         # If max value is > 50, it's likely raw counts.
         try:
-            sample_max = work.X[:100, :100].max()
+            X = work.X
+            if X is None:
+                sample_max = 0
+            else:
+                sample_max = float(
+                    np.asarray(X[:100, :100]).max()
+                )
             if sample_max < 50:
                 logger.info(
                     "Data appears already log-transformed (max < 50). Skipping sc.pp.log1p."
@@ -125,4 +137,5 @@ def run_de(config: DEConfig) -> DEResult:
     required = ["gene", "log2FC", "pvalue", "adj_pvalue"]
     df["comparison"] = comparison_label
 
-    return DEResult(config=config, table=df[required + ["comparison"]])
+    table = cast(pd.DataFrame, df[required + ["comparison"]])
+    return DEResult(config=config, table=table)

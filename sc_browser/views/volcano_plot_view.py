@@ -101,10 +101,14 @@ class VolcanoPlotView(BaseView):
 
         # Cap -log10(p-value)
         p_col = "adj_pvalue" if "adj_pvalue" in df.columns else "pvalue"
-        p_values = df[p_col].astype(float)
-        neg_log_p = -np.log10(p_values.replace(0, np.nan))
-        max_finite = neg_log_p.replace([np.inf, -np.inf], np.nan).max()
-        df["neg_log10_pvalue"] = neg_log_p.fillna((max_finite or 50.0) + 1)
+        p_values = pd.Series(df[p_col]).astype(float)
+        safe_p = p_values.replace(0, np.nan).to_numpy()
+        neg_log_p = -np.log10(safe_p)
+        neg_log_p_series = pd.Series(neg_log_p, index=p_values.index)
+        max_finite = neg_log_p_series.replace([np.inf, -np.inf], np.nan).max()
+        df["neg_log10_pvalue"] = neg_log_p_series.fillna(
+            (max_finite or 50.0) + 1
+        )
 
         # Thresholds and Significance
         df["significance"] = "Not Significant"

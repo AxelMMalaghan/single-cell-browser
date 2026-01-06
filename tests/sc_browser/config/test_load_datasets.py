@@ -19,9 +19,9 @@ def _make_tiny_h5ad(tmp_path: Path) -> Path:
             "cluster": ["A", "B"],
             "condition": ["x", "y"],
         },
-        index=["c1", "c2"],
+        index=pd.Index(["c1", "c2"]),
     )
-    var = pd.DataFrame(index=["g1", "g2"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2"]))
     X = np.array([[1, 2], [3, 4]])
 
     adata = ad.AnnData(X=X, obs=obs, var=var)
@@ -84,6 +84,8 @@ def test_load_datasets_from_config_dir(tmp_path):
     assert ds.adata.n_vars == 2
 
     # obs columns mapped correctly
+    assert ds.clusters is not None
+    assert ds.conditions is not None
     assert list(ds.clusters) == ["A", "B"]
     assert list(ds.conditions) == ["x", "y"]
 

@@ -5,12 +5,12 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from sc_browser.core.filter_state import FilterState
 from sc_browser.core.metadata_model import (
     FigureMetadata,
     SessionMetadata,
     new_session_metadata,
     now_iso,
-    session_from_dict,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,14 +41,7 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
     # Case 1 - Already a full session
     if "session_id" in raw and "figures" in raw:
         logger.debug("Detected full session metadata format")
-        session = session_from_dict(raw)
-        if session is None:
-            logger.error(
-                "session_from_dict returned None for seemingly valid session structure"
-            )
-            raise ValueError("Invalid session metadata JSON")
-
-        return session
+        return SessionMetadata.from_dict(raw)
 
     figures: List[FigureMetadata] = []
 
@@ -63,7 +56,7 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
                     id=str(f.get("id", "")).strip() or f"fig-{len(figures)+1:04d}",
                     dataset_key=str(f.get("dataset_key", "")).strip(),
                     view_id=str(f.get("view_id", "")).strip(),
-                    filter_state=f.get("filter_state") or {},
+                    filter_state=FilterState.from_dict(f.get("filter_state") or {}),
                     view_params=f.get("view_params") or {},
                     label=f.get("label"),
                     file_stem=f.get("file_stem"),
@@ -79,7 +72,7 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
                     id=str(raw.get("id", "")).strip() or "fig-0001",
                     dataset_key=str(raw.get("dataset_key", "")).strip(),
                     view_id=str(raw.get("view_id", "")).strip(),
-                    filter_state=raw.get("filter_state") or {},
+                    filter_state=FilterState.from_dict(raw.get("filter_state") or {}),
                     view_params=raw.get("view_params") or {},
                     label=raw.get("label"),
                     file_stem=raw.get("file_stem"),

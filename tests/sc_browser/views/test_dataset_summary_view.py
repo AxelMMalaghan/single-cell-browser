@@ -2,6 +2,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -22,10 +23,10 @@ def _make_dataset_for_summary():
             "cluster": ["A", "A", "B", "B"],
             "condition": ["x", "y", "x", "y"],
         },
-        index=["c1", "c2", "c3", "c4"],
+        index=pd.Index(["c1", "c2", "c3", "c4"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2"]))
     X = np.arange(obs.shape[0] * var.shape[0]).reshape(obs.shape[0], var.shape[0])
 
     adata = ad.AnnData(X=X, obs=obs, var=var)
@@ -115,7 +116,7 @@ def test_dataset_summary_render_figure_basic():
     state = _make_state()
 
     data = view.compute_data(state)
-    fig = view.render_figure(data, state)
+    fig = cast(go.Figure, view.render_figure(data, state))
 
     assert isinstance(fig, go.Figure)
 
@@ -125,7 +126,8 @@ def test_dataset_summary_render_figure_basic():
     assert "2 genes" in title_text
 
     # We expect at least one bar trace (clusters) and possibly another (conditions)
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1
 
 
 def test_dataset_summary_render_figure_empty():

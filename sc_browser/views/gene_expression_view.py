@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
+from typing import cast
 
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.dataset import Dataset
@@ -62,10 +63,12 @@ class ExpressionView(BaseView):
         # Single gene -> raw values
         # Multiple genes -> mean of raw values (simple signature)
         if len(valid_genes) == 1:
-            expression = expr_df.iloc[:, 0].to_numpy()
+            expr_series = cast(pd.Series, expr_df.iloc[:, 0])
+            expression = expr_series.to_numpy()
             gene_label = valid_genes[0]
         else:
-            expression = expr_df.mean(axis=1).to_numpy()
+            expr_mean = cast(pd.Series, expr_df.mean(axis=1))
+            expression = expr_mean.to_numpy()
             # Create a compact label for the aggregate
             gene_label = f"Mean({', '.join(valid_genes[:3])}{'...' if len(valid_genes) > 3 else ''})"
 
@@ -73,6 +76,8 @@ class ExpressionView(BaseView):
 
         # --- embedding ---
         emb_key = state.embedding or ds.embedding_key
+        if emb_key is None:
+            return pd.DataFrame()
 
         # Retrieve full matrix to support arbitrary dimension selection
         coords = ds_sub.get_embedding_matrix(emb_key)

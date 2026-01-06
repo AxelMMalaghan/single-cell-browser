@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import Any, List, cast
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
@@ -17,6 +17,7 @@ def build_dataset_import_panel(
     """
 
     dataset_options = [{"label": ds.name, "value": ds.name} for ds in datasets]
+    dataset_options_any = cast(Any, dataset_options)
 
     if default_dataset is not None:
         default_name = default_dataset.name
@@ -34,7 +35,7 @@ def build_dataset_import_panel(
                     ),
                     dcc.Dropdown(
                         id="dataset-select",
-                        options=dataset_options,
+                        options=dataset_options_any,
                         value=default_name,
                         clearable=False,
                         placeholder="Select dataset",

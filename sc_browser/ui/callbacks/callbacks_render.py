@@ -85,7 +85,10 @@ def register_render_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         try:
             # 1. Instantiate View
-            view = ctx.registry.create(state.view_id, ds)
+            registry = ctx.registry
+            if registry is None:
+                return _error_figure("View registry is not available.")
+            view = registry.create(state.view_id, ds)
 
             logger.info(
                 "render_start",

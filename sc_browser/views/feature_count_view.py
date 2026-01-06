@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from scipy import sparse
 
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.filter_profile import FilterProfile
@@ -39,13 +40,19 @@ class FeatureCountView(BaseView):
 
         # Work directly on the matrix: cells x genes
         X = adata.X
+        if X is None:
+            return pd.DataFrame()
 
         # Total counts per cell (works for dense and sparse)
-        n_counts = np.asarray(X.sum(axis=1)).ravel()
+        if sparse.issparse(X):
+            n_counts = np.asarray(X.sum(axis=1)).ravel()
+            n_features = np.asarray((X > 0).sum(axis=1)).ravel()
+        else:
+            dense = np.asarray(X)
+            n_counts = dense.sum(axis=1).ravel()
+            n_features = (dense > 0).sum(axis=1).ravel()
 
         # Number of detected features per cell: how many genes > 0
-        n_features = np.asarray((X > 0).sum(axis=1)).ravel()
-
         # Pre-normalised labels from Dataset
         cluster = ds.clusters
         if cluster is None:

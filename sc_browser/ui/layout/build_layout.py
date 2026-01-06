@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 
 def build_layout(ctx: "AppConfig"):
     default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
+    registry = ctx.registry
+    if registry is None:
+        raise RuntimeError("AppConfig.registry must be initialized before layout.")
 
     navbar = build_navbar(ctx.datasets, ctx.global_config, default_dataset)
 
@@ -36,7 +39,7 @@ def build_layout(ctx: "AppConfig"):
         )
     else:
         filter_panel = build_filter_panel(default_dataset)
-        view_panel = build_view_and_label_panel(ctx.registry)
+        view_panel = build_view_and_label_panel(registry)
 
     plot_panel = build_plot_panel()
     dataset_import_panel = build_dataset_import_panel(ctx.datasets, default_dataset)

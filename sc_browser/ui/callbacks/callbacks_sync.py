@@ -87,15 +87,25 @@ def _validate_and_build_state(
     # If dataset changed, we only keep embedding if it exists in new dataset,
     # otherwise default to the dataset's main embedding
     if dataset_changed:
-        if embedding_val and embedding_val in ds.adata.obsm:
+        if isinstance(embedding_val, str) and embedding_val in ds.adata.obsm:
             embedding = embedding_val
         else:
-            embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
+            embedding = (
+                ds.embedding_key
+                if ds.embedding_key is not None
+                and ds.embedding_key in ds.adata.obsm
+                else None
+            )
     else:
         # Standard validation
-        embedding = embedding_val
+        embedding = embedding_val if isinstance(embedding_val, str) else None
         if embedding and embedding not in ds.adata.obsm:
-            embedding = ds.embedding_key if ds.embedding_key in ds.adata.obsm else None
+            embedding = (
+                ds.embedding_key
+                if ds.embedding_key is not None
+                and ds.embedding_key in ds.adata.obsm
+                else None
+            )
 
     # Options
     options = inputs.get("options", {}).get("value") or []

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from sc_browser.core.configs import GlobalConfig
 from sc_browser.core.dataset import Dataset
@@ -14,8 +14,8 @@ class AppConfig:
     global_config: GlobalConfig
     dataset_names: List[str] = field(default_factory=list)
     datasets: List[Dataset] = field(default_factory=list)
-    dataset_by_name: Dict[str, Dataset] = field(default_factory=dict)
-    dataset_by_key: Dict[str, Dataset] = field(default_factory=dict)
+    dataset_by_name: Mapping[str, Dataset] = field(default_factory=dict)
+    dataset_by_key: Mapping[str, Dataset] = field(default_factory=dict)
     default_dataset: Optional[Dataset] = None
 
     registry: Optional[ViewRegistry] = None

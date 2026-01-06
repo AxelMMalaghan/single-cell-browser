@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, cast
 
 import pandas as pd
 
@@ -53,7 +53,7 @@ class DEResult:
         if self.table.empty:
             return self.table
         mask = (self.table["adj_pvalue"] <= 0.05) & (self.table["log2FC"].abs() >= 1.0)
-        return self.table[mask]
+        return cast(pd.DataFrame, self.table[mask])
 
     def head(self, n: int = 10) -> pd.DataFrame:
         return self.table.head(n)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, cast
 
 import numpy as np
 import pandas as pd
@@ -76,11 +76,13 @@ class HeatmapView(BaseView):
         expr_df["group"] = group.loc[expr_df.index].values
 
         # Long-form: group, gene, expression
-        long_df = (
-            expr_df.melt(id_vars="group", var_name="gene", value_name="expression")
-            .groupby(["group", "gene"], as_index=False)
-            .agg(mean_expression=("expression", "mean"))
+        long_df = expr_df.melt(
+            id_vars="group", var_name="gene", value_name="expression"
         )
+        long_df = long_df.groupby(["group", "gene"], as_index=False).agg(
+            mean_expression=("expression", "mean")
+        )
+        long_df = cast(pd.DataFrame, long_df)
 
         # log1p(mean expression)
         long_df["log_mean_expression"] = np.log1p(long_df["mean_expression"])

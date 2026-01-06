@@ -14,9 +14,9 @@ def _make_dataset_for_expr():
             "sample": ["s1", "s1", "s2"],
             "cell_type": ["T", "T", "B"],
         },
-        index=["c1", "c2", "c3"],
+        index=pd.Index(["c1", "c2", "c3"]),
     )
-    var = pd.DataFrame(index=["g1", "g2", "g3"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2", "g3"]))
     X = np.array(
         [
             [1, 0, 5],  # c1

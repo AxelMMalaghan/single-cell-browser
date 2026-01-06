@@ -49,8 +49,10 @@ def save_dataset_config(
         rel_path = str(abs_file)
 
     obs_cols: Dict[str, str] = dict(dataset.obs_columns)
-    obs_cols.setdefault("cluster", dataset.cluster_key)
-    obs_cols.setdefault("condition", dataset.condition_key)
+    if dataset.cluster_key is not None:
+        obs_cols.setdefault("cluster", dataset.cluster_key)
+    if dataset.condition_key is not None:
+        obs_cols.setdefault("condition", dataset.condition_key)
 
     raw: Dict[str, Any] = {
         "schema": schema,

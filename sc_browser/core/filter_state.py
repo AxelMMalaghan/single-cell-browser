@@ -71,9 +71,11 @@ class FilterState:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> FilterState:
+        dataset_name = data.get("dataset_name") or ""
+        view_id = data.get("view_id") or ""
         return cls(
-            dataset_name=data.get("dataset_name"),
-            view_id=data.get("view_id"),
+            dataset_name=dataset_name,
+            view_id=view_id,
             genes=list(data.get("genes", [])),
             clusters=list(data.get("clusters", [])),
             conditions=list(data.get("conditions", [])),

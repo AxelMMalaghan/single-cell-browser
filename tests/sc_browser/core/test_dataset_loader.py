@@ -14,11 +14,11 @@ def _make_h5ad_with_dupes(tmp_path):
             "cluster": ["A", "A", "B"],
             "condition": ["x", "y", "x"],
         },
-        index=["c1", "c1", "c2"],  # duplicate obs_names on purpose
+        index=pd.Index(["c1", "c1", "c2"]),  # duplicate obs_names on purpose
     )
 
     var = pd.DataFrame(
-        index=["g1", "g1", "g2"],  # duplicate var_names on purpose
+        index=pd.Index(["g1", "g1", "g2"]),  # duplicate var_names on purpose
     )
 
     X = np.arange(obs.shape[0] * var.shape[0]).reshape(obs.shape[0], var.shape[0])
@@ -64,6 +64,8 @@ def test_from_config_normalises_obs_and_var_names(tmp_path):
     # Cluster/condition wiring
     assert ds.cluster_key == "cluster"
     assert ds.condition_key == "condition"
+    assert ds.clusters is not None
+    assert ds.conditions is not None
     assert list(ds.clusters.unique()) == ["A", "B"]
     assert set(ds.conditions.unique()) == {"x", "y"}
 

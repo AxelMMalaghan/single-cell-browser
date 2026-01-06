@@ -87,12 +87,6 @@ class DatasetManager(Mapping[str, Dataset]):
     def __len__(self) -> int:
         return len(self._cfg_by_name)
 
-    def get(self, name: str, default=None) -> Dataset | None:
-        try:
-            return self[name]
-        except KeyError:
-            return default
-
     def is_loaded(self, name: str) -> bool:
         return name in self._loaded
 
@@ -127,12 +121,6 @@ class DatasetKeyManager(Mapping[str, Dataset]):
 
     def __len__(self) -> int:
         return len(self._name_by_key)
-
-    def get(self, key: str, default=None) -> Dataset | None:
-        try:
-            return self[key]
-        except KeyError:
-            return default
 
     def refresh(self, name_by_key: Dict[str, str]) -> None:
         """

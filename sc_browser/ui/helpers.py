@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from dash import dash_table, html
+import pandas as pd
 
 from sc_browser.core.dataset import Dataset
 
@@ -58,7 +59,7 @@ def dataset_status(ds: Dataset):
     obs = ds.adata.obs
     obsm = ds.adata.obsm
 
-    has_emb = ds.embedding_key in obsm
+    has_emb = ds.embedding_key is not None and ds.embedding_key in obsm
     has_cluster = ds.cluster_key in obs.columns if ds.cluster_key is not None else False
     has_condition = (
         ds.condition_key in obs.columns if ds.condition_key is not None else False
@@ -104,7 +105,7 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
     """
     Build a styled Dash DataTable showing a preview of .obs.
     """
-    df = ds.adata.obs.copy()
+    df = pd.DataFrame(ds.adata.obs).copy()
     df = df.reset_index().head(max_rows)
 
     return dash_table.DataTable(

@@ -111,13 +111,17 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise dash.exceptions.PreventUpdate
 
         try:
+            export_service = ctx.export_service
+            if export_service is None:
+                raise dash.exceptions.PreventUpdate
             # Trigger the stateless export service to generate ZIP bytes
             # Note: ExportService.create_session_zip should be refactored
             # to accept the session dictionary directly or a SessionMetadata object.
-            zip_bytes = ctx.export_service.create_session_zip(session_data)
+            zip_bytes = export_service.create_session_zip(session_data)
 
             filename = f"report_{session_data.get('session_id', 'export')}.zip"
-            return dcc.send_bytes(zip_bytes, filename)
+            send_bytes = getattr(dcc, "send_bytes")
+            return send_bytes(zip_bytes, filename)
         except Exception as err:
             logger.exception("ZIP Export failed")
             # In a real app, you might want to return a notification here
@@ -138,6 +142,9 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         if isinstance(contents, list):
             contents = contents[0] if contents else None
+
+        if contents is None:
+            raise dash.exceptions.PreventUpdate
 
         try:
             _header, b64data = contents.split(",", 1)

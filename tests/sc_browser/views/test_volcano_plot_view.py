@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 import pytest
+from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
@@ -23,10 +24,10 @@ def _make_dataset_for_volcano():
             "condition": ["ctrl", "treated", "ctrl", "treated"],
             "sample": ["s1", "s1", "s2", "s2"],
         },
-        index=["c1", "c2", "c3", "c4"],
+        index=pd.Index(["c1", "c2", "c3", "c4"]),
     )
 
-    var = pd.DataFrame(index=["g1", "g2", "g3"])
+    var = pd.DataFrame(index=pd.Index(["g1", "g2", "g3"]))
     X = np.arange(obs.shape[0] * var.shape[0]).reshape(obs.shape[0], var.shape[0])
 
     adata = ad.AnnData(X=X, obs=obs, var=var)
@@ -186,14 +187,15 @@ def test_volcano_render_figure_basic(monkeypatch, fake_de_table):
     monkeypatch.setattr(volcano_mod, "run_de", fake_run_de)
 
     df = view.compute_data(state)
-    fig = view.render_figure(df, state)
+    fig = cast(go.Figure, view.render_figure(df, state))
 
     assert isinstance(fig, go.Figure)
     # axes should be labelled
     assert fig.layout.xaxis.title.text == "log2(Fold Change)"
     assert fig.layout.yaxis.title.text == "-log10(p-value)"
     # at least one trace
-    assert len(fig.data) >= 1
+    traces = list(fig.data)
+    assert len(traces) >= 1
 
 
 def test_volcano_render_figure_empty():
