@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import time
 import logging
-
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
 import plotly.graph_objs as go
 
 from .dataset import Dataset
-from .filter_state import FilterState
 from .filter_profile import FilterProfile
+from .filter_state import FilterState
 
 logger = logging.getLogger(__name__)
 

@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, List, Optional
+
 import dash_bootstrap_components as dbc
 from dash import dcc
-from typing import List, Optional
 
 from sc_browser.core.dataset import Dataset
-from sc_browser.ui.layout.build_plot_panel import build_plot_panel
 from sc_browser.ui.layout.build_dataset_import_panel import build_dataset_import_panel
-from sc_browser.ui.layout.build_view_and_label_panel import build_view_and_label_panel
-from sc_browser.ui.layout.build_navbar import build_navbar
-from sc_browser.ui.layout.build_filter_panel import build_filter_panel
-from sc_browser.ui.layout.build_reports_panel import build_reports_panel
 from sc_browser.ui.layout.build_dataset_preview_panel import build_dataset_preview_panel
+from sc_browser.ui.layout.build_filter_panel import build_filter_panel
+from sc_browser.ui.layout.build_navbar import build_navbar
+from sc_browser.ui.layout.build_plot_panel import build_plot_panel
+from sc_browser.ui.layout.build_reports_panel import build_reports_panel
+from sc_browser.ui.layout.build_view_and_label_panel import build_view_and_label_panel
+
+if TYPE_CHECKING:
+    from sc_browser.ui.config import AppConfig
 
 
-def build_layout(ctx: "AppContext"):
+def build_layout(ctx: "AppConfig"):
     default_dataset = _choose_default_dataset(ctx.datasets, ctx.global_config)
 
     navbar = build_navbar(ctx.datasets, ctx.global_config, default_dataset)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Tuple
+
 from dash import dash_table, html
 
 from sc_browser.core.dataset import Dataset

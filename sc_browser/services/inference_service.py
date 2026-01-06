@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import anndata as ad
 from typing import List, Optional
+
+import anndata as ad
 
 
 def _find_match(columns: List[str], candidates: List[str]) -> Optional[str]:

@@ -1,6 +1,6 @@
+import anndata as ad
 import numpy as np
 import pandas as pd
-import anndata as ad
 import plotly.graph_objs as go
 
 from sc_browser.core.dataset import Dataset
@@ -94,13 +94,17 @@ def test_dataset_summary_compute_data_basic():
 
     # Cluster counts: A=2, B=2 (order may vary)
     assert set(cluster_counts["cluster"]) == {"A", "B"}
-    counts_by_cluster = dict(zip(cluster_counts["cluster"], cluster_counts["count"]))
+    counts_by_cluster = dict(
+        zip(cluster_counts["cluster"], cluster_counts["count"], strict=False)
+    )
     assert counts_by_cluster["A"] == 2
     assert counts_by_cluster["B"] == 2
 
     # Condition counts: x=2, y=2
     assert set(condition_counts["condition"]) == {"x", "y"}
-    counts_by_cond = dict(zip(condition_counts["condition"], condition_counts["count"]))
+    counts_by_cond = dict(
+        zip(condition_counts["condition"], condition_counts["count"], strict=False)
+    )
     assert counts_by_cond["x"] == 2
     assert counts_by_cond["y"] == 2
 

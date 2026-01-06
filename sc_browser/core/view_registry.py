@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from typing import Dict, List, Type
 
-from .dataset import Dataset
 from .base_view import BaseView
+from .dataset import Dataset
 
 
 class ViewRegistry:
@@ -60,8 +61,8 @@ class ViewRegistry:
         """
         try:
             cls = self._views[view_id]
-        except KeyError:
-            raise KeyError(f"View '{view_id}' not found")
+        except KeyError as err:
+            raise KeyError(f"View '{view_id}' not found") from err
         return cls(dataset)
 
     def all_classes(self) -> List[Type[BaseView]]:

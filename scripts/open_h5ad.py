@@ -1,5 +1,6 @@
-import anndata as ad
 import os
+
+import anndata as ad
 
 # 1. Setup path
 script_dir = os.path.dirname(os.path.abspath(__file__))

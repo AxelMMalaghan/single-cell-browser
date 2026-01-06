@@ -1,6 +1,6 @@
+import anndata as ad
 import numpy as np
 import pandas as pd
-import anndata as ad
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState

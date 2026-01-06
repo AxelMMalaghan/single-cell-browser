@@ -1,6 +1,6 @@
+import anndata as ad
 import numpy as np
 import pandas as pd
-import anndata as ad
 import plotly.graph_objs as go
 import pytest
 
@@ -144,7 +144,7 @@ def test_volcano_compute_data_basic(monkeypatch, fake_de_table):
     )
 
     # Check significance labels
-    sig_by_gene = dict(zip(df["gene"], df["significance"]))
+    sig_by_gene = dict(zip(df["gene"], df["significance"], strict=False))
 
     # g1: log2FC=2, p=0.001 -> Upregulated
     assert sig_by_gene["g1"] == "Upregulated"

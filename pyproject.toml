@@ -14,7 +14,15 @@ exclude = '''
 
 [tool.ruff]
 line-length = 88
+exclude = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  "build",
+  "dist",
+]
 
+[tool.ruff.lint]
 # Core useful rule sets:
 # E/F  -> pycodestyle + pyflakes (real bugs)
 # I    -> import sorting
@@ -27,16 +35,7 @@ ignore = [
   "E501",  # line length (Black handles)
 ]
 
-# Exclude junk directories
-exclude = [
-  ".git",
-  ".venv",
-  "__pycache__",
-  "build",
-  "dist",
-]
-
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["sc_browser"]
 combine-as-imports = true
 

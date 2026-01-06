@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, List
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 
-from sc_browser.core.filter_state import FilterState
-from sc_browser.core.filter_profile import FilterProfile
 from sc_browser.core.base_view import BaseView
 from sc_browser.core.dataset import Dataset
+from sc_browser.core.filter_profile import FilterProfile
+from sc_browser.core.filter_state import FilterState
 
 
 class ExpressionView(BaseView):

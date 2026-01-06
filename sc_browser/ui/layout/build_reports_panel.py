@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import Any, List
+
 import dash_bootstrap_components as dbc
 from dash import dcc, html
-from typing import List, Any
 
 # We need IDs for the delete button in the table
 from sc_browser.ui.ids import IDs

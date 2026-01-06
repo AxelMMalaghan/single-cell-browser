@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.graph_objs as go
 
 from sc_browser.core.base_view import BaseView
-from sc_browser.core.filter_state import FilterState
 from sc_browser.core.filter_profile import FilterProfile
+from sc_browser.core.filter_state import FilterState
 
 
 class ClusterView(BaseView):

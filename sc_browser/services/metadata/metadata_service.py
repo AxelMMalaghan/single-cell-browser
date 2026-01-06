@@ -8,9 +8,9 @@ from typing import Any, Dict, List
 from sc_browser.core.metadata_model import (
     FigureMetadata,
     SessionMetadata,
-    session_from_dict,
     new_session_metadata,
     now_iso,
+    session_from_dict,
 )
 
 logger = logging.getLogger(__name__)

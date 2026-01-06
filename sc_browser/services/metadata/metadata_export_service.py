@@ -4,14 +4,14 @@ import io
 import json
 import logging
 import zipfile
-from typing import Dict, Any
+from typing import Any, Dict
 
 import plotly.graph_objs as go
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
-from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.metadata_model import FigureMetadata, SessionMetadata
+from sc_browser.core.view_registry import ViewRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,9 @@ class ExportService:
     def _get_dataset(self, key: str) -> Dataset:
         try:
             return self._datasets_by_key[key]
-        except KeyError:
+        except KeyError as err:
             # Fallback to name-based lookup if key is missing
-            raise KeyError(f"Dataset with key {key} not found")
+            raise KeyError(f"Dataset with key {key} not found") from err
 
     def render_figure(self, metadata: FigureMetadata) -> go.Figure:
         """Renders a Plotly figure object from FigureMetadata."""

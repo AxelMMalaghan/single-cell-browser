@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 import dash
 from dash import Input, Output
 
-from sc_browser.ui.ids import IDs
 from sc_browser.ui.helpers import obs_preview_table
+from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig

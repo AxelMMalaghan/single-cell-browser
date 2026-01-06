@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 import dash
 from dash import ALL, Input, Output, State, dcc, no_update
 
-from sc_browser.ui.ids import IDs
 from sc_browser.core.metadata_model import SessionMetadata, now_iso
+from sc_browser.ui.ids import IDs
 from sc_browser.ui.layout.build_reports_panel import (
     build_empty_figures_message,
     build_figures_table,
@@ -118,10 +118,10 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
             filename = f"report_{session_data.get('session_id', 'export')}.zip"
             return dcc.send_bytes(zip_bytes, filename)
-        except Exception as e:
+        except Exception as err:
             logger.exception("ZIP Export failed")
             # In a real app, you might want to return a notification here
-            raise dash.exceptions.PreventUpdate
+            raise dash.exceptions.PreventUpdate from err
 
     # ---------------------------------------------------------
     # 4) Import figures from JSON

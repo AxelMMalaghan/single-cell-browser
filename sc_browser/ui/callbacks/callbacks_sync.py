@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import dash
-from dash import Input, Output, State, exceptions, html
+from dash import Input, Output, State, exceptions
 
 from sc_browser.core.filter_state import FilterState
 from sc_browser.ui.ids import IDs

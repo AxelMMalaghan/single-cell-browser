@@ -1,9 +1,9 @@
+import anndata as ad
 import numpy as np
 import pandas as pd
-import anndata as ad
 
-from sc_browser.core.configs import DatasetConfig
 from sc_browser.config.dataset_loader import from_config
+from sc_browser.core.configs import DatasetConfig
 
 
 def _make_h5ad_with_dupes(tmp_path):

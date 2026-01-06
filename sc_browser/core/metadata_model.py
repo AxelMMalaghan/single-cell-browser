@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import uuid
 import logging
+import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional, Dict, List
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 # Re-import FilterState for proper reconstruction
 from sc_browser.core.filter_state import FilterState

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
+
 from sc_browser.core.dataset import Dataset
 from sc_browser.ui.helpers import get_filter_dropdown_options
 

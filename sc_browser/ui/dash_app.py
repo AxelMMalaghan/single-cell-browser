@@ -1,31 +1,32 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
 import dash_bootstrap_components as dbc
 from dash import Dash
 
-from .config import AppConfig
 from sc_browser.config.config_loader import load_dataset_registry
-from sc_browser.core.view_registry import ViewRegistry
 from sc_browser.core.dataset import Dataset
+from sc_browser.core.view_registry import ViewRegistry
+from sc_browser.services.dataset_service import DatasetKeyManager, DatasetManager
 from sc_browser.services.metadata.metadata_export_service import ExportService
-from sc_browser.services.dataset_service import DatasetManager, DatasetKeyManager
-from sc_browser.ui.layout.build_layout import build_layout
-from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks
-from sc_browser.ui.callbacks.callbacks_sync import register_sync_callbacks
-from sc_browser.ui.callbacks.callbacks_io import register_io_callbacks
-from sc_browser.ui.callbacks.callbacks_render import register_render_callbacks
 from sc_browser.ui.callbacks.callbacks_dataset_import import (
     register_dataset_import_callbacks,
 )
-from sc_browser.ui.callbacks.callbacks_reports import register_reports_callbacks
 from sc_browser.ui.callbacks.callbacks_dataset_preview import (
     register_dataset_preview_callbacks,
 )
+from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks
+from sc_browser.ui.callbacks.callbacks_io import register_io_callbacks
+from sc_browser.ui.callbacks.callbacks_render import register_render_callbacks
+from sc_browser.ui.callbacks.callbacks_reports import register_reports_callbacks
+from sc_browser.ui.callbacks.callbacks_sync import register_sync_callbacks
+from sc_browser.ui.layout.build_layout import build_layout
+
+from .config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +34,12 @@ logger = logging.getLogger(__name__)
 def _build_view_registry() -> ViewRegistry:
     from sc_browser.views import (
         ClusterView,
-        ExpressionView,
-        FeatureCountView,
-        DotplotView,
-        HeatmapView,
         # VolcanoPlotView,
         DatasetSummary,
+        DotplotView,
+        ExpressionView,
+        FeatureCountView,
+        HeatmapView,
     )
 
     registry = ViewRegistry()
@@ -91,7 +92,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         default_dataset = dataset_manager.get(first_name)
 
     # 4) Export & Session Services
-    export_root = config_root / "exports"
+    config_root / "exports"
     # LocalFileSystemStorage creates the directory if needed
 
     export_service = ExportService(

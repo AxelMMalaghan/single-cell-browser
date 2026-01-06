@@ -7,10 +7,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from sc_browser.core.filter_state import FilterState
-from sc_browser.core.filter_profile import FilterProfile
 from sc_browser.core.base_view import BaseView
-from sc_browser.core.dataset import Dataset
+from sc_browser.core.filter_profile import FilterProfile
+from sc_browser.core.filter_state import FilterState
 
 
 class HeatmapView(BaseView):
@@ -34,7 +33,6 @@ class HeatmapView(BaseView):
     )
 
     def compute_data(self, state: FilterState) -> pd.DataFrame:
-        base_ds: Dataset = self.dataset
 
         # No genes selected → nothing to do
         if not state.genes:

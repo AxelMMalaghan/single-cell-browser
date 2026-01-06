@@ -5,7 +5,7 @@ import binascii
 import errno
 import logging
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 import dash
 from dash import Input, Output, State
@@ -13,17 +13,16 @@ from dash import Input, Output, State
 from sc_browser.config.config_loader import load_dataset_registry
 from sc_browser.config.new_config_writer import save_dataset_config
 from sc_browser.config.save_ds_config import write_dataset_config_for_uploaded_file
-from sc_browser.ui.helpers import dataset_status
-from sc_browser.ui.ids import IDs
 from sc_browser.services.dataset_service import DatasetManager
-
 from sc_browser.services.inference_service import (
+    infer_cell_type_key,
     infer_cluster_key,
     infer_condition_key,
-    infer_sample_key,
-    infer_cell_type_key,
     infer_embedding_key,
+    infer_sample_key,
 )
+from sc_browser.ui.helpers import dataset_status
+from sc_browser.ui.ids import IDs
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig

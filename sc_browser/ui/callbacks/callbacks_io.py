@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, Any
 
 import dash
 import pandas as pd
-from dash import Input, Output, State, exceptions, dcc, no_update
+from dash import Input, Output, State, dcc, exceptions, no_update
 
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.metadata_model import (
     FigureMetadata,
     SessionMetadata,
-    new_session_metadata,
     generate_figure_id,
+    new_session_metadata,
     now_iso,
 )
 from sc_browser.ui.ids import IDs

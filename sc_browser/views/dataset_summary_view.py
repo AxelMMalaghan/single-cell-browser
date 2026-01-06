@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from sc_browser.core.base_view import BaseView
-from sc_browser.core.filter_state import FilterState
 from sc_browser.core.filter_profile import FilterProfile
+from sc_browser.core.filter_state import FilterState
 
 
 class DatasetSummary(BaseView):

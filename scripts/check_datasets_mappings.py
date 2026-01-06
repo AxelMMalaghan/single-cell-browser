@@ -1,6 +1,6 @@
 import json
-import os
 from pathlib import Path
+
 import anndata as ad
 
 # Adjust these to the absolute or relative paths on your machine
