@@ -120,7 +120,7 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             zip_bytes = export_service.create_session_zip(session_data)
 
             filename = f"report_{session_data.get('session_id', 'export')}.zip"
-            send_bytes = getattr(dcc, "send_bytes")
+            send_bytes = dcc.send_bytes
             return send_bytes(zip_bytes, filename)
         except Exception as err:
             logger.exception("ZIP Export failed")

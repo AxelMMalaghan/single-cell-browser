@@ -281,7 +281,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         data = view.compute_data(state)
 
         if isinstance(data, pd.DataFrame):
-            send_data_frame = getattr(dcc, "send_data_frame")
+            send_data_frame = dcc.send_data_frame
             return send_data_frame(
                 data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False
             )

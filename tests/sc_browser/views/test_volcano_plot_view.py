@@ -1,9 +1,10 @@
+from typing import cast
+
 import anndata as ad
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 import pytest
-from typing import cast
 
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState

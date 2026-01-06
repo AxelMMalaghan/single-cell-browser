@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import List, Mapping, Optional
 
 from sc_browser.core.configs import GlobalConfig
 from sc_browser.core.dataset import Dataset
