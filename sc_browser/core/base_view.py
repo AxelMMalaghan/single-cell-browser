@@ -25,6 +25,7 @@ class BaseView(ABC):
     - implement 'render_figure' - used to render the figure using Plotly
     """
 
+
     id: str = None
     label: str = None
     filter_profile = FilterProfile()

@@ -4,8 +4,6 @@ import logging
 from functools import lru_cache
 from typing import Optional, Sequence
 
-import scanpy as sc
-
 from sc_browser.services.differential_expression.de_model import DEConfig, DEResult
 
 logger = logging.getLogger(__name__)
@@ -57,6 +55,8 @@ def run_de(config: DEConfig) -> DEResult:
 
     Includes heuristic check to prevent redundant log-transformation.
     """
+    import scanpy as sc
+
     _validate_config(config)
 
     base_adata = config.dataset.adata
