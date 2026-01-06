@@ -56,7 +56,9 @@ def _make_dataset_for_feature_count():
     return ds
 
 
-def _make_state(split_by_condition: bool = False, clusters=None, conditions=None) -> FilterState:
+def _make_state(
+    split_by_condition: bool = False, clusters=None, conditions=None
+) -> FilterState:
     clusters = clusters or []
     conditions = conditions or []
 
@@ -156,5 +158,3 @@ def test_feature_count_render_figure_empty():
 
     fig = view.render_figure(df, state)
     assert isinstance(fig, go.Figure)
-
-

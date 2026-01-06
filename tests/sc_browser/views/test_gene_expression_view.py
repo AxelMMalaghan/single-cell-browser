@@ -76,7 +76,7 @@ def _make_state_for_expression(genes=None, split_by_condition=False) -> FilterSt
     )
 
     # Attributes ExpressionView expects but may not be in __init__
-    state.embedding = None          # use dataset.embedding_key ("X_umap")
+    state.embedding = None  # use dataset.embedding_key ("X_umap")
     state.split_by_condition = split_by_condition
     state.color_scale = "viridis"
 

@@ -21,7 +21,9 @@ def build_layout(ctx: "AppContext"):
 
     if default_dataset is None:
         filter_panel = dbc.Card(
-            dbc.CardBody("No datasets configured. Please add a dataset in the Datasets tab."),
+            dbc.CardBody(
+                "No datasets configured. Please add a dataset in the Datasets tab."
+            ),
             className="scb-sidebar",
         )
         view_panel = dbc.Card(
@@ -42,14 +44,12 @@ def build_layout(ctx: "AppContext"):
         className="scb-root",
         children=[
             navbar,
-
             # App-level stores
             dcc.Store(id="session-metadata", storage_type="session"),
             dcc.Store(id="active-session-id", storage_type="session"),
             dcc.Store(id="active-figure-id", storage_type="session"),
             dcc.Store(id="filter-state", storage_type="session"),
             dcc.Store(id="user-state", storage_type="local"),
-
             dcc.Tabs(
                 id="page-tabs",
                 value="explore",
@@ -95,7 +95,9 @@ def build_layout(ctx: "AppContext"):
     )
 
 
-def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[Dataset]:
+def _choose_default_dataset(
+    datasets: List[Dataset], global_config
+) -> Optional[Dataset]:
     if not datasets:
         return None
 
@@ -106,4 +108,3 @@ def _choose_default_dataset(datasets: List[Dataset], global_config) -> Optional[
                 return ds
 
     return datasets[0]
-

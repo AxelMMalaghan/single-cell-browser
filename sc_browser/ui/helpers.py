@@ -5,6 +5,7 @@ from dash import dash_table, html
 
 from sc_browser.core.dataset import Dataset
 
+
 def get_filter_dropdown_options(
     dataset: Dataset,
 ) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
@@ -12,8 +13,7 @@ def get_filter_dropdown_options(
     cluster_series = dataset.clusters
     if cluster_series is not None:
         cluster_options = [
-            {"label": c, "value": c}
-            for c in sorted(cluster_series.unique())
+            {"label": c, "value": c} for c in sorted(cluster_series.unique())
         ]
     else:
         cluster_options = []
@@ -22,8 +22,7 @@ def get_filter_dropdown_options(
     condition_series = dataset.conditions
     if condition_series is not None:
         condition_options = [
-            {"label": c, "value": c}
-            for c in sorted(condition_series.unique())
+            {"label": c, "value": c} for c in sorted(condition_series.unique())
         ]
     else:
         condition_options = []
@@ -45,7 +44,13 @@ def get_filter_dropdown_options(
     # --- Embedding options (always from obsm keys) ---
     emb_options = [{"label": k, "value": k} for k in dataset.adata.obsm.keys()]
 
-    return cluster_options, condition_options, sample_options, celltype_options, emb_options
+    return (
+        cluster_options,
+        condition_options,
+        sample_options,
+        celltype_options,
+        emb_options,
+    )
 
 
 def dataset_status(ds: Dataset):
@@ -54,7 +59,9 @@ def dataset_status(ds: Dataset):
 
     has_emb = ds.embedding_key in obsm
     has_cluster = ds.cluster_key in obs.columns if ds.cluster_key is not None else False
-    has_condition = ds.condition_key in obs.columns if ds.condition_key is not None else False
+    has_condition = (
+        ds.condition_key in obs.columns if ds.condition_key is not None else False
+    )
 
     if not has_emb:
         return html.Span(
@@ -92,7 +99,6 @@ def dataset_status(ds: Dataset):
     )
 
 
-
 def obs_preview_table(ds: Dataset, max_rows: int = 20):
     """
     Build a styled Dash DataTable showing a preview of .obs.
@@ -103,7 +109,6 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
     return dash_table.DataTable(
         data=df.to_dict("records"),
         columns=[{"name": c, "id": c} for c in df.columns],
-
         style_table={
             "overflowX": "auto",
         },
@@ -129,11 +134,7 @@ def obs_preview_table(ds: Dataset, max_rows: int = 20):
         style_data={
             "borderBottom": "1px solid #e5e7eb",
         },
-
         page_size=max_rows,
         sort_action="native",
         filter_action="none",
     )
-
-
-

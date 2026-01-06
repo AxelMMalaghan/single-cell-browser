@@ -14,6 +14,7 @@ from .filter_profile import FilterProfile
 
 logger = logging.getLogger(__name__)
 
+
 class BaseView(ABC):
     """
     Abstract base class for all plot views.
@@ -25,14 +26,12 @@ class BaseView(ABC):
     - implement 'render_figure' - used to render the figure using Plotly
     """
 
-
     id: str = None
     label: str = None
     filter_profile = FilterProfile()
 
     def __init__(self, dataset: Dataset):
         self.dataset = dataset
-
 
     @abstractmethod
     def compute_data(self, state: FilterState) -> Any:
@@ -52,7 +51,6 @@ class BaseView(ABC):
         :return: the Plotly figure for these parameters
         """
         raise NotImplementedError()
-
 
     # ------------------------------------------------------------------
     # Common helpers for all views
@@ -78,7 +76,6 @@ class BaseView(ABC):
             yaxis={"visible": False},
         )
         return fig
-
 
     def timed_compute(self, state: FilterState) -> Any:
         """

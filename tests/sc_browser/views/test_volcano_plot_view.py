@@ -49,7 +49,9 @@ def _make_dataset_for_volcano():
     return ds
 
 
-def _make_state_for_volcano(conditions=None, clusters=None, samples=None) -> FilterState:
+def _make_state_for_volcano(
+    conditions=None, clusters=None, samples=None
+) -> FilterState:
     """
     Minimal FilterState for VolcanoPlotView.
     """
@@ -134,7 +136,12 @@ def test_volcano_compute_data_basic(monkeypatch, fake_de_table):
     assert p_thr == 0.05
 
     # Comparison string
-    assert df.attrs["comparison"] in ("ctrl vs treated", "treated vs ctrl", "ctrl vs rest", "treated vs rest")
+    assert df.attrs["comparison"] in (
+        "ctrl vs treated",
+        "treated vs ctrl",
+        "ctrl vs rest",
+        "treated vs rest",
+    )
 
     # Check significance labels
     sig_by_gene = dict(zip(df["gene"], df["significance"]))

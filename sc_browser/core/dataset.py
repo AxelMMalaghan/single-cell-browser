@@ -21,6 +21,7 @@ class ValidSets:
     Cached valid values for UI validation / sanitisation.
     Computing .unique() on large Series can be expensive, so we do it once per Dataset.
     """
+
     clusters: set[str]
     conditions: set[str]
     samples: set[str]
@@ -47,15 +48,15 @@ class Dataset:
     # Constructor
     # -------------------------------------------------------------------------
     def __init__(
-            self,
-            name: str,
-            group: str,
-            adata: ad.AnnData,
-            cluster_key: Optional[str],
-            condition_key: Optional[str],
-            embedding_key: Optional[str],
-            obs_columns: Optional[Any] = None,
-            file_path: Optional[Path] = None,
+        self,
+        name: str,
+        group: str,
+        adata: ad.AnnData,
+        cluster_key: Optional[str],
+        condition_key: Optional[str],
+        embedding_key: Optional[str],
+        obs_columns: Optional[Any] = None,
+        file_path: Optional[Path] = None,
     ) -> None:
         self.name = name
         self.group = group
@@ -154,10 +155,26 @@ class Dataset:
         if self._valid_sets is not None:
             return self._valid_sets
 
-        clusters = set(self._cluster_series.unique()) if self._cluster_series is not None else set()
-        conditions = set(self._condition_series.unique()) if self._condition_series is not None else set()
-        samples = set(self._sample_series.unique()) if self._sample_series is not None else set()
-        cell_types = set(self._cell_type_series.unique()) if self._cell_type_series is not None else set()
+        clusters = (
+            set(self._cluster_series.unique())
+            if self._cluster_series is not None
+            else set()
+        )
+        conditions = (
+            set(self._condition_series.unique())
+            if self._condition_series is not None
+            else set()
+        )
+        samples = (
+            set(self._sample_series.unique())
+            if self._sample_series is not None
+            else set()
+        )
+        cell_types = (
+            set(self._cell_type_series.unique())
+            if self._cell_type_series is not None
+            else set()
+        )
         genes = set(map(str, self.adata.var_names))
         embeddings = set(map(str, self.adata.obsm.keys()))
 
@@ -175,11 +192,11 @@ class Dataset:
     # Helper: build cache key for subsetting
     # -------------------------------------------------------------------------
     def _subset_cache_key(
-            self,
-            clusters: Optional[List[str]],
-            conditions: Optional[List[str]],
-            samples: Optional[List[str]],
-            cell_types: Optional[List[str]],
+        self,
+        clusters: Optional[List[str]],
+        conditions: Optional[List[str]],
+        samples: Optional[List[str]],
+        cell_types: Optional[List[str]],
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
 
         def norm(values: Optional[List[str]]) -> Tuple[str, ...]:
@@ -198,13 +215,13 @@ class Dataset:
     # Subsetting with caching (LRU)
     # -------------------------------------------------------------------------
     def subset(
-            self,
-            clusters: Optional[List[str]] = None,
-            conditions: Optional[List[str]] = None,
-            samples: Optional[List[str]] = None,
-            cell_types: Optional[List[str]] = None,
-            *,
-            copy_adata: bool = False,
+        self,
+        clusters: Optional[List[str]] = None,
+        conditions: Optional[List[str]] = None,
+        samples: Optional[List[str]] = None,
+        cell_types: Optional[List[str]] = None,
+        *,
+        copy_adata: bool = False,
     ) -> "Dataset":
         """
         Efficiently return a new Dataset filtered by cluster, condition, sample,
@@ -261,7 +278,9 @@ class Dataset:
         """
         Convenience wrapper to subset this Dataset based on a FilterState.
         """
-        cell_types = getattr(state, "cell_types", None) or getattr(state, "celltypes", None)
+        cell_types = getattr(state, "cell_types", None) or getattr(
+            state, "celltypes", None
+        )
 
         return self.subset(
             clusters=getattr(state, "clusters", None) or None,
@@ -440,4 +459,3 @@ class Dataset:
     def embedding(self) -> pd.DataFrame:
         """Default embedding using this dataset's embedding_key."""
         return self.get_embedding()
-

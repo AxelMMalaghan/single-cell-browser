@@ -5,6 +5,7 @@ from dash import dcc, html
 from sc_browser.core.dataset import Dataset
 from sc_browser.ui.helpers import get_filter_dropdown_options
 
+
 def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
     (
         cluster_options,
@@ -20,21 +21,22 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
             dbc.CardBody(
                 [
                     # --- NEW SECTION: Dataset Info Header ---
-                    html.Div([
-                        html.H5(
-                            default_dataset.name,
-                            id="sidebar-dataset-name",
-                            className="card-title"
-                        ),
-                        html.P(
-                            f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
-                            id="sidebar-dataset-meta",
-                            className="card-subtitle text-muted mb-3"
-                        ),
-                        html.Hr(),
-                    ]),
+                    html.Div(
+                        [
+                            html.H5(
+                                default_dataset.name,
+                                id="sidebar-dataset-name",
+                                className="card-title",
+                            ),
+                            html.P(
+                                f"{default_dataset.adata.n_obs} cells · {default_dataset.adata.n_vars} genes",
+                                id="sidebar-dataset-meta",
+                                className="card-subtitle text-muted mb-3",
+                            ),
+                            html.Hr(),
+                        ]
+                    ),
                     # ----------------------------------------
-
                     html.Div(
                         id="cluster-filter-container",
                         children=[
@@ -109,7 +111,8 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                                 options=emb_options,
                                 value=(
                                     default_dataset.embedding_key
-                                    if default_dataset.embedding_key in default_dataset.adata.obsm
+                                    if default_dataset.embedding_key
+                                    in default_dataset.adata.obsm
                                     else None
                                 ),
                                 clearable=False,
@@ -143,16 +146,14 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                         children=[
                             html.Label("Dimension X", className="form-label"),
                             dcc.Dropdown(id="dim-x-select", className="mb-2"),
-
                             html.Label("Dimension Y", className="form-label"),
                             dcc.Dropdown(id="dim-y-select", className="mb-2"),
-
                             html.Div(
                                 id="dim-z-container",
                                 children=[
                                     html.Label("Dimension Z", className="form-label"),
                                     dcc.Dropdown(id="dim-z-select", className="mb-2"),
-                                ]
+                                ],
                             ),
                         ],
                         className="mb-3",
@@ -163,7 +164,10 @@ def build_filter_panel(default_dataset: Dataset) -> dbc.Card:
                             dbc.Checklist(
                                 id="options-checklist",
                                 options=[
-                                    {"label": " Split by condition", "value": "split_by_condition"},
+                                    {
+                                        "label": " Split by condition",
+                                        "value": "split_by_condition",
+                                    },
                                     {"label": " 3D view", "value": "is_3d"},
                                 ],
                                 value=[],

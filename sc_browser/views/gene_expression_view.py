@@ -94,9 +94,13 @@ class ExpressionView(BaseView):
         y_coords = coords[:, dim_y]
 
         # --- grouping ---
-        clusters = ds_sub.clusters.loc[obs_index] if ds_sub.clusters is not None else pd.Series(
-            ["NA"] * len(obs_index),
-            index=obs_index,
+        clusters = (
+            ds_sub.clusters.loc[obs_index]
+            if ds_sub.clusters is not None
+            else pd.Series(
+                ["NA"] * len(obs_index),
+                index=obs_index,
+            )
         )
 
         conditions = (

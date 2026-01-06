@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class FilterProfile:
     """
@@ -17,6 +18,7 @@ class FilterProfile:
     :param: is_3d: is 3d
     :param: colour_scale: the colour scale placed on the data - primarily for heat/dot plot views
     """
+
     clusters: bool = False
     conditions: bool = False
     samples: bool = False

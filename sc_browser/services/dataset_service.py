@@ -28,7 +28,11 @@ class DatasetManager(Mapping[str, Dataset]):
         self._loaded: OrderedDict[str, Dataset] = OrderedDict()
 
         try:
-            self._max_loaded = int(os.getenv("SC_BROWSER_MAX_LOADED_DATASETS", str(self.DEFAULT_MAX_LOADED)))
+            self._max_loaded = int(
+                os.getenv(
+                    "SC_BROWSER_MAX_LOADED_DATASETS", str(self.DEFAULT_MAX_LOADED)
+                )
+            )
         except ValueError:
             self._max_loaded = self.DEFAULT_MAX_LOADED
 
@@ -46,7 +50,10 @@ class DatasetManager(Mapping[str, Dataset]):
 
         # 3. Lazy load
         try:
-            logger.info("Lazy-loading dataset", extra={"dataset": cfg.name, "path": str(getattr(cfg, "path", ""))})
+            logger.info(
+                "Lazy-loading dataset",
+                extra={"dataset": cfg.name, "path": str(getattr(cfg, "path", ""))},
+            )
             ds = from_config(cfg)
         except DatasetConfigError as e:
             logger.error(
@@ -67,7 +74,10 @@ class DatasetManager(Mapping[str, Dataset]):
         if len(self._loaded) > self._max_loaded:
             # Pop the first item (FIFO/Oldest)
             evicted_name, _ = self._loaded.popitem(last=False)
-            logger.info("Evicted dataset from memory cache to free space", extra={"dataset": evicted_name})
+            logger.info(
+                "Evicted dataset from memory cache to free space",
+                extra={"dataset": evicted_name},
+            )
 
         return ds
 

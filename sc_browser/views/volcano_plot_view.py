@@ -16,6 +16,7 @@ from sc_browser.core.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
+
 class VolcanoPlotView(BaseView):
     """
     Volcano plot for differential expression.
@@ -39,10 +40,14 @@ class VolcanoPlotView(BaseView):
         colour_scale=True,
     )
 
-    def _choose_groups(self, state: FilterState, ds: Dataset) -> Tuple[str, str, str | None]:
+    def _choose_groups(
+        self, state: FilterState, ds: Dataset
+    ) -> Tuple[str, str, str | None]:
         groupby = ds.condition_key
         if groupby is None:
-            raise ValueError("No 'condition_key' configured for this dataset. Differential expression cannot run.")
+            raise ValueError(
+                "No 'condition_key' configured for this dataset. Differential expression cannot run."
+            )
 
         conditions = ds.conditions
         if conditions is None:
@@ -75,7 +80,9 @@ class VolcanoPlotView(BaseView):
 
         try:
             groupby, group1, group2 = self._choose_groups(state, ds_de)
-            config = DEConfig(dataset=ds_de, groupby=groupby, group1=group1, group2=group2)
+            config = DEConfig(
+                dataset=ds_de, groupby=groupby, group1=group1, group2=group2
+            )
             de_result = run_de(config)
             df = de_result.table.copy()
         except ValueError as e:
@@ -113,7 +120,11 @@ class VolcanoPlotView(BaseView):
 
     def render_figure(self, data: pd.DataFrame, state: FilterState) -> go.Figure:
         if data is None or data.empty:
-            msg = data.attrs.get("error", "No data to show") if data is not None else "No data to show"
+            msg = (
+                data.attrs.get("error", "No data to show")
+                if data is not None
+                else "No data to show"
+            )
             return self.empty_figure(msg)
 
         log_fc_threshold = data.attrs.get("log_fc_threshold", 1.0)
@@ -139,9 +150,18 @@ class VolcanoPlotView(BaseView):
             },
         )
 
-        fig.add_hline(y=-np.log10(pval_threshold), line_dash="dash", line_color="black", opacity=0.6)
-        fig.add_vline(x=log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6)
-        fig.add_vline(x=-log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6)
+        fig.add_hline(
+            y=-np.log10(pval_threshold),
+            line_dash="dash",
+            line_color="black",
+            opacity=0.6,
+        )
+        fig.add_vline(
+            x=log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6
+        )
+        fig.add_vline(
+            x=-log_fc_threshold, line_dash="dash", line_color="black", opacity=0.6
+        )
 
         fig.update_layout(
             height=600,

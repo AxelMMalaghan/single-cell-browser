@@ -112,8 +112,16 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if ds is None or not view_id:
             options = default_options()
             return (
-                style(True), style(True), style(True), style(True), style(True),
-                style(True), style(True), style(True), options, style(False),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                options,
+                style(False),
             )
 
         view = ctx.registry.create(view_id, ds)
@@ -121,8 +129,16 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if profile is None:
             options = default_options()
             return (
-                style(True), style(True), style(True), style(True), style(True),
-                style(True), style(True), style(True), options, style(False),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                style(True),
+                options,
+                style(False),
             )
 
         has_clusters = ds.clusters is not None
@@ -136,7 +152,9 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
 
         options = []
         if getattr(profile, "split_by_condition", False):
-            options.append({"label": "Split by condition", "value": OPT_SPLIT_BY_CONDITION})
+            options.append(
+                {"label": "Split by condition", "value": OPT_SPLIT_BY_CONDITION}
+            )
         if getattr(profile, "is_3d", False) and embedding_flag:
             options.append({"label": "3D view", "value": OPT_IS_3D})
         show_options = bool(options)
@@ -184,4 +202,3 @@ def register_filter_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         options = [{"label": labels[i], "value": i} for i in range(len(labels))]
         show_z = {} if len(labels) >= 3 else hide_z
         return options, options, options, show_z
-

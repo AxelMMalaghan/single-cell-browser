@@ -153,4 +153,3 @@ class ClusterView(BaseView):
             margin=dict(l=0, r=0, t=40, b=0),
         )
         return fig
-

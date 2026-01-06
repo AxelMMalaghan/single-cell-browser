@@ -34,7 +34,7 @@ class DotplotView(BaseView):
         embedding=False,
         split_by_condition=True,
         is_3d=False,
-        colour_scale=True
+        colour_scale=True,
     )
 
     def _cell_identities(self, ds: Dataset, state: FilterState) -> pd.Series:
@@ -96,14 +96,18 @@ class DotplotView(BaseView):
         )
 
         # Percent expressing
-        grouped["pctExpressed"] = 100.0 * grouped["n_expressing"] / grouped["n_cells"].where(
-            grouped["n_cells"] != 0, np.nan
+        grouped["pctExpressed"] = (
+            100.0
+            * grouped["n_expressing"]
+            / grouped["n_cells"].where(grouped["n_cells"] != 0, np.nan)
         )
 
         # Relative mean expression per gene (scale within each gene)
         # relMeanExpression = meanExpr / mean(meanExpr for that gene)
         gene_mean = grouped.groupby("gene")["meanExpr"].transform("mean")
-        grouped["relMeanExpression"] = grouped["meanExpr"] / (gene_mean.replace(0, np.nan))
+        grouped["relMeanExpression"] = grouped["meanExpr"] / (
+            gene_mean.replace(0, np.nan)
+        )
 
         # Log mean expression for hover info
         grouped["logMeanExpression"] = np.log1p(grouped["meanExpr"].clip(lower=0))

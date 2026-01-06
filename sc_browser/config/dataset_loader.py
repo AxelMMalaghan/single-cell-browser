@@ -14,10 +14,13 @@ logger = logging.getLogger(__name__)
 
 class DatasetConfigError(ValueError):
     """Raised when a dataset config is structurally invalid for loading."""
+
     pass
 
 
-def _ensure_unique_names(adata: ad.AnnData, cfg: DatasetConfig, path: Path) -> ad.AnnData:
+def _ensure_unique_names(
+    adata: ad.AnnData, cfg: DatasetConfig, path: Path
+) -> ad.AnnData:
     if not adata.obs_names.is_unique:
         logger.warning(f"Making obs_names unique for {cfg.name}")
         adata.obs_names_make_unique()

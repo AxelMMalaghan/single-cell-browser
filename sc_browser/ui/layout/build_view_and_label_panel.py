@@ -8,10 +8,7 @@ from sc_browser.core.view_registry import ViewRegistry
 
 def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
     view_classes = registry.all_classes()
-    view_options = [
-        {"label": cls.label, "value": cls.id}
-        for cls in view_classes
-    ]
+    view_options = [{"label": cls.label, "value": cls.id} for cls in view_classes]
     default_view_id: str | None = view_classes[0].id if view_classes else None
 
     return dbc.Card(
@@ -39,7 +36,6 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                         ],
                         className="mb-3",
                     ),
-
                     # ------------------------------
                     # 2) View type selector
                     # ------------------------------
@@ -61,7 +57,6 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                         ],
                         className="mb-3",
                     ),
-
                     # ------------------------------
                     # 3) Figure label input
                     # ------------------------------
@@ -77,7 +72,6 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                         ],
                         className="mb-3",
                     ),
-
                     # ------------------------------
                     # 4) Load / Save buttons
                     # ------------------------------
@@ -102,7 +96,6 @@ def build_view_and_label_panel(registry: ViewRegistry) -> dbc.Card:
                         ],
                         className="mb-2",
                     ),
-
                     # ------------------------------
                     # 5) Status text for save operations
                     # ------------------------------

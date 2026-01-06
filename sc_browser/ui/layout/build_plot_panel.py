@@ -30,7 +30,6 @@ def build_plot_panel() -> dbc.Card:
                     ),
                     html.Div(
                         [
-
                             dbc.Button(
                                 "Download data (CSV)",
                                 id="download-data-btn",

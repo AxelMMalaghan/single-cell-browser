@@ -185,7 +185,9 @@ def test_heatmap_compute_data_with_filtering_clusters():
 def test_heatmap_render_figure_basic():
     ds = _make_dataset_for_heatmap()
     view = HeatmapView(dataset=ds)
-    state = _make_state(genes=["g1", "g2"], split_by_condition=False, color_scale="viridis")
+    state = _make_state(
+        genes=["g1", "g2"], split_by_condition=False, color_scale="viridis"
+    )
 
     df = view.compute_data(state)
     fig = view.render_figure(df, state)

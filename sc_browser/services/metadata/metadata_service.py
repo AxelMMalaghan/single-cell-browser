@@ -5,9 +5,16 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from sc_browser.core.metadata_model import FigureMetadata, SessionMetadata, session_from_dict, new_session_metadata, now_iso
+from sc_browser.core.metadata_model import (
+    FigureMetadata,
+    SessionMetadata,
+    session_from_dict,
+    new_session_metadata,
+    now_iso,
+)
 
 logger = logging.getLogger(__name__)
+
 
 def load_session_metadata_from_file(path: Path) -> SessionMetadata:
     """
@@ -36,7 +43,9 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
         logger.debug("Detected full session metadata format")
         session = session_from_dict(raw)
         if session is None:
-            logger.error("session_from_dict returned None for seemingly valid session structure")
+            logger.error(
+                "session_from_dict returned None for seemingly valid session structure"
+            )
             raise ValueError("Invalid session metadata JSON")
 
         return session
@@ -78,11 +87,15 @@ def normalise_session_dict(raw: Dict[str, Any]) -> SessionMetadata:
                 )
             )
         else:
-            logger.warning("Unknown metadata format (missing session_id/figures/dataset_key)")
+            logger.warning(
+                "Unknown metadata format (missing session_id/figures/dataset_key)"
+            )
 
-    if not figures and not ("figures" in raw and isinstance(raw["figures"], list) and not raw["figures"]):
-         # If we didn't find anything AND it wasn't just an empty list
-         pass
+    if not figures and not (
+        "figures" in raw and isinstance(raw["figures"], list) and not raw["figures"]
+    ):
+        # If we didn't find anything AND it wasn't just an empty list
+        pass
 
     # Create a synthetic wrapper session
     session = new_session_metadata(

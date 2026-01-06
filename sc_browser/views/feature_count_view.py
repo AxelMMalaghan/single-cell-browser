@@ -9,6 +9,7 @@ from sc_browser.core.base_view import BaseView
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.filter_profile import FilterProfile
 
+
 class FeatureCountView(BaseView):
     """
     QC plot: per cell total counts vs number of detected features.

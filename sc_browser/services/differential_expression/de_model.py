@@ -7,9 +7,11 @@ import pandas as pd
 
 from sc_browser.core.dataset import Dataset
 
+
 @dataclass(frozen=True)
 class DEConfig:
     """Immutable configuration for a differential expression run."""
+
     dataset: Dataset
     groupby: str
     group1: str
@@ -27,6 +29,7 @@ class DEConfig:
             method=self.method,
             genes=unique_genes,
         )
+
 
 @dataclass
 class DEResult:

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Helpers
 # -------------------------------------------------------------------------
 
+
 def generate_figure_id() -> str:
     """Generate a globally unique, immutable ID for figures."""
     return f"fig-{uuid.uuid4().hex[:12]}"
@@ -35,12 +36,14 @@ def now_iso() -> str:
 # Per-figure metadata
 # -------------------------------------------------------------------------
 
+
 @dataclass
 class FigureMetadata:
     """
     Description of a single saved figure.
     Ensures filter_state is a FilterState object, not just a dict.
     """
+
     id: str
     dataset_key: str
     view_id: str
@@ -55,7 +58,9 @@ class FigureMetadata:
         """Reconstructs FigureMetadata, ensuring FilterState is an object."""
         fs_raw = data.get("filter_state") or {}
         # FIX: Reconstitute FilterState if it is a dictionary
-        fs_obj = fs_raw if isinstance(fs_raw, FilterState) else FilterState.from_dict(fs_raw)
+        fs_obj = (
+            fs_raw if isinstance(fs_raw, FilterState) else FilterState.from_dict(fs_raw)
+        )
 
         return cls(
             id=data.get("id", generate_figure_id()),
@@ -86,11 +91,13 @@ class FigureMetadata:
 # Session Metadata (Overarching Container)
 # -------------------------------------------------------------------------
 
+
 @dataclass
 class SessionMetadata:
     """
     Overarching container for a session, matching your metadata 6.json structure.
     """
+
     session_id: str
     schema_version: int
     app_version: str
@@ -131,10 +138,11 @@ class SessionMetadata:
 # Creation Helper
 # -------------------------------------------------------------------------
 
+
 def new_session_metadata(
-        session_id: Optional[str] = None,
-        app_version: str = "0.0.0-dev",
-        datasets_config_hash: str = "unknown",
+    session_id: Optional[str] = None,
+    app_version: str = "0.0.0-dev",
+    datasets_config_hash: str = "unknown",
 ) -> SessionMetadata:
     """Create a fresh SessionMetadata container."""
     now = now_iso()
@@ -147,5 +155,3 @@ def new_session_metadata(
         updated_at=now,
         figures=[],
     )
-
-

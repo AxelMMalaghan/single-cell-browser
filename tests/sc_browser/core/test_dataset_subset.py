@@ -5,6 +5,7 @@ import anndata as ad
 from sc_browser.core.dataset import Dataset
 from sc_browser.core.filter_state import FilterState
 
+
 def _make_dataset():
     obs = pd.DataFrame(
         {
@@ -39,6 +40,7 @@ def _make_dataset():
 
     return ds
 
+
 def test_subset_for_state_filters_correctly():
 
     ds = _make_dataset()
@@ -49,7 +51,7 @@ def test_subset_for_state_filters_correctly():
         clusters=["A"],
         conditions=["x"],
         samples=[],
-        genes=[]
+        genes=[],
     )
 
     sub = ds.subset_for_state(state)
@@ -70,11 +72,10 @@ def test_sub_for_state_filters_samples():
         clusters=[],
         conditions=[],
         samples=["s2"],
-        genes=[]
+        genes=[],
     )
 
     sub = ds.subset_for_state(state)
 
     assert list(sub.adata.obs_names) == ["c3", "c4"]
     assert list(sub.clusters) == ["B", "B"]
-

@@ -126,7 +126,9 @@ def test_empty_subset_does_not_crash():
         obs_columns=None,
     )
 
-    state = FilterState(dataset_name="test", view_id="cluster", clusters=["DOES_NOT_EXIST"])
+    state = FilterState(
+        dataset_name="test", view_id="cluster", clusters=["DOES_NOT_EXIST"]
+    )
     sub = ds.subset_for_state(state)
 
     assert sub.adata.n_obs == 0

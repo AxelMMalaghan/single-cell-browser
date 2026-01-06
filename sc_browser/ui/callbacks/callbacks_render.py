@@ -124,7 +124,4 @@ def register_render_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             return _error_figure(
                 "The app hit an unexpected error. "
                 "If this keeps happening, grab the logs and open an issue."
-
             )
-
-

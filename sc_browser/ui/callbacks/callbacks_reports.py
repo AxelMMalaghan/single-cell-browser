@@ -10,7 +10,10 @@ from dash import ALL, Input, Output, State, dcc, no_update
 
 from sc_browser.ui.ids import IDs
 from sc_browser.core.metadata_model import SessionMetadata, now_iso
-from sc_browser.ui.layout.build_reports_panel import build_empty_figures_message, build_figures_table
+from sc_browser.ui.layout.build_reports_panel import (
+    build_empty_figures_message,
+    build_figures_table,
+)
 
 if TYPE_CHECKING:
     from sc_browser.ui.config import AppConfig
@@ -35,7 +38,10 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         representing the SessionMetadata container.
         """
         if not session_data or not isinstance(session_data, dict):
-            return "No saved figures in this session yet.", build_empty_figures_message()
+            return (
+                "No saved figures in this session yet.",
+                build_empty_figures_message(),
+            )
 
         figures = session_data.get("figures", [])
         if not figures:
@@ -150,21 +156,25 @@ def register_reports_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         unknown_datasets = set()
         for fig in new_session.figures:
             dataset_key = fig.dataset_key
-            is_known = (dataset_key in ctx.dataset_by_key) or (dataset_key in ctx.dataset_by_name)
+            is_known = (dataset_key in ctx.dataset_by_key) or (
+                dataset_key in ctx.dataset_by_name
+            )
             if not is_known:
                 unknown_datasets.add(dataset_key)
 
         # Truncate if too many figures
         if len(new_session.figures) > MAX_IMPORTED_FIGURES:
-            logger.warning(f"Truncating import: {len(new_session.figures)} > {MAX_IMPORTED_FIGURES}")
+            logger.warning(
+                f"Truncating import: {len(new_session.figures)} > {MAX_IMPORTED_FIGURES}"
+            )
             new_session.figures = new_session.figures[:MAX_IMPORTED_FIGURES]
 
         banner_text = f"Imported session '{new_session.session_id}' with {len(new_session.figures)} figure(s)."
 
         if unknown_datasets:
             missing_str = ", ".join(sorted(unknown_datasets))
-            banner_text += f" Warning: some figures reference unknown datasets ({missing_str})."
+            banner_text += (
+                f" Warning: some figures reference unknown datasets ({missing_str})."
+            )
 
         return new_session.to_dict(), banner_text
-
-

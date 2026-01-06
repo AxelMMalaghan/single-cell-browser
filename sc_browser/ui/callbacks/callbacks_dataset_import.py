@@ -22,7 +22,7 @@ from sc_browser.services.inference_service import (
     infer_condition_key,
     infer_sample_key,
     infer_cell_type_key,
-    infer_embedding_key
+    infer_embedding_key,
 )
 
 if TYPE_CHECKING:
@@ -165,13 +165,13 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def save_dataset_mapping(
-            n_clicks: int,
-            dataset_name: str | None,
-            cluster_key: Optional[str],
-            condition_key: Optional[str],
-            sample_key: Optional[str],
-            celltype_key: Optional[str],
-            embedding_key: Optional[str],
+        n_clicks: int,
+        dataset_name: str | None,
+        cluster_key: Optional[str],
+        condition_key: Optional[str],
+        sample_key: Optional[str],
+        celltype_key: Optional[str],
+        embedding_key: Optional[str],
     ):
         if not n_clicks:
             raise dash.exceptions.PreventUpdate
@@ -268,7 +268,11 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         except (ValueError, binascii.Error) as e:
             logger.error("Corrupted upload data for %s: %s", filename, e)
             opts, current = _current_options_and_value()
-            return f"The uploaded file '{filename}' appears to be corrupted.", opts, current
+            return (
+                f"The uploaded file '{filename}' appears to be corrupted.",
+                opts,
+                current,
+            )
 
         if len(decoded) > MAX_UPLOAD_BYTES:
             opts, current = _current_options_and_value()
@@ -278,7 +282,8 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         data_dir = ctx.config_root.parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         safe_name = Path(filename).name
-        if not safe_name.endswith(".h5ad"): safe_name += ".h5ad"
+        if not safe_name.endswith(".h5ad"):
+            safe_name += ".h5ad"
         out_path = data_dir / safe_name
 
         # 3. ATOMIC WRITE
@@ -287,15 +292,27 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 f.write(decoded)
         except FileExistsError:
             opts, current = _current_options_and_value()
-            return f"A dataset named '{safe_name}' already exists on the server.", opts, current
+            return (
+                f"A dataset named '{safe_name}' already exists on the server.",
+                opts,
+                current,
+            )
         except PermissionError:
             logger.error("Permission denied writing to %s", out_path)
             opts, current = _current_options_and_value()
-            return "Server Error: Permission denied when saving the file.", opts, current
+            return (
+                "Server Error: Permission denied when saving the file.",
+                opts,
+                current,
+            )
         except OSError as e:
             opts, current = _current_options_and_value()
             if e.errno == errno.ENOSPC:
-                return "Server Error: The disk is full. Cannot save dataset.", opts, current
+                return (
+                    "Server Error: The disk is full. Cannot save dataset.",
+                    opts,
+                    current,
+                )
             logger.exception("Disk I/O error during import")
             return f"Server Error: Failed to save file ({e.strerror})", opts, current
 
@@ -305,7 +322,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 config_root=ctx.config_root,
                 dataset_name=Path(safe_name).stem,
                 file_path=out_path,
-                group="Imported"
+                group="Imported",
             )
             ctx.global_config, reg_or_ds = load_dataset_registry(ctx.config_root)
         except Exception as e:
@@ -322,6 +339,9 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         stem = Path(safe_name).stem.lower()
         imported_ds_name = next((n for n in names if stem in n.lower()), None)
         selected = imported_ds_name or (
-            current_dataset_name if current_dataset_name in names else (names[-1] if names else None))
+            current_dataset_name
+            if current_dataset_name in names
+            else (names[-1] if names else None)
+        )
 
         return f"Successfully imported '{safe_name}'.", opts, selected

@@ -50,7 +50,9 @@ def configure_logging() -> None:
     root.addHandler(handler)
 
     # Keep noisy libraries sane
-    logging.getLogger("werkzeug").setLevel(logging.WARNING if not debug else logging.INFO)
+    logging.getLogger("werkzeug").setLevel(
+        logging.WARNING if not debug else logging.INFO
+    )
     logging.getLogger("dash").setLevel(logging.INFO if debug else logging.WARNING)
 
     # Make sure gunicorn logs propagate to root so they use the same handler

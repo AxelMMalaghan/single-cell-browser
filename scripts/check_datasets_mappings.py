@@ -24,7 +24,7 @@ def check_dataset_mappings():
         return
 
     for config_file in config_files:
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             try:
                 config = json.load(f)
             except json.JSONDecodeError:
@@ -53,12 +53,14 @@ def check_dataset_mappings():
                 "condition": config.get("obs_columns", {}).get("condition"),
                 "sample": config.get("obs_columns", {}).get("sample"),
                 "cell_type": config.get("obs_columns", {}).get("cell_type"),
-                "embedding": config.get("embedding_key")
+                "embedding": config.get("embedding_key"),
             }
 
             for field, mapped_col in mappings.items():
                 if not mapped_col:
-                    print(f"{dataset_name:<30} | {field:<15} | {'[Not Set]':<20} | SKIP")
+                    print(
+                        f"{dataset_name:<30} | {field:<15} | {'[Not Set]':<20} | SKIP"
+                    )
                     continue
 
                 if field == "embedding":
@@ -75,7 +77,9 @@ def check_dataset_mappings():
             if mappings["condition"] in obs_cols:
                 n_unique = adata.obs[mappings["condition"]].nunique()
                 if n_unique < 2:
-                    print(f"{dataset_name:<30} | {'volcano_check':<15} | {n_unique} groups{'':<11} | ⚠️ NEED >1 FOR DE")
+                    print(
+                        f"{dataset_name:<30} | {'volcano_check':<15} | {n_unique} groups{'':<11} | ⚠️ NEED >1 FOR DE"
+                    )
 
         except Exception as e:
             print(f"{dataset_name:<30} | Error checking {h5ad_path.name}: {e}")

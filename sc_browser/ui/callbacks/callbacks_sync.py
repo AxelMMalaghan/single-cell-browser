@@ -18,7 +18,9 @@ OPT_SPLIT_BY_CONDITION = "split_by_condition"
 OPT_IS_3D = "is_3d"
 
 
-def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[str, Any] | None:
+def _validate_and_build_state(
+    ctx: AppConfig, inputs: dict[str, Any]
+) -> dict[str, Any] | None:
     """
     Pure helper to validate UI inputs against dataset capabilities and return a dict
     ready for FilterState.
@@ -176,8 +178,19 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         Input(IDs.Control.COLOUR_SCALE_SELECT, "value"),
     )
     def sync_filter_state_from_ui(
-            ds_val, view_val, clust_val, cond_val, samp_val, ct_val,
-            gene_val, emb_val, dx_val, dy_val, dz_val, opt_val, col_val
+        ds_val,
+        view_val,
+        clust_val,
+        cond_val,
+        samp_val,
+        ct_val,
+        gene_val,
+        emb_val,
+        dx_val,
+        dy_val,
+        dz_val,
+        opt_val,
+        col_val,
     ):
         # Identify what triggered this callback
         # dash.ctx.triggered_id handles the ID resolution
@@ -231,4 +244,3 @@ def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
             raise exceptions.PreventUpdate
 
         return state
-

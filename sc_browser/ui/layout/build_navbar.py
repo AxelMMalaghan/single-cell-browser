@@ -13,7 +13,9 @@ def build_navbar(
     global_config,
     default_dataset: Dataset | None,
 ) -> dbc.Navbar:
-    navbar_image_src = getattr(global_config, "navbar_image_src", "/assets/hgtc_logo.png")
+    navbar_image_src = getattr(
+        global_config, "navbar_image_src", "/assets/hgtc_logo.png"
+    )
 
     title = getattr(global_config, "ui_title", "Dashy")
     subtitle = getattr(global_config, "subtitle", "Interactive Dataset Explorer")
@@ -45,7 +47,6 @@ def build_navbar(
                         ),
                     ],
                 ),
-
             ],
         ),
         dark=False,

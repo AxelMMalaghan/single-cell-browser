@@ -4,6 +4,7 @@ from typing import Dict, List, Type
 from .dataset import Dataset
 from .base_view import BaseView
 
+
 class ViewRegistry:
     """
     Registry for view classes so the app can build tabs dynamically
@@ -19,9 +20,9 @@ class ViewRegistry:
         * each view 'id' is unique across the registry
     - Centralising creation logic makes it easier to extend for other behaviour later on (logging, DI) without changing calls
     """
+
     def __init__(self):
         self._views: Dict[str, Type[BaseView]] = {}
-
 
     def register(self, view_cls: Type[BaseView]) -> None:
         """
@@ -46,7 +47,6 @@ class ViewRegistry:
 
         self._views[view_cls.id] = view_cls
 
-
     def create(self, view_id: str, dataset: Dataset) -> BaseView:
         """
         Instantiate a view for the given view_id. Callers only need to know the 'id' of the view and pass in a dataset
@@ -70,4 +70,3 @@ class ViewRegistry:
         :return list: a list of view id's in the registry
         """
         return list(self._views.values())
-

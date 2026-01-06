@@ -7,4 +7,5 @@ Most code should import from submodules such as:
     sc_browser.views
     sc_browser.ui
 """
+
 __all__: list[str] = []

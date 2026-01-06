@@ -13,7 +13,7 @@ from sc_browser.core.metadata_model import (
     SessionMetadata,
     new_session_metadata,
     generate_figure_id,
-    now_iso
+    now_iso,
 )
 from sc_browser.ui.ids import IDs
 
@@ -95,7 +95,9 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.ACTIVE_FIGURE_ID, "data"),
         prevent_initial_call=True,
     )
-    def clear_active_figure_on_new_selection(selected: str | None, current_active: str | None):
+    def clear_active_figure_on_new_selection(
+        selected: str | None, current_active: str | None
+    ):
         if selected == NEW_FIGURE_VALUE and current_active is not None:
             return None
         raise exceptions.PreventUpdate
@@ -135,8 +137,15 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         State(IDs.Store.SESSION_META, "data"),
         prevent_initial_call=True,
     )
-    def load_figure_from_session(n_clicks: int | None, figure_id: str | None, session_data: dict | None):
-        if not n_clicks or not figure_id or figure_id == NEW_FIGURE_VALUE or not session_data:
+    def load_figure_from_session(
+        n_clicks: int | None, figure_id: str | None, session_data: dict | None
+    ):
+        if (
+            not n_clicks
+            or not figure_id
+            or figure_id == NEW_FIGURE_VALUE
+            or not session_data
+        ):
             return (no_update,) * 14 + (None,)
 
         figures = session_data.get("figures", [])
@@ -188,10 +197,10 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         prevent_initial_call=True,
     )
     def save_current_figure(
-            n_clicks: int | None,
-            fs_data: dict[str, Any] | None,
-            figure_label: str | None,
-            session_data: dict | None,
+        n_clicks: int | None,
+        fs_data: dict[str, Any] | None,
+        figure_label: str | None,
+        session_data: dict | None,
     ):
         if not n_clicks or not fs_data:
             raise exceptions.PreventUpdate
@@ -225,13 +234,15 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
                 view_id=state.view_id,
                 filter_state=state,
                 label=label_clean,
-                created_at=now_iso()
+                created_at=now_iso(),
             )
 
             # 4. FIX: Explicitly create a new list with all existing figures plus the new one
             # This ensures we don't have reference issues
-            session.figures = [FigureMetadata.from_dict(f) if isinstance(f, dict) else f
-                              for f in existing_figures] + [new_fig]
+            session.figures = [
+                FigureMetadata.from_dict(f) if isinstance(f, dict) else f
+                for f in existing_figures
+            ] + [new_fig]
             session.updated_at = now_iso()
 
             status = f"Saved '{label_clean or state.view_id}' to report"
@@ -267,6 +278,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         data = view.compute_data(state)
 
         if isinstance(data, pd.DataFrame):
-            return dcc.send_data_frame(data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False)
+            return dcc.send_data_frame(
+                data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False
+            )
 
         raise exceptions.PreventUpdate

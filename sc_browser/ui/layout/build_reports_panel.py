@@ -28,15 +28,12 @@ def build_reports_panel() -> dbc.Container:
                 className="me-2",
             ),
             dcc.Download(id="reports-download-session"),
-
             dcc.Upload(
                 id="reports-upload",
-                children=html.Div(
-                    ["Import JSON (", html.A("select"), ")"]
-                ),
+                children=html.Div(["Import JSON (", html.A("select"), ")"]),
                 multiple=False,
                 className="scb-upload border rounded px-2 py-1 text-center d-inline-block small",
-                style={"lineHeight": "1.5", "cursor": "pointer"}
+                style={"lineHeight": "1.5", "cursor": "pointer"},
             ),
         ],
         className="d-flex justify-content-end align-items-center",
@@ -65,18 +62,15 @@ def build_reports_panel() -> dbc.Container:
                                     ),
                                 ],
                                 md=6,
-                                className="d-flex flex-column justify-content-center"
+                                className="d-flex flex-column justify-content-center",
                             ),
                             dbc.Col(actions_div, md=6),
                         ],
                         className="mb-3",
                     ),
-
                     html.Hr(),
-
                     # Sub-header
                     html.Label("Saved figures", className="form-label"),
-
                     # The list of figures (table) goes here
                     html.Div(
                         id="reports-figure-list",
@@ -186,8 +180,13 @@ def build_figures_table(figures: List[Any]) -> dbc.Table:
                 [
                     html.Td(fig_id, style=cell_style),
                     html.Td(
-                        fig_label or html.Span("No label", className="text-muted italic"),
-                        style={**cell_style, "whiteSpace": "normal", "maxWidth": "200px"}
+                        fig_label
+                        or html.Span("No label", className="text-muted italic"),
+                        style={
+                            **cell_style,
+                            "whiteSpace": "normal",
+                            "maxWidth": "200px",
+                        },
                     ),
                     html.Td(fig_dataset, style=cell_style),
                     html.Td(fig_view, style=cell_style),
@@ -202,8 +201,8 @@ def build_figures_table(figures: List[Any]) -> dbc.Table:
                             style={
                                 "fontSize": "11px",
                                 "padding": "2px 8px",
-                                "lineHeight": "1.2"
-                            }
+                                "lineHeight": "1.2",
+                            },
                         ),
                         style=cell_style,
                     ),
@@ -217,5 +216,5 @@ def build_figures_table(figures: List[Any]) -> dbc.Table:
         hover=True,
         responsive=True,
         className="mb-0",  # Remove bottom margin
-        style={"border": "1px solid #e5e7eb", "borderRadius": "4px"}
+        style={"border": "1px solid #e5e7eb", "borderRadius": "4px"},
     )

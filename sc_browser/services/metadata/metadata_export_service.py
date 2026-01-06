@@ -23,10 +23,10 @@ class ExportService:
     """
 
     def __init__(
-            self,
-            *,
-            datasets_by_key: Dict[str, Dataset],
-            view_registry: ViewRegistry,
+        self,
+        *,
+        datasets_by_key: Dict[str, Dataset],
+        view_registry: ViewRegistry,
     ) -> None:
         self._datasets_by_key = datasets_by_key
         self._view_registry = view_registry
@@ -64,7 +64,9 @@ class ExportService:
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             # 1. Metadata - Use the new class method
             # FIX: Replaced session_to_dict(session) with session.to_dict()
-            zf.writestr("metadata.json", json.dumps(session.to_dict(), indent=2).encode("utf-8"))
+            zf.writestr(
+                "metadata.json", json.dumps(session.to_dict(), indent=2).encode("utf-8")
+            )
 
             # 2. Images - Render each figure to PNG and add to the ZIP
             added_count = 0
@@ -77,13 +79,20 @@ class ExportService:
                     img_bytes = figure.to_image(format="png")
 
                     # Name the file using stem or fallback pattern
-                    filename = fig_meta.file_stem or f"{fig_meta.dataset_key}.{fig_meta.view_id}_{fig_meta.id}"
+                    filename = (
+                        fig_meta.file_stem
+                        or f"{fig_meta.dataset_key}.{fig_meta.view_id}_{fig_meta.id}"
+                    )
                     zf.writestr(f"figures/{filename}.png", img_bytes)
                     added_count += 1
                 except Exception as e:
-                    logger.error(f"Failed to render figure {fig_meta.id} for export: {e}")
+                    logger.error(
+                        f"Failed to render figure {fig_meta.id} for export: {e}"
+                    )
 
             if added_count == 0 and session.figures:
-                zf.writestr("WARNING.txt", b"No images could be rendered for this session.")
+                zf.writestr(
+                    "WARNING.txt", b"No images could be rendered for this session."
+                )
 
         return buf.getvalue()

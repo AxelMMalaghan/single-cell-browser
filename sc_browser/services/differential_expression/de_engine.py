@@ -81,14 +81,16 @@ def run_de(config: DEConfig) -> DEResult:
 
     # FIX: Use a heuristic to detect if data is already log-transformed
     # even if 'log1p' is missing from .uns
-    already_logged = 'log1p' in work.uns
+    already_logged = "log1p" in work.uns
     if not already_logged:
         # Check max value in the first 100 cells/genes as a quick heuristic
         # If max value is > 50, it's likely raw counts.
         try:
             sample_max = work.X[:100, :100].max()
             if sample_max < 50:
-                logger.info("Data appears already log-transformed (max < 50). Skipping sc.pp.log1p.")
+                logger.info(
+                    "Data appears already log-transformed (max < 50). Skipping sc.pp.log1p."
+                )
                 already_logged = True
         except Exception:
             pass

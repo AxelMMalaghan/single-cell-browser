@@ -79,8 +79,7 @@ class HeatmapView(BaseView):
 
         # Long-form: group, gene, expression
         long_df = (
-            expr_df
-            .melt(id_vars="group", var_name="gene", value_name="expression")
+            expr_df.melt(id_vars="group", var_name="gene", value_name="expression")
             .groupby(["group", "gene"], as_index=False)
             .agg(mean_expression=("expression", "mean"))
         )

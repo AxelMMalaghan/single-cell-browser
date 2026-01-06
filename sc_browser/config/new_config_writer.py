@@ -5,11 +5,12 @@ from typing import Dict, Any, Optional
 
 from sc_browser.core.dataset import Dataset
 
+
 def save_dataset_config(
-        dataset: Dataset,
-        config_root: Path,
-        filename: Optional[str] = None,
-        schema: str = "anndata_mapped",
+    dataset: Dataset,
+    config_root: Path,
+    filename: Optional[str] = None,
+    schema: str = "anndata_mapped",
 ) -> Path:
     """
     Persists a Dataset's mapping to a per-dataset JSON file
@@ -24,7 +25,9 @@ def save_dataset_config(
 
     """
 
-    datasets_dir = config_root / "datasets"     # TODO:  write to fileshare instead of locally
+    datasets_dir = (
+        config_root / "datasets"
+    )  # TODO:  write to fileshare instead of locally
     datasets_dir.mkdir(parents=True, exist_ok=True)
 
     if filename is None:
@@ -34,8 +37,9 @@ def save_dataset_config(
     output_path = datasets_dir / filename
 
     if dataset.file_path is None:
-        raise RuntimeError(f"Dataset {dataset.name} is missing a file path, cannot save config")
-
+        raise RuntimeError(
+            f"Dataset {dataset.name} is missing a file path, cannot save config"
+        )
 
     project_root = config_root.parent.resolve()
     abs_file = dataset.file_path.resolve()

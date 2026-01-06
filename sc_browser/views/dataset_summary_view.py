@@ -10,6 +10,7 @@ from sc_browser.core.base_view import BaseView
 from sc_browser.core.filter_state import FilterState
 from sc_browser.core.filter_profile import FilterProfile
 
+
 class DatasetSummary(BaseView):
     """
     Lightweight dataset inspector.
@@ -51,9 +52,8 @@ class DatasetSummary(BaseView):
         # obs schema table (column name, dtype, unique values)
         # This is mainly for debugging, so if it ever becomes expensive on huge datasets,
         # we could gate it behind a debug flag.
-        obs_schema = (
-            adata.obs.dtypes.reset_index()
-            .rename(columns={"index": "column", 0: "dtype"})
+        obs_schema = adata.obs.dtypes.reset_index().rename(
+            columns={"index": "column", 0: "dtype"}
         )
         obs_schema["n_unique"] = obs_schema["column"].map(
             lambda col: adata.obs[col].nunique()
@@ -126,4 +126,3 @@ class DatasetSummary(BaseView):
         )
 
         return fig
-

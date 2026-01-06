@@ -54,7 +54,7 @@ def _make_state() -> FilterState:
     state = FilterState(
         dataset_name="dataset_name",
         view_id="subset",
-        clusters=[],    # no filtering
+        clusters=[],  # no filtering
         conditions=[],
         genes=[],
     )
@@ -72,7 +72,13 @@ def test_dataset_summary_compute_data_basic():
     assert isinstance(data, dict)
 
     # Required keys
-    for key in ["n_cells", "n_genes", "obs_schema", "cluster_counts", "condition_counts"]:
+    for key in [
+        "n_cells",
+        "n_genes",
+        "obs_schema",
+        "cluster_counts",
+        "condition_counts",
+    ]:
         assert key in data
 
     assert data["n_cells"] == 4

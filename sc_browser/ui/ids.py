@@ -85,7 +85,6 @@ class IDs:
         REPORTS_DOWNLOAD_SESSION = "reports-download-session"
         REPORTS_IMPORT_BANNER = "reports-import-banner"
 
-
     class Pattern:
         # pattern-matching "type" strings
         REPORTS_DELETE = "reports-delete-figure"

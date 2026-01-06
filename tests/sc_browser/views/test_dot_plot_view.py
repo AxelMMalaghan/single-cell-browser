@@ -8,7 +8,6 @@ from sc_browser.core.filter_state import FilterState
 from sc_browser.views.dot_plot_view import DotplotView
 
 
-
 def _make_dataset_for_dotplot():
     """
     AnnData with:
@@ -136,6 +135,7 @@ def test_dotplot_compute_data_basic():
     # B,y: value 0 -> 0%
     assert g1.loc[("B", "y"), "pctExpressed"] == 0.0
     assert g1.loc[("B", "y"), "meanExpr"] == 0.0
+
 
 def test_dotplot_split_by_condition_changes_cell_identity():
     ds = _make_dataset_for_dotplot()

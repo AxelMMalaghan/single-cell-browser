@@ -19,9 +19,13 @@ from sc_browser.ui.callbacks.callbacks_filters import register_filter_callbacks
 from sc_browser.ui.callbacks.callbacks_sync import register_sync_callbacks
 from sc_browser.ui.callbacks.callbacks_io import register_io_callbacks
 from sc_browser.ui.callbacks.callbacks_render import register_render_callbacks
-from sc_browser.ui.callbacks.callbacks_dataset_import import register_dataset_import_callbacks
+from sc_browser.ui.callbacks.callbacks_dataset_import import (
+    register_dataset_import_callbacks,
+)
 from sc_browser.ui.callbacks.callbacks_reports import register_reports_callbacks
-from sc_browser.ui.callbacks.callbacks_dataset_preview import register_dataset_preview_callbacks
+from sc_browser.ui.callbacks.callbacks_dataset_preview import (
+    register_dataset_preview_callbacks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ def _build_view_registry() -> ViewRegistry:
         FeatureCountView,
         DotplotView,
         HeatmapView,
-        #VolcanoPlotView,
+        # VolcanoPlotView,
         DatasetSummary,
     )
 
@@ -43,7 +47,7 @@ def _build_view_registry() -> ViewRegistry:
     registry.register(FeatureCountView)
     registry.register(DotplotView)
     registry.register(HeatmapView)
-    #registry.register(VolcanoPlotView)
+    # registry.register(VolcanoPlotView)
     registry.register(DatasetSummary)
     return registry
 
@@ -93,7 +97,6 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     export_service = ExportService(
         datasets_by_key=dataset_key_manager,
         view_registry=registry,
-
     )
 
     # 5) App Context
@@ -107,7 +110,9 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
         default_dataset=default_dataset,
         registry=registry,
         export_service=export_service,
-        enable_dataset_management=bool(os.getenv("ENABLE_DATASET_MANAGEMENT", "0") == "1"),
+        enable_dataset_management=bool(
+            os.getenv("ENABLE_DATASET_MANAGEMENT", "0") == "1"
+        ),
     )
 
     # --- FIX: Explicitly resolve the assets folder path ---
@@ -117,7 +122,7 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     app = Dash(
         __name__,
         external_stylesheets=[dbc.themes.FLATLY],
-        assets_folder=str(assets_path) # Explicitly set path
+        assets_folder=str(assets_path),  # Explicitly set path
     )
     # ----------------------------------------------------
 
@@ -135,4 +140,3 @@ def create_dash_app(config_root: Path | str = Path("config")) -> Dash:
     register_dataset_preview_callbacks(app, ctx)
 
     return app
-

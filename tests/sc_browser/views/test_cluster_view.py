@@ -78,7 +78,7 @@ def _make_default_state() -> FilterState:
     )
 
     # Attributes ClusterView expects but FilterState may not set in __init__
-    state.embedding = None        # use dataset.default embedding_key ("X_umap")
+    state.embedding = None  # use dataset.default embedding_key ("X_umap")
     state.dim_x = None
     state.dim_y = None
     state.dim_z = None

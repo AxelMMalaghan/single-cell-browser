@@ -13,6 +13,7 @@ class ObsColumns:
     All fields are optional so that auto-discovered datasets without explicit
     obs_columns config still parse. Views must be defensive when fields are None.
     """
+
     cell_id: Optional[str] = None
     cluster: Optional[str] = None
     condition: Optional[str] = None
@@ -26,6 +27,7 @@ class DatasetConfig:
     """
     Parsed config entry for a single dataset.
     """
+
     raw: Dict[str, Any]
     source_path: Path
     index: int
@@ -44,9 +46,7 @@ class DatasetConfig:
         - legacy:      "file": "data/foo.h5ad" or "file_path": "data/foo.h5ad"
         """
         raw_path = (
-            self.raw.get("path")
-            or self.raw.get("file")
-            or self.raw.get("file_path")
+            self.raw.get("path") or self.raw.get("file") or self.raw.get("file_path")
         )
         if raw_path is None:
             raise KeyError(
@@ -65,7 +65,9 @@ class DatasetConfig:
         return ObsColumns(**raw_cols)
 
     @classmethod
-    def from_raw(cls, raw: Dict[str, Any], source_path: Path, index: int) -> DatasetConfig:
+    def from_raw(
+        cls, raw: Dict[str, Any], source_path: Path, index: int
+    ) -> DatasetConfig:
         return cls(raw=raw, source_path=source_path, index=index)
 
 

@@ -8,7 +8,6 @@ from dash import dcc, html
 from sc_browser.core.dataset import Dataset
 
 
-
 def build_dataset_import_panel(
     datasets: List[Dataset],
     default_dataset: Dataset | None,
@@ -26,7 +25,6 @@ def build_dataset_import_panel(
 
     status_card = dbc.Card(
         [
-
             dbc.CardBody(
                 [
                     html.Label("Active dataset", className="form-label"),
@@ -42,16 +40,12 @@ def build_dataset_import_panel(
                         placeholder="Select dataset",
                         className="scb-dataset-dropdown mb-3",
                     ),
-
                     html.Hr(),
-
                     html.Div("Current dataset", className="form-label mb-1"),
                     html.Div(id="dm-current-dataset", className="form-label mb-1"),
                     html.Div(id="dm-status-text", className="mb-1 small"),
                     html.Div(id="dm-summary-text", className="text-muted mb-3 small"),
-
                     html.Label("Import dataset (.h5ad)", className="form-label mt-1"),
-
                     dcc.Upload(
                         id="dm-upload",
                         children=html.Div(
@@ -63,7 +57,6 @@ def build_dataset_import_panel(
                     html.Div(id="dm-import-status", className="small text-muted mt-2"),
                 ]
             ),
-
         ],
         className="h-100",
     )
@@ -77,15 +70,21 @@ def build_dataset_import_panel(
                         [
                             dbc.Col(
                                 [
-                                    html.Label("Cluster column", className="form-label"),
+                                    html.Label(
+                                        "Cluster column", className="form-label"
+                                    ),
                                     dcc.Dropdown(id="dm-cluster-key", className="mb-2"),
                                 ],
                                 md=6,
                             ),
                             dbc.Col(
                                 [
-                                    html.Label("Condition column", className="form-label"),
-                                    dcc.Dropdown(id="dm-condition-key", className="mb-2"),
+                                    html.Label(
+                                        "Condition column", className="form-label"
+                                    ),
+                                    dcc.Dropdown(
+                                        id="dm-condition-key", className="mb-2"
+                                    ),
                                 ],
                                 md=6,
                             ),
@@ -103,8 +102,12 @@ def build_dataset_import_panel(
                             ),
                             dbc.Col(
                                 [
-                                    html.Label("Cell type column", className="form-label"),
-                                    dcc.Dropdown(id="dm-celltype-key", className="mb-2"),
+                                    html.Label(
+                                        "Cell type column", className="form-label"
+                                    ),
+                                    dcc.Dropdown(
+                                        id="dm-celltype-key", className="mb-2"
+                                    ),
                                 ],
                                 md=6,
                             ),

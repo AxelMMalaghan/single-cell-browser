@@ -26,32 +26,52 @@ def _find_match(columns: List[str], candidates: List[str]) -> Optional[str]:
 
 def infer_cluster_key(adata: ad.AnnData) -> Optional[str]:
     candidates = [
-        "leiden", "louvain", "cluster", "clusters",
-        "seurat_clusters", "RNA_snn_res.0.8", "res.0.5"
+        "leiden",
+        "louvain",
+        "cluster",
+        "clusters",
+        "seurat_clusters",
+        "RNA_snn_res.0.8",
+        "res.0.5",
     ]
     return _find_match(list(adata.obs.columns), candidates)
 
 
 def infer_condition_key(adata: ad.AnnData) -> Optional[str]:
     candidates = [
-        "condition", "treatment", "group", "disease",
-        "genotype", "status", "diagnosis", "stim"
+        "condition",
+        "treatment",
+        "group",
+        "disease",
+        "genotype",
+        "status",
+        "diagnosis",
+        "stim",
     ]
     return _find_match(list(adata.obs.columns), candidates)
 
 
 def infer_sample_key(adata: ad.AnnData) -> Optional[str]:
     candidates = [
-        "sample", "sample_id", "donor", "patient",
-        "orig.ident", "batch", "replicate"
+        "sample",
+        "sample_id",
+        "donor",
+        "patient",
+        "orig.ident",
+        "batch",
+        "replicate",
     ]
     return _find_match(list(adata.obs.columns), candidates)
 
 
 def infer_cell_type_key(adata: ad.AnnData) -> Optional[str]:
     candidates = [
-        "cell_type", "celltype", "annotation",
-        "cell_annotation", "broad_cell_type", "predicted.id"
+        "cell_type",
+        "celltype",
+        "annotation",
+        "cell_annotation",
+        "broad_cell_type",
+        "predicted.id",
     ]
     return _find_match(list(adata.obs.columns), candidates)
 

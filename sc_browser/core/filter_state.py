@@ -48,7 +48,6 @@ class FilterState:
 
     color_scale: Optional[str] = "viridis"
 
-
     # To and from dictionary methods
 
     def to_dict(self) -> Dict[str, Any]:
@@ -87,5 +86,3 @@ class FilterState:
             dim_z=data.get("dim_z", None),
             color_scale=data.get("color_scale", "viridis"),
         )
-
-
