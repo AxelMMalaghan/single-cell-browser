@@ -8,18 +8,19 @@ from sc_browser.ui.dash_app import create_dash_app
 
 from sc_browser.logging_config import configure_logging
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--server.port', dest='port', type=int,
+    parser.add_argument(
+        "--server.port", dest="port", type=int, default=int(os.getenv("PORT", "8052"))
+    )
 
-                        default=int(os.getenv("PORT", "8052")))
+    parser.add_argument("--host", default="0.0.0.0")
 
-    parser.add_argument('--host', default="0.0.0.0")
-
-    parser.add_argument('--debug', action='store_true',
-
-                        default=os.getenv("DEBUG", "0") == "1")
+    parser.add_argument(
+        "--debug", action="store_true", default=os.getenv("DEBUG", "0") == "1"
+    )
 
     return parser.parse_args()
 
