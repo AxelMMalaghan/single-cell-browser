@@ -153,8 +153,12 @@ def _validate_and_build_state(ctx: AppConfig, inputs: dict[str, Any]) -> dict[st
 
 def register_sync_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # ---------------------------------------------------------
-    # UI -> FilterState (canonical)
+    # UI -> FilterState (SINGLE WRITER)
     # ---------------------------------------------------------
+    # This is the ONLY callback that writes to FILTER_STATE.
+    # All other callbacks (e.g., load_figure_from_session) update UI controls,
+    # which then trigger this callback to derive the canonical state.
+    # This single-writer pattern prevents race conditions.
     @app.callback(
         Output(IDs.Store.FILTER_STATE, "data"),
         Input(IDs.Control.DATASET_SELECT, "value"),

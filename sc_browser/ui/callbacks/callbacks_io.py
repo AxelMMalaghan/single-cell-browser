@@ -111,8 +111,10 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     # ---------------------------------------------------------
     # 3) Load figure filters from the session store
     # ---------------------------------------------------------
+    # NOTE: This callback only updates UI controls, NOT FILTER_STATE directly.
+    # FILTER_STATE is derived by sync_filter_state_from_ui (single-writer pattern)
+    # to avoid race conditions between callbacks.
     @app.callback(
-        Output(IDs.Store.FILTER_STATE, "data", allow_duplicate=True),
         Output(IDs.Control.DATASET_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.VIEW_SELECT, "value", allow_duplicate=True),
         Output(IDs.Control.CLUSTER_SELECT, "value", allow_duplicate=True),
@@ -135,7 +137,7 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
     )
     def load_figure_from_session(n_clicks: int | None, figure_id: str | None, session_data: dict | None):
         if not n_clicks or not figure_id or figure_id == NEW_FIGURE_VALUE or not session_data:
-            return (no_update,) * 15 + (None,)
+            return (no_update,) * 14 + (None,)
 
         figures = session_data.get("figures", [])
         fig_dict = next((f for f in figures if f.get("id") == figure_id), None)
@@ -152,8 +154,9 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         if state.is_3d:
             options.append(OPT_IS_3D)
 
+        # Return UI control values only. sync_filter_state_from_ui will derive
+        # FILTER_STATE from these values, ensuring single source of truth.
         return (
-            state.to_dict(),  # Directly update FILTER_STATE to trigger plot render
             state.dataset_name,
             state.view_id,
             state.clusters,
