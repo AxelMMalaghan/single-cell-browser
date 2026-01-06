@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 
-from pythonjsonlogger.jsonlogger import JsonFormatter
+from pythonjsonlogger.json import JsonFormatter
 
 
 def _env_bool(name: str, default: str = "0") -> bool:

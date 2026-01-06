@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -45,8 +47,10 @@ class FeatureCountView(BaseView):
 
         # Total counts per cell (works for dense and sparse)
         if sparse.issparse(X):
-            n_counts = np.asarray(X.sum(axis=1)).ravel()
-            n_features = np.asarray((X > 0).sum(axis=1)).ravel()
+            X_sparse = cast(Any, X)
+            dense = np.asarray(X_sparse.toarray())
+            n_counts = dense.sum(axis=1).ravel()
+            n_features = (dense > 0).sum(axis=1).ravel()
         else:
             dense = np.asarray(X)
             n_counts = dense.sum(axis=1).ravel()

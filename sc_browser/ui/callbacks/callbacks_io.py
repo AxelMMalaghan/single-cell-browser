@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import dash
 import pandas as pd
@@ -281,7 +281,8 @@ def register_io_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         data = view.compute_data(state)
 
         if isinstance(data, pd.DataFrame):
-            send_data_frame = dcc.send_data_frame
+            dcc_mod = cast(Any, dcc)
+            send_data_frame = dcc_mod.send_data_frame
             return send_data_frame(
                 data.to_csv, f"{state.view_id}_{ds.name}.csv", index=False
             )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, cast
 
 import anndata as ad
 import numpy as np
@@ -79,27 +79,31 @@ class Dataset:
 
         if cluster_key is not None and cluster_key in obs.columns:
             cluster_col = cluster_key
-            self._cluster_series = obs[cluster_col].astype(str).copy()
+            cluster_series = cast(pd.Series, obs[cluster_col])
+            self._cluster_series = cluster_series.astype(str).copy()
         else:
             self._cluster_series = None
 
         if condition_key is not None and condition_key in obs.columns:
             condition_col = condition_key
-            self._condition_series = obs[condition_col].astype(str).copy()
+            condition_series = cast(pd.Series, obs[condition_col])
+            self._condition_series = condition_series.astype(str).copy()
         else:
             self._condition_series = None
 
         sample_key = self.obs_columns.get("sample")
         if sample_key is not None and sample_key in obs.columns:
             sample_col = sample_key
-            self._sample_series = obs[sample_col].astype(str).copy()
+            sample_series = cast(pd.Series, obs[sample_col])
+            self._sample_series = sample_series.astype(str).copy()
         else:
             self._sample_series = None
 
         cell_type_key = self.obs_columns.get("cell_type")
         if cell_type_key is not None and cell_type_key in obs.columns:
             cell_type_col = cell_type_key
-            self._cell_type_series = obs[cell_type_col].astype(str).copy()
+            cell_type_series = cast(pd.Series, obs[cell_type_col])
+            self._cell_type_series = cell_type_series.astype(str).copy()
         else:
             self._cell_type_series = None
 
@@ -334,7 +338,8 @@ class Dataset:
 
         # Materialize sparse data to dense for the UI DataFrame
         if sparse.issparse(X):
-            X = X.toarray()
+            X_sparse = cast(Any, X)
+            X = np.asarray(X_sparse.toarray())
         else:
             X = np.asarray(X)
 
@@ -364,27 +369,31 @@ class Dataset:
 
         if self.cluster_key and self.cluster_key in obs.columns:
             cluster_col = self.cluster_key
-            self._cluster_series = obs[cluster_col].astype(str).copy()
+            cluster_series = cast(pd.Series, obs[cluster_col])
+            self._cluster_series = cluster_series.astype(str).copy()
         else:
             self._cluster_series = None
 
         if self.condition_key and self.condition_key in obs.columns:
             condition_col = self.condition_key
-            self._condition_series = obs[condition_col].astype(str).copy()
+            condition_series = cast(pd.Series, obs[condition_col])
+            self._condition_series = condition_series.astype(str).copy()
         else:
             self._condition_series = None
 
         sample_key = self.obs_columns.get("sample")
         if sample_key and sample_key in obs.columns:
             sample_col = sample_key
-            self._sample_series = obs[sample_col].astype(str).copy()
+            sample_series = cast(pd.Series, obs[sample_col])
+            self._sample_series = sample_series.astype(str).copy()
         else:
             self._sample_series = None
 
         cell_type_key = self.obs_columns.get("cell_type")
         if cell_type_key and cell_type_key in obs.columns:
             cell_type_col = cell_type_key
-            self._cell_type_series = obs[cell_type_col].astype(str).copy()
+            cell_type_series = cast(pd.Series, obs[cell_type_col])
+            self._cell_type_series = cell_type_series.astype(str).copy()
         else:
             self._cell_type_series = None
 
@@ -396,22 +405,22 @@ class Dataset:
     @property
     def clusters(self) -> Optional[pd.Series]:
         """Return cluster labels (string-normalised), if configured."""
-        return self._cluster_series
+        return cast(Optional[pd.Series], self._cluster_series)
 
     @property
     def conditions(self) -> Optional[pd.Series]:
         """Return condition labels (string-normalised), if configured."""
-        return self._condition_series
+        return cast(Optional[pd.Series], self._condition_series)
 
     @property
     def samples(self) -> Optional[pd.Series]:
         """Return sample labels (string-normalised), if configured."""
-        return self._sample_series
+        return cast(Optional[pd.Series], self._sample_series)
 
     @property
     def cell_types(self) -> Optional[pd.Series]:
         """Return cell type labels (string-normalised), if configured."""
-        return self._cell_type_series
+        return cast(Optional[pd.Series], self._cell_type_series)
 
     @property
     def genes(self) -> pd.Index:

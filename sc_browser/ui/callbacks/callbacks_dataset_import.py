@@ -128,7 +128,7 @@ def register_dataset_import_callbacks(app: dash.Dash, ctx: AppConfig) -> None:
         emb_options = [{"label": k, "value": k} for k in emb_keys]
 
         emb_val = ds.embedding_key
-        if emb_val not in ds.adata.obsm:
+        if emb_val is None or emb_val not in ds.adata.obsm:
             emb_val = infer_embedding_key(ds.adata)
 
         current_label = f"Current dataset: {ds.name}"
